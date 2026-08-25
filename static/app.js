@@ -116,6 +116,57 @@ function setWorkspace(workspace, scroll = true) {
   if (scroll) window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
 }
 
+function spatialMotionEnabled() {
+  return window.matchMedia("(pointer: fine)").matches && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function bindDepthSurface(surface) {
+  if (!surface || !spatialMotionEnabled()) return;
+  const reset = () => {
+    surface.style.setProperty("--surface-rx", "0deg");
+    surface.style.setProperty("--surface-ry", "0deg");
+    surface.style.setProperty("--surface-shine-x", "50%");
+    surface.style.setProperty("--surface-shine-y", "20%");
+  };
+  surface.addEventListener("pointermove", (event) => {
+    const bounds = surface.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
+    const x = Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width));
+    const y = Math.min(1, Math.max(0, (event.clientY - bounds.top) / bounds.height));
+    surface.style.setProperty("--surface-rx", `${((0.5 - y) * 7).toFixed(2)}deg`);
+    surface.style.setProperty("--surface-ry", `${((x - 0.5) * 9).toFixed(2)}deg`);
+    surface.style.setProperty("--surface-shine-x", `${Math.round(x * 100)}%`);
+    surface.style.setProperty("--surface-shine-y", `${Math.round(y * 100)}%`);
+  });
+  surface.addEventListener("pointerleave", reset);
+  surface.addEventListener("pointercancel", reset);
+}
+
+function setupSpatialUi() {
+  if (!spatialMotionEnabled()) return;
+  $$(".subjectChip,.heroCard .stat,.smartTool,.quickAction").forEach(bindDepthSurface);
+  const scene = $("#scene");
+  if (!scene) return;
+  const resetCardDepth = () => {
+    scene.style.setProperty("--card-rx", "0deg");
+    scene.style.setProperty("--card-ry", "0deg");
+    scene.style.setProperty("--card-glare-x", "50%");
+    scene.style.setProperty("--card-glare-y", "24%");
+  };
+  scene.addEventListener("pointermove", (event) => {
+    const bounds = scene.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
+    const x = Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width));
+    const y = Math.min(1, Math.max(0, (event.clientY - bounds.top) / bounds.height));
+    scene.style.setProperty("--card-rx", `${((0.5 - y) * 8).toFixed(2)}deg`);
+    scene.style.setProperty("--card-ry", `${((x - 0.5) * 11).toFixed(2)}deg`);
+    scene.style.setProperty("--card-glare-x", `${Math.round(x * 100)}%`);
+    scene.style.setProperty("--card-glare-y", `${Math.round(y * 100)}%`);
+  });
+  scene.addEventListener("pointerleave", resetCardDepth);
+  scene.addEventListener("pointercancel", resetCardDepth);
+}
+
 function subjectMatches(card, workspaceKey) {
   const config = SUBJECT_WORKSPACES[workspaceKey];
   if (!card || !config) return false;
@@ -2828,6 +2879,7 @@ document.addEventListener("keydown", (event) => {
   else if (event.key.toLowerCase() === "t") toggleTimer();
 });
 
+setupSpatialUi();
 loadTheme();
 await load();
 importSharedDeckFromHash();
