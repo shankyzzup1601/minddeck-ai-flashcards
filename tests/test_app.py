@@ -1,3 +1,4 @@
+import base64
 import os
 import re
 import unittest
@@ -74,6 +75,15 @@ class MindDeckSecurityTests(unittest.TestCase):
         self.assertIn('id="memoryArc"', page)
         self.assertIn('id="forecastWidget"', page)
         self.assertIn('id="quickActions"', page)
+        self.assertIn('id="smartStudyLab"', page)
+        self.assertIn('id="reviewHeatmap"', page)
+        self.assertIn('id="feynmanRecord"', page)
+        self.assertIn('id="photoFile"', page)
+        self.assertIn('id="cardMode"', page)
+        self.assertIn('id="leechModal"', page)
+        self.assertIn('id="matchModal"', page)
+        self.assertIn('id="exchangeModal"', page)
+        self.assertIn('/static/manifest.webmanifest', page)
         self.assertIn('id="themeToggle"', page)
         self.assertIn('id="togglePassword"', page)
         self.assertIn('placeholder="Enter your password"', page)
@@ -88,6 +98,9 @@ class MindDeckSecurityTests(unittest.TestCase):
         self.assertIn("script-src 'self' 'nonce-", response.headers["Content-Security-Policy"])
         self.assertIn("style-src-attr 'none'", response.headers["Content-Security-Policy"])
         self.assertIn("require-trusted-types-for 'script'", response.headers["Content-Security-Policy"])
+        self.assertIn("media-src 'self' blob:", response.headers["Content-Security-Policy"])
+        self.assertIn("camera=(self)", response.headers["Permissions-Policy"])
+        self.assertIn("microphone=(self)", response.headers["Permissions-Policy"])
         self.assertIn("HttpOnly", response.headers["Set-Cookie"])
         self.assertIn("Secure", response.headers["Set-Cookie"])
         self.assertIn("SameSite=Strict", response.headers["Set-Cookie"])
@@ -146,6 +159,11 @@ class MindDeckSecurityTests(unittest.TestCase):
                         {"date": "2026-08-25", "seconds": 3_900},
                         {"date": "2026-99-99", "seconds": 500},
                     ],
+                    "dailyReviews": [
+                        {"date": "2026-08-24", "count": 14},
+                        {"date": "2026-08-25", "count": 6},
+                        {"date": "invalid", "count": 100},
+                    ],
                 },
             }
         )
@@ -160,6 +178,40 @@ class MindDeckSecurityTests(unittest.TestCase):
                 {"date": "2026-08-25", "seconds": 3_900},
             ],
         )
+        self.assertEqual(
+            normalized["study"]["dailyReviews"],
+            [
+                {"date": "2026-08-24", "count": 14},
+                {"date": "2026-08-25", "count": 6},
+            ],
+        )
+
+    def test_cloud_deck_preserves_smart_learning_state(self):
+        normalized = minddeck.normalize_cloud_deck(
+            {
+                "cards": [
+                    {
+                        "id": "card_smart_1",
+                        "front": "Plants use _____",
+                        "back": "Plants use chlorophyll.",
+                        "type": "cloze",
+                        "clozeText": "Plants use {{c1::chlorophyll}}.",
+                        "lapseStreak": 4,
+                        "leech": True,
+                        "lastScore": 1,
+                        "hints": ["Think pigment", "It absorbs light", "Starts with chl"],
+                    }
+                ],
+                "updatedAt": 1,
+            }
+        )
+
+        card = normalized["cards"][0]
+        self.assertEqual(card["type"], "cloze")
+        self.assertEqual(card["clozeText"], "Plants use {{c1::chlorophyll}}.")
+        self.assertEqual(card["lapseStreak"], 4)
+        self.assertTrue(card["leech"])
+        self.assertEqual(len(card["hints"]), 3)
 
     def test_signin_uses_httponly_auth_cookies(self):
         tokens = {
@@ -359,6 +411,41 @@ class MindDeckSecurityTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("Secrets are not accepted", response.json["error"])
 
+    def test_browser_secrets_are_rejected_by_vision_endpoint(self):
+        _home, csrf = self.home()
+        response = self.post(
+            "/api/vision",
+            {
+                "provider": "openai",
+                "cardMode": "mixed",
+                "imageData": "data:image/jpeg;base64,invalid",
+                "apiKey": "must-not-be-accepted",
+            },
+            csrf,
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Secrets are not accepted", response.json["error"])
+
+    def test_image_payload_requires_matching_magic_bytes(self):
+        jpeg_bytes = b"\xff\xd8\xff" + (b"\x00" * 97)
+        encoded = base64.b64encode(jpeg_bytes).decode("ascii")
+
+        mime_type, clean = minddeck.parse_image_data(f"data:image/jpeg;base64,{encoded}")
+        self.assertEqual(mime_type, "image/jpeg")
+        self.assertEqual(clean, encoded)
+        with self.assertRaises(ValueError):
+            minddeck.parse_image_data(f"data:image/png;base64,{encoded}")
+
+    def test_cloze_cards_keep_safe_structured_fields(self):
+        cards = minddeck.parse_cards(
+            '{"cards":[{"front":"Plants use _____","back":"Plants use chlorophyll",'
+            '"type":"cloze","clozeText":"Plants use {{c1::chlorophyll}}."}]}'
+        )
+
+        self.assertEqual(cards[0]["type"], "cloze")
+        self.assertEqual(cards[0]["clozeText"], "Plants use {{c1::chlorophyll}}.")
+
     def test_scrypt_unlock_creates_short_lived_httponly_session(self):
         environment = self.secure_environment()
         with patch.dict(os.environ, environment, clear=True):
@@ -422,6 +509,70 @@ class MindDeckSecurityTests(unittest.TestCase):
         self.assertEqual(captured["headers"]["Authorization"], "Bearer server-only-test-key")
         self.assertNotIn("server-only-test-key", generated.get_data(as_text=True))
         self.assertFalse(captured["payload"]["store"])
+
+    def test_vision_generation_uses_locked_server_key(self):
+        captured = {}
+
+        def fake_post(url, payload, headers):
+            captured.update(url=url, payload=payload, headers=headers)
+            return {
+                "choices": [
+                    {"message": {"content": '{"cards":[{"front":"Image Q","back":"Image A"}]}'}}
+                ]
+            }
+
+        image_bytes = b"\xff\xd8\xff" + (b"\x00" * 97)
+        image_data = "data:image/jpeg;base64," + base64.b64encode(image_bytes).decode("ascii")
+        with patch.dict(os.environ, self.secure_environment(), clear=True), patch.object(
+            minddeck, "post_json", side_effect=fake_post
+        ):
+            _home, csrf = self.home()
+            self.post(
+                "/api/unlock",
+                {"provider": "openai", "accessCode": "a-very-strong-test-code"},
+                csrf,
+            )
+            response = self.post(
+                "/api/vision",
+                {"provider": "openai", "cardMode": "mixed", "imageData": image_data},
+                csrf,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["cards"], [{"front": "Image Q", "back": "Image A"}])
+        self.assertEqual(captured["headers"]["Authorization"], "Bearer server-only-test-key")
+        self.assertIn("image_url", str(captured["payload"]))
+        self.assertNotIn("server-only-test-key", response.get_data(as_text=True))
+
+    def test_hint_generation_returns_three_non_browser_secrets(self):
+        def fake_post(_url, _payload, _headers):
+            return {
+                "choices": [
+                    {"message": {"content": '{"hints":["Concept","Relationship","Beginning"]}'}}
+                ]
+            }
+
+        with patch.dict(os.environ, self.secure_environment(), clear=True), patch.object(
+            minddeck, "post_json", side_effect=fake_post
+        ):
+            _home, csrf = self.home()
+            self.post(
+                "/api/unlock",
+                {"provider": "openai", "accessCode": "a-very-strong-test-code"},
+                csrf,
+            )
+            response = self.post(
+                "/api/hint",
+                {
+                    "provider": "openai",
+                    "front": "What is photosynthesis?",
+                    "back": "Plants convert light into chemical energy.",
+                },
+                csrf,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["hints"], ["Concept", "Relationship", "Beginning"])
 
     def test_lock_endpoint_revokes_browser_session(self):
         environment = self.secure_environment()
