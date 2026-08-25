@@ -5,6 +5,12 @@ const GUEST_STORE = "minddeck-v2";
 const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || "";
 const PDF_MODULE = "/static/vendor/pdf-4.10.38.min.mjs";
 const PDF_WORKER = "/static/vendor/pdf-4.10.38.worker.min.mjs";
+const FOCUS_STORE = "minddeck-focus-timer-v1";
+const TIMER_MODES = Object.freeze({
+  focus: { label: "Focus sprint", duration: 25 * 60, isFocus: true },
+  break: { label: "Quick reset", duration: 5 * 60, isFocus: false },
+  deep: { label: "Deep focus", duration: 50 * 60, isFocus: true },
+});
 
 let cards = [];
 let index = 0;
@@ -20,6 +26,9 @@ let activeStoreKey = GUEST_STORE;
 let activeAccountKey = null;
 let accountStoreFresh = false;
 let removeGuestAfterSync = false;
+let studyStats = defaultStudyStats();
+let timerState = defaultTimerState();
+let timerInterval = null;
 
 function newCard(front, back) {
   return {
@@ -37,6 +46,36 @@ function newCard(front, back) {
 function finiteNumber(value, fallback, minimum, maximum) {
   const number = Number(value);
   return Number.isFinite(number) ? Math.min(maximum, Math.max(minimum, number)) : fallback;
+}
+
+function defaultStudyStats() {
+  return { totalSeconds: 0, sessions: 0, dailyGoalMinutes: 25, dailyFocus: [] };
+}
+
+function normalizeStudyStats(value) {
+  if (!value || typeof value !== "object") return defaultStudyStats();
+  const dailyByDate = new Map();
+  const rawDaily = Array.isArray(value.dailyFocus) ? value.dailyFocus.slice(-90) : [];
+  for (const item of rawDaily) {
+    if (!item || typeof item !== "object" || typeof item.date !== "string") continue;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(item.date) || !Number.isFinite(Date.parse(`${item.date}T00:00:00Z`))) continue;
+    const seconds = Math.round(finiteNumber(item.seconds, 0, 0, 86_400));
+    dailyByDate.set(item.date, seconds);
+  }
+  return {
+    totalSeconds: Math.round(finiteNumber(value.totalSeconds, 0, 0, 315_360_000)),
+    sessions: Math.round(finiteNumber(value.sessions, 0, 0, 1_000_000)),
+    dailyGoalMinutes: Math.round(finiteNumber(value.dailyGoalMinutes, 25, 15, 240)),
+    dailyFocus: [...dailyByDate.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .slice(-90)
+      .map(([date, seconds]) => ({ date, seconds })),
+  };
+}
+
+function defaultTimerState(mode = "focus") {
+  const config = TIMER_MODES[mode] || TIMER_MODES.focus;
+  return { mode, duration: config.duration, remaining: config.duration, running: false, endAt: 0 };
 }
 
 function normalizeCard(value) {
@@ -63,6 +102,7 @@ function deckSnapshot() {
     cards,
     index,
     reviewed: [...reviewed],
+    study: studyStats,
     updatedAt: deckUpdatedAt,
   };
 }
@@ -91,6 +131,7 @@ function applyDeckState(value) {
       ? value.reviewed.filter((id) => typeof id === "string" && cards.some((card) => card.id === id))
       : []
   );
+  studyStats = normalizeStudyStats(value.study);
   deckUpdatedAt = finiteNumber(value.updatedAt, 0, 0, Number.MAX_SAFE_INTEGER);
   return true;
 }
@@ -103,6 +144,7 @@ function load() {
     cards = [];
     index = 0;
     reviewed = new Set();
+    studyStats = defaultStudyStats();
     deckUpdatedAt = 0;
   }
   render(false);
@@ -122,6 +164,7 @@ function activateAccountStore(accountKey) {
       cards = [];
       index = 0;
       reviewed = new Set();
+      studyStats = defaultStudyStats();
       deckUpdatedAt = 0;
       accountStoreFresh = true;
     }
@@ -143,6 +186,271 @@ function toast(message) {
   element.textContent = String(message).slice(0, 180);
   element.classList.add("show");
   window.setTimeout(() => element.classList.remove("show"), 2000);
+}
+
+function localDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function dateKeyDaysAgo(days) {
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() - days);
+  return localDateKey(date);
+}
+
+function focusSecondsFor(dateKey) {
+  return studyStats.dailyFocus.find((item) => item.date === dateKey)?.seconds || 0;
+}
+
+function currentStudyStreak() {
+  const activeDays = new Set(
+    studyStats.dailyFocus.filter((item) => item.seconds >= 60).map((item) => item.date)
+  );
+  const cursor = new Date();
+  cursor.setHours(12, 0, 0, 0);
+  if (!activeDays.has(localDateKey(cursor))) cursor.setDate(cursor.getDate() - 1);
+  let streak = 0;
+  while (activeDays.has(localDateKey(cursor)) && streak < 3650) {
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+
+function formatTimer(seconds) {
+  const safeSeconds = Math.max(0, Math.round(seconds));
+  return `${String(Math.floor(safeSeconds / 60)).padStart(2, "0")}:${String(safeSeconds % 60).padStart(2, "0")}`;
+}
+
+function formatFocusTotal(seconds) {
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return remainder ? `${hours}h ${remainder}m` : `${hours}h`;
+}
+
+function renderWeekBars() {
+  const weekBars = $("#weekBars");
+  if (!weekBars) return;
+  weekBars.replaceChildren();
+  const goalSeconds = studyStats.dailyGoalMinutes * 60;
+  for (let offset = 6; offset >= 0; offset -= 1) {
+    const dateKey = dateKeyDaysAgo(offset);
+    const seconds = focusSecondsFor(dateKey);
+    const level = seconds ? Math.max(1, Math.min(10, Math.ceil((seconds / goalSeconds) * 10))) : 0;
+    const day = document.createElement("div");
+    day.className = "weekDay";
+    const bar = document.createElement("div");
+    bar.className = `weekBar level-${level}`;
+    bar.setAttribute("aria-label", `${Math.floor(seconds / 60)} focus minutes on ${dateKey}`);
+    bar.title = `${Math.floor(seconds / 60)} min`;
+    const fill = document.createElement("i");
+    fill.setAttribute("aria-hidden", "true");
+    const label = document.createElement("small");
+    label.textContent = new Intl.DateTimeFormat(undefined, { weekday: "narrow" }).format(
+      new Date(`${dateKey}T12:00:00`)
+    );
+    bar.append(fill);
+    day.append(bar, label);
+    weekBars.append(day);
+  }
+}
+
+function renderStudyWidgets() {
+  if (!$("#timerWidget")) return;
+  const config = TIMER_MODES[timerState.mode] || TIMER_MODES.focus;
+  const progress = timerState.duration
+    ? Math.min(100, Math.max(0, ((timerState.duration - timerState.remaining) / timerState.duration) * 100))
+    : 0;
+  $("#timerTime").textContent = formatTimer(timerState.remaining);
+  $("#timerModeLabel").textContent = config.label;
+  $("#timerArc").setAttribute("stroke-dasharray", `${progress.toFixed(2)} 100`);
+  $("#timerWidget").classList.toggle("running", timerState.running);
+  $("#timerToggle").textContent = timerState.running
+    ? "Ⅱ Pause"
+    : timerState.remaining === 0
+      ? "▶ Start again"
+      : config.isFocus
+        ? "▶ Start focus"
+        : "▶ Start break";
+  $("#timerPrompt").textContent = timerState.running
+    ? config.isFocus
+      ? "Focus mode is active."
+      : "Breathe, reset, return stronger."
+    : timerState.remaining === 0
+      ? `${config.label} complete.`
+      : "Ready for one focused task?";
+  $("#timerHint").textContent = timerState.running
+    ? "The timer keeps running safely if you switch tabs."
+    : timerState.remaining === 0
+      ? config.isFocus
+        ? "Your focused minutes were added to your progress."
+        : "Your break is complete. Choose a focus session when ready."
+      : "Choose a rhythm, remove distractions, and begin.";
+  $$('[data-timer-mode]').forEach((button) => {
+    const active = button.dataset.timerMode === timerState.mode;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+
+  const todaySeconds = focusSecondsFor(localDateKey());
+  const todayMinutes = Math.floor(todaySeconds / 60);
+  const goalMinutes = studyStats.dailyGoalMinutes;
+  const goalPercent = Math.min(100, Math.round((todaySeconds / (goalMinutes * 60)) * 100));
+  $("#todayMinutes").textContent = todayMinutes;
+  $("#goalMinutes").textContent = goalMinutes;
+  $("#goalProgress").value = goalPercent;
+  $("#goalProgress").textContent = `${goalPercent}%`;
+  $("#goalMessage").textContent =
+    goalPercent >= 100
+      ? "Daily goal complete. Beautiful work."
+      : todayMinutes
+        ? `${Math.max(1, goalMinutes - todayMinutes)} focused minutes to reach today's goal.`
+        : "Your first focused session starts here.";
+  $("#totalFocus").textContent = formatFocusTotal(studyStats.totalSeconds);
+  $("#focusSessions").textContent = studyStats.sessions;
+
+  const streak = currentStudyStreak();
+  $("#streakCount").textContent = streak;
+  $("#streakMessage").textContent = streak
+    ? `${streak} consistent ${streak === 1 ? "day" : "days"}. Keep the chain alive.`
+    : "Complete a focus session to light up your week.";
+  renderWeekBars();
+}
+
+function storeTimerState() {
+  try {
+    localStorage.setItem(FOCUS_STORE, JSON.stringify(timerState));
+  } catch {
+    // The timer can continue for this tab even if storage is unavailable.
+  }
+}
+
+function startTimerTicker() {
+  window.clearInterval(timerInterval);
+  timerInterval = timerState.running ? window.setInterval(updateTimerFromClock, 250) : null;
+}
+
+function loadTimerState() {
+  window.clearInterval(timerInterval);
+  timerInterval = null;
+  try {
+    const stored = JSON.parse(localStorage.getItem(FOCUS_STORE) || "{}");
+    const mode = Object.hasOwn(TIMER_MODES, stored.mode) ? stored.mode : "focus";
+    const config = TIMER_MODES[mode];
+    const endAt = Math.round(finiteNumber(stored.endAt, 0, 0, Number.MAX_SAFE_INTEGER));
+    const running = Boolean(stored.running && endAt);
+    timerState = {
+      mode,
+      duration: config.duration,
+      remaining: Math.round(finiteNumber(stored.remaining, config.duration, 0, config.duration)),
+      running,
+      endAt: running ? endAt : 0,
+    };
+    if (running) {
+      timerState.remaining = Math.min(
+        config.duration,
+        Math.max(0, Math.ceil((timerState.endAt - Date.now()) / 1000))
+      );
+      if (timerState.remaining === 0) {
+        completeTimer();
+        return;
+      }
+    }
+  } catch {
+    timerState = defaultTimerState();
+  }
+  startTimerTicker();
+  renderStudyWidgets();
+}
+
+function recordFocusSession(seconds) {
+  const safeSeconds = Math.round(finiteNumber(seconds, 0, 60, 4 * 60 * 60));
+  const today = localDateKey();
+  const dailyFocus = new Map(studyStats.dailyFocus.map((item) => [item.date, item.seconds]));
+  dailyFocus.set(today, Math.min(86_400, (dailyFocus.get(today) || 0) + safeSeconds));
+  studyStats = normalizeStudyStats({
+    ...studyStats,
+    totalSeconds: studyStats.totalSeconds + safeSeconds,
+    sessions: studyStats.sessions + 1,
+    dailyFocus: [...dailyFocus.entries()].map(([date, focusedSeconds]) => ({
+      date,
+      seconds: focusedSeconds,
+    })),
+  });
+  renderStudyWidgets();
+  save(true);
+}
+
+function completeTimer() {
+  const config = TIMER_MODES[timerState.mode] || TIMER_MODES.focus;
+  timerState.running = false;
+  timerState.remaining = 0;
+  timerState.endAt = 0;
+  window.clearInterval(timerInterval);
+  timerInterval = null;
+  storeTimerState();
+  if (config.isFocus) recordFocusSession(timerState.duration);
+  else renderStudyWidgets();
+  toast(config.isFocus ? `${config.label} complete · progress saved` : "Break complete · ready to focus");
+}
+
+function updateTimerFromClock() {
+  if (!timerState.running) return;
+  timerState.remaining = Math.min(
+    timerState.duration,
+    Math.max(0, Math.ceil((timerState.endAt - Date.now()) / 1000))
+  );
+  if (timerState.remaining === 0) completeTimer();
+  else renderStudyWidgets();
+}
+
+function toggleTimer() {
+  if (timerState.running) {
+    timerState.remaining = Math.min(
+      timerState.duration,
+      Math.max(0, Math.ceil((timerState.endAt - Date.now()) / 1000))
+    );
+    timerState.running = false;
+    timerState.endAt = 0;
+    startTimerTicker();
+  } else {
+    if (timerState.remaining <= 0) timerState.remaining = timerState.duration;
+    timerState.running = true;
+    timerState.endAt = Date.now() + timerState.remaining * 1000;
+    startTimerTicker();
+  }
+  storeTimerState();
+  renderStudyWidgets();
+}
+
+function resetTimer() {
+  const mode = timerState.mode;
+  timerState = defaultTimerState(mode);
+  startTimerTicker();
+  storeTimerState();
+  renderStudyWidgets();
+}
+
+function selectTimerMode(mode) {
+  if (!Object.hasOwn(TIMER_MODES, mode) || mode === timerState.mode) return;
+  timerState = defaultTimerState(mode);
+  startTimerTicker();
+  storeTimerState();
+  renderStudyWidgets();
+}
+
+function changeDailyGoal(delta) {
+  studyStats.dailyGoalMinutes = Math.round(
+    finiteNumber(studyStats.dailyGoalMinutes + delta, 25, 15, 240)
+  );
+  renderStudyWidgets();
+  save(true);
 }
 
 function renderDeck() {
@@ -196,6 +504,7 @@ function render(touch = false) {
   $("#card").classList.remove("flip");
   $("#front").textContent = card ? card.front : "Add or generate cards to begin.";
   $("#back").textContent = card ? card.back : "Your answer appears here.";
+  renderStudyWidgets();
   renderDeck();
   save(touch);
 }
@@ -590,6 +899,17 @@ $("#scene").addEventListener("click", () => cards.length && $("#card").classList
 $("#next").addEventListener("click", next);
 $("#prev").addEventListener("click", previous);
 $$('.rate').forEach((button) => button.addEventListener("click", () => score(Number(button.dataset.score))));
+$("#timerToggle").addEventListener("click", toggleTimer);
+$("#timerReset").addEventListener("click", resetTimer);
+$$('[data-timer-mode]').forEach((button) =>
+  button.addEventListener("click", () => selectTimerMode(button.dataset.timerMode))
+);
+$("#goalDown").addEventListener("click", () => changeDailyGoal(-5));
+$("#goalUp").addEventListener("click", () => changeDailyGoal(5));
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) updateTimerFromClock();
+});
+window.addEventListener("beforeunload", storeTimerState);
 
 $("#generate").addEventListener("click", async () => {
   const text = ($("#notesPane").classList.contains("active") ? $("#notes").value : fileText).trim();
@@ -736,14 +1056,16 @@ $("#jsonFile").addEventListener("change", async (event) => {
 
 document.addEventListener("keydown", (event) => {
   if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) return;
+  if ($(".modal.open")) return;
   if (event.code === "Space") {
     event.preventDefault();
     $("#card").classList.toggle("flip");
   } else if (event.key === "ArrowRight") next();
   else if (event.key === "ArrowLeft") previous();
   else if ("1234".includes(event.key)) score(Number(event.key));
+  else if (event.key.toLowerCase() === "t") toggleTimer();
 });
 
 load();
 loadConfig();
-loadAccount();
+loadAccount().finally(loadTimerState);
