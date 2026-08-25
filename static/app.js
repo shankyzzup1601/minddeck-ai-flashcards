@@ -1,3 +1,23 @@
+import {
+  STARTER_DECKS,
+  buildOfflineHints,
+  clozeBack,
+  clozeFront,
+  compareExplanation,
+  createClozeDrafts,
+  decodeDeckShare,
+  deleteImageAsset,
+  encodeDeckShare,
+  extractTextWithBrowserOcr,
+  fileToDataUrl,
+  loadDeckBackup,
+  loadImageAsset,
+  normalizeEnhancements,
+  renderRichText,
+  saveDeckBackup,
+  saveImageAsset,
+} from "./smart-study.js";
+
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
@@ -17,11 +37,23 @@ const TIMER_MODES = Object.freeze({
   break: { label: "Quick reset", duration: 5 * 60, isFocus: false },
   deep: { label: "Deep focus", duration: 50 * 60, isFocus: true },
 });
+const TEMPLATE_LABELS = Object.freeze({
+  basic: "Recall",
+  ncert: "NCERT Cloze",
+  reaction: "Reaction Mechanism",
+  formula: "Formula · Unit · Dimension",
+  journal: "Journal Entry",
+  graph: "Graph Flip",
+  assertion: "Assertion–Reasoning",
+  derivation: "Derivation",
+});
 
 let cards = [];
 let index = 0;
 let reviewed = new Set();
 let fileText = "";
+let photoFile = null;
+let photoPreviewUrl = "";
 let aiProviders = { openai: false, gemini: false };
 let unlockedProvider = null;
 let deckUpdatedAt = 0;
@@ -36,6 +68,23 @@ let studyStats = defaultStudyStats();
 let timerState = defaultTimerState();
 let timerInterval = null;
 let activeTheme = THEMES[0].key;
+let currentImageUrl = "";
+let hintStep = 0;
+let feynmanRecorder = null;
+let feynmanStream = null;
+let feynmanRecognition = null;
+let feynmanTimer = null;
+let feynmanAudioUrl = "";
+let feynmanStartedAt = 0;
+let feynmanChunks = [];
+let feynmanCardId = "";
+let pendingOcclusionFile = null;
+let pendingOcclusions = [];
+let pendingOcclusionUrl = "";
+let matchTimer = null;
+let matchState = null;
+let studyQueueIds = [];
+let examRevealCount = 0;
 
 function applyTheme(themeKey, announce = false) {
   const theme = THEMES.find((item) => item.key === themeKey) || THEMES[0];
@@ -69,7 +118,7 @@ function cycleTheme() {
   applyTheme(nextTheme.key, true);
 }
 
-function newCard(front, back) {
+function newCard(front, back, enhancements = {}) {
   return {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2),
     front: front.trim().slice(0, 500),
@@ -79,6 +128,7 @@ function newCard(front, back) {
     easeFactor: 2.5,
     dueDate: new Date().toISOString(),
     reviews: 0,
+    ...normalizeEnhancements(enhancements),
   };
 }
 
@@ -88,7 +138,7 @@ function finiteNumber(value, fallback, minimum, maximum) {
 }
 
 function defaultStudyStats() {
-  return { totalSeconds: 0, sessions: 0, dailyGoalMinutes: 25, dailyFocus: [] };
+  return { totalSeconds: 0, sessions: 0, dailyGoalMinutes: 25, dailyFocus: [], dailyReviews: [] };
 }
 
 function normalizeStudyStats(value) {
@@ -101,6 +151,14 @@ function normalizeStudyStats(value) {
     const seconds = Math.round(finiteNumber(item.seconds, 0, 0, 86_400));
     dailyByDate.set(item.date, seconds);
   }
+  const reviewsByDate = new Map();
+  const rawReviews = Array.isArray(value.dailyReviews) ? value.dailyReviews.slice(-180) : [];
+  for (const item of rawReviews) {
+    if (!item || typeof item !== "object" || typeof item.date !== "string") continue;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(item.date) || !Number.isFinite(Date.parse(`${item.date}T00:00:00Z`))) continue;
+    const count = Math.round(finiteNumber(item.count, 0, 0, 10_000));
+    reviewsByDate.set(item.date, count);
+  }
   return {
     totalSeconds: Math.round(finiteNumber(value.totalSeconds, 0, 0, 315_360_000)),
     sessions: Math.round(finiteNumber(value.sessions, 0, 0, 1_000_000)),
@@ -109,6 +167,10 @@ function normalizeStudyStats(value) {
       .sort(([left], [right]) => left.localeCompare(right))
       .slice(-90)
       .map(([date, seconds]) => ({ date, seconds })),
+    dailyReviews: [...reviewsByDate.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .slice(-180)
+      .map(([date, count]) => ({ date, count })),
   };
 }
 
@@ -123,7 +185,7 @@ function normalizeCard(value) {
   const back = typeof value.back === "string" ? value.back.trim().slice(0, 2000) : "";
   if (!front || !back) return null;
 
-  const card = newCard(front, back);
+  const card = newCard(front, back, value);
   if (typeof value.id === "string" && /^[a-z0-9_-]{4,80}$/i.test(value.id)) card.id = value.id;
   card.interval = finiteNumber(value.interval, 0, 0, 36_500);
   card.repetition = finiteNumber(value.repetition, 0, 0, 10_000);
@@ -137,7 +199,7 @@ function normalizeCard(value) {
 
 function deckSnapshot() {
   return {
-    version: 3,
+    version: 5,
     cards,
     index,
     reviewed: [...reviewed],
@@ -149,7 +211,9 @@ function deckSnapshot() {
 function save(touch = false) {
   if (touch) deckUpdatedAt = Date.now();
   try {
-    localStorage.setItem(activeStoreKey, JSON.stringify(deckSnapshot()));
+    const snapshot = deckSnapshot();
+    localStorage.setItem(activeStoreKey, JSON.stringify(snapshot));
+    saveDeckBackup(activeStoreKey, snapshot).catch(() => {});
   } catch {
     toast("Could not save this deck locally");
   }
@@ -175,16 +239,21 @@ function applyDeckState(value) {
   return true;
 }
 
-function load() {
+async function load() {
   try {
-    const stored = JSON.parse(localStorage.getItem(activeStoreKey) || "{}");
+    const localValue = localStorage.getItem(activeStoreKey);
+    const backup = localValue ? null : await loadDeckBackup(activeStoreKey).catch(() => null);
+    const stored = localValue ? JSON.parse(localValue) : backup || {};
     if (!applyDeckState(stored)) throw new Error();
   } catch {
-    cards = [];
-    index = 0;
-    reviewed = new Set();
-    studyStats = defaultStudyStats();
-    deckUpdatedAt = 0;
+    const backup = await loadDeckBackup(activeStoreKey).catch(() => null);
+    if (!backup || !applyDeckState(backup)) {
+      cards = [];
+      index = 0;
+      reviewed = new Set();
+      studyStats = defaultStudyStats();
+      deckUpdatedAt = 0;
+    }
   }
   render(false);
 }
@@ -213,11 +282,11 @@ function activateAccountStore(accountKey) {
   render(false);
 }
 
-function activateGuestStore() {
+async function activateGuestStore() {
   activeStoreKey = GUEST_STORE;
   activeAccountKey = null;
   accountStoreFresh = false;
-  load();
+  await load();
 }
 
 function toast(message) {
@@ -484,6 +553,55 @@ function renderLearningInsights() {
       : "Continue your deck";
 }
 
+function reviewCountFor(dateKey) {
+  return studyStats.dailyReviews.find((item) => item.date === dateKey)?.count || 0;
+}
+
+function renderActivityHeatmap() {
+  const heatmap = $("#reviewHeatmap");
+  if (!heatmap) return;
+  heatmap.replaceChildren();
+  const fragment = document.createDocumentFragment();
+  let activeDays = 0;
+  let totalReviews = 0;
+  for (let offset = 83; offset >= 0; offset -= 1) {
+    const dateKey = dateKeyDaysAgo(offset);
+    const count = reviewCountFor(dateKey);
+    const level = count ? Math.min(4, Math.max(1, Math.ceil(count / 5))) : 0;
+    if (count) activeDays += 1;
+    totalReviews += count;
+    const cell = document.createElement("span");
+    cell.className = `heatCell heat-${level}`;
+    cell.title = `${count} ${count === 1 ? "review" : "reviews"} on ${dateKey}`;
+    cell.setAttribute("aria-label", cell.title);
+    fragment.append(cell);
+  }
+  heatmap.append(fragment);
+  $("#heatmapDays").textContent = activeDays;
+  $("#heatmapReviews").textContent = totalReviews;
+}
+
+function renderSmartWidgets() {
+  if (!$("#smartStudyLab")) return;
+  const leeches = cards.filter((card) => card.leech);
+  const clozeCount = cards.filter((card) => card.type === "cloze").length;
+  const formulas = cards.filter(isFormulaCramCard);
+  const mistakes = cards.filter((card) => card.mistake);
+  $("#leechCount").textContent = leeches.length;
+  $("#leechLabel").textContent = leeches.length
+    ? `${leeches.length} stubborn ${leeches.length === 1 ? "card needs" : "cards need"} a breakdown.`
+    : "No stubborn cards. Four consecutive Again ratings trigger rescue mode.";
+  $("#cramLeeches").disabled = !leeches.length;
+  $("#clozeCount").textContent = clozeCount;
+  $("#matchReady").textContent = cards.length >= 2 ? `${Math.min(6, cards.length)} pairs ready` : "Add 2+ cards";
+  $("#startMatch").disabled = cards.length < 2;
+  $("#formulaCount").textContent = formulas.length;
+  $("#formulaCram").disabled = !formulas.length;
+  $("#mistakeCount").textContent = mistakes.length;
+  $("#mistakeNotebook").disabled = !mistakes.length;
+  renderActivityHeatmap();
+}
+
 function storeTimerState() {
   try {
     localStorage.setItem(FOCUS_STORE, JSON.stringify(timerState));
@@ -614,6 +732,226 @@ function changeDailyGoal(delta) {
   save(true);
 }
 
+function clearStudyAssist() {
+  if (feynmanRecorder?.state === "recording") {
+    feynmanCardId = "";
+    stopFeynmanRecording();
+  }
+  hintStep = 0;
+  if ($("#hintPanel")) {
+    $("#hintPanel").hidden = true;
+    $("#hintList").replaceChildren();
+    $("#hintButton").textContent = "✦ Show a hint";
+  }
+  if ($("#feynmanTranscript")) {
+    $("#feynmanTranscript").value = "";
+    $("#feynmanResult").hidden = true;
+    $("#feynmanResult").textContent = "";
+    $("#feynmanStatus").textContent = "Your recording stays on this device.";
+    $("#feynmanAudio").hidden = true;
+    $("#feynmanAudio").removeAttribute("src");
+  }
+  if (feynmanAudioUrl) URL.revokeObjectURL(feynmanAudioUrl);
+  feynmanAudioUrl = "";
+}
+
+async function renderOcclusionCard(card) {
+  const stage = $("#occlusionStage");
+  if (!stage) return;
+  const isOcclusion = card?.type === "occlusion";
+  stage.hidden = !isOcclusion;
+  $("#front").hidden = isOcclusion;
+  if (!isOcclusion) return;
+
+  $("#occlusionMasks").replaceChildren();
+  $("#occlusionMissing").hidden = true;
+  const requestedId = card.id;
+  const blob = await loadImageAsset(card.imageAssetId).catch(() => null);
+  if (cards[index]?.id !== requestedId) return;
+  if (!blob) {
+    $("#occlusionImage").removeAttribute("src");
+    $("#occlusionMissing").hidden = false;
+    return;
+  }
+  if (currentImageUrl) URL.revokeObjectURL(currentImageUrl);
+  currentImageUrl = URL.createObjectURL(blob);
+  $("#occlusionImage").src = currentImageUrl;
+  for (const mask of card.occlusions) {
+    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    rect.setAttribute("x", String(mask.x));
+    rect.setAttribute("y", String(mask.y));
+    rect.setAttribute("width", String(mask.width));
+    rect.setAttribute("height", String(mask.height));
+    rect.setAttribute("rx", "18");
+    rect.setAttribute("tabindex", "0");
+    rect.setAttribute("role", "button");
+    rect.setAttribute("aria-label", "Reveal hidden image label");
+    rect.classList.add("occlusionMask");
+    const reveal = (event) => {
+      event.stopPropagation();
+      rect.classList.toggle("revealed");
+    };
+    rect.addEventListener("click", reveal);
+    rect.addEventListener("keydown", (event) => {
+      if (["Enter", " "].includes(event.key)) reveal(event);
+    });
+    $("#occlusionMasks").append(rect);
+  }
+}
+
+function makeSvgElement(name, attributes = {}) {
+  const element = document.createElementNS("http://www.w3.org/2000/svg", name);
+  Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, String(value)));
+  return element;
+}
+
+function renderGraphStage(container, card, reveal) {
+  container.replaceChildren();
+  const isGraph = card?.template === "graph";
+  container.hidden = !isGraph;
+  if (!isGraph) return;
+  const svg = makeSvgElement("svg", { viewBox: "0 0 360 150", role: "img" });
+  svg.setAttribute("aria-label", reveal ? "Revealed graph curve" : "Blank graph axes");
+  [45, 75, 105].forEach((y) => svg.append(makeSvgElement("line", { x1: 44, y1: y, x2: 332, y2: y, class: "graphGrid" })));
+  [100, 160, 220, 280].forEach((x) => svg.append(makeSvgElement("line", { x1: x, y1: 15, x2: x, y2: 126, class: "graphGrid" })));
+  svg.append(
+    makeSvgElement("line", { x1: 44, y1: 126, x2: 334, y2: 126, class: "graphAxis" }),
+    makeSvgElement("line", { x1: 44, y1: 126, x2: 44, y2: 14, class: "graphAxis" })
+  );
+  const axis = new Map(card.sections.map((section) => [section.label.toLowerCase(), section.value]));
+  const xLabel = makeSvgElement("text", { x: 327, y: 144 });
+  xLabel.textContent = axis.get("x-axis") || "X";
+  const yLabel = makeSvgElement("text", { x: 8, y: 16 });
+  yLabel.textContent = axis.get("y-axis") || "Y";
+  svg.append(xLabel, yLabel);
+  if (reveal) {
+    const paths = {
+      downward: "M62 28 C135 42 236 88 317 116",
+      upward: "M62 116 C135 102 236 52 317 28",
+      ppc: "M63 26 C92 28 221 36 316 116",
+      isotherm: "M62 30 C89 58 123 92 318 116",
+      bell: "M62 116 C130 114 135 31 188 27 C241 31 246 114 318 116",
+    };
+    svg.append(makeSvgElement("path", { d: paths[card.graphShape] || paths.downward, class: "graphCurve" }));
+  }
+  container.append(svg);
+}
+
+function appendExamChip(container, text, className = "") {
+  const chip = document.createElement("span");
+  chip.className = `examChip ${className}`.trim();
+  chip.textContent = text;
+  container.append(chip);
+}
+
+function renderExamMetadata(card) {
+  const container = $("#examCardMeta");
+  container.replaceChildren();
+  const hasMetadata = Boolean(
+    card && (card.template !== "basic" || card.subject || card.examTags.length || card.trap || card.mistake)
+  );
+  container.hidden = !hasMetadata;
+  if (!hasMetadata) return;
+  if (card.template !== "basic") appendExamChip(container, TEMPLATE_LABELS[card.template], "template");
+  if (card.subject) appendExamChip(container, card.subject);
+  card.examTags.forEach((tag) => appendExamChip(container, tag));
+  if (card.trap) appendExamChip(container, "Exception & Trap", "trap");
+  if (card.mistake) appendExamChip(container, "Mistake · review ≤48h", "mistake");
+}
+
+function revealExamStep(button) {
+  if (!button) return;
+  button.classList.add("revealed");
+  button.setAttribute("aria-expanded", "true");
+}
+
+function renderExamProgressive(card) {
+  const panel = $("#examProgressive");
+  const list = $("#examStepList");
+  list.replaceChildren();
+  examRevealCount = 0;
+  const sections = card?.sections || [];
+  panel.hidden = !sections.length;
+  if (!sections.length) return;
+  const titles = {
+    reaction: "Reaction mechanism carousel",
+    formula: "Formula match details",
+    journal: "Tap to reveal debit, credit & narration",
+    graph: "Graph interpretation",
+    assertion: "Assertion–Reasoning breakdown",
+    derivation: "Step-by-step derivation",
+    ncert: "NCERT source detail",
+  };
+  $("#examProgressTitle").textContent = titles[card.template] || "Step-by-step reveal";
+  sections.forEach((section, sectionIndex) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "examStep";
+    button.dataset.examStep = String(sectionIndex);
+    button.setAttribute("aria-expanded", "false");
+    const label = document.createElement("strong");
+    label.textContent = section.label;
+    const value = document.createElement("span");
+    value.textContent = section.value;
+    button.append(label, value);
+    list.append(button);
+  });
+  $("#revealExamStep").textContent = "Reveal next";
+  $("#revealExamStep").disabled = false;
+}
+
+function revealNextExamStep() {
+  const buttons = $$("#examStepList .examStep");
+  const nextButton = buttons.find((button) => !button.classList.contains("revealed"));
+  if (!nextButton) return;
+  revealExamStep(nextButton);
+  examRevealCount += 1;
+  if (examRevealCount >= buttons.length) {
+    $("#revealExamStep").textContent = "All revealed";
+    $("#revealExamStep").disabled = true;
+  } else {
+    $("#revealExamStep").textContent = `Reveal ${examRevealCount + 1}/${buttons.length}`;
+  }
+}
+
+function renderCurrentCard(card) {
+  const frontText = card
+    ? card.type === "cloze" && card.clozeText
+      ? clozeFront(card.clozeText)
+      : card.front
+    : "Add or generate cards to begin.";
+  const backText = card
+    ? card.type === "cloze" && card.clozeText
+      ? clozeBack(card.clozeText)
+      : card.back
+    : "Your answer appears here.";
+  $("#front").hidden = false;
+  renderRichText($("#front"), frontText);
+  renderRichText($("#back"), backText);
+  const frontFace = $("#front").closest(".face");
+  const backFace = $("#back").closest(".face");
+  frontFace.classList.toggle("graphFace", card?.template === "graph");
+  backFace.classList.toggle("graphFace", card?.template === "graph");
+  renderGraphStage($("#graphFront"), card, false);
+  renderGraphStage($("#graphBack"), card, true);
+  renderExamMetadata(card);
+  renderExamProgressive(card);
+  renderOcclusionCard(card).catch(() => {});
+  if ($("#cardTypeBadge")) {
+    $("#cardTypeBadge").textContent = card
+      ? card.leech
+        ? "Leech rescue"
+        : card.template !== "basic"
+          ? TEMPLATE_LABELS[card.template]
+        : card.type === "cloze"
+          ? "Cloze card"
+          : card.type === "occlusion"
+            ? "Image occlusion"
+            : "Recall card"
+      : "Recall card";
+  }
+}
+
 function renderDeck() {
   const list = $("#deckList");
   list.replaceChildren();
@@ -630,6 +968,30 @@ function renderDeck() {
     row.className = "row";
     const front = document.createElement("strong");
     front.textContent = card.front;
+    if (card.leech || card.type !== "basic" || card.template !== "basic") {
+      const badge = document.createElement("small");
+      badge.className = card.leech ? "deckBadge leechBadge" : "deckBadge";
+      badge.textContent = card.leech
+        ? "Leech"
+        : card.template !== "basic"
+          ? TEMPLATE_LABELS[card.template]
+          : card.type === "cloze"
+            ? "Cloze"
+            : "Image";
+      front.append(" ", badge);
+    }
+    if (card.trap) {
+      const badge = document.createElement("small");
+      badge.className = "deckBadge trapBadge";
+      badge.textContent = "Trap";
+      front.append(" ", badge);
+    }
+    if (card.mistake) {
+      const badge = document.createElement("small");
+      badge.className = "deckBadge mistakeBadge";
+      badge.textContent = "Mistake";
+      front.append(" ", badge);
+    }
     const repetitions = document.createElement("span");
     repetitions.textContent = `${card.repetition} reps`;
     const due = document.createElement("span");
@@ -661,17 +1023,39 @@ function render(touch = false) {
   $("#complete").textContent = `${completion}% complete`;
   $("#progress").value = completion;
   $("#status").textContent = due ? `${due} due for review` : "All caught up";
-  $("#pager").textContent = cards.length ? `${index + 1} / ${cards.length}` : "0 / 0";
+  const queuePosition = studyQueueIds.indexOf(card?.id);
+  $("#pager").textContent = cards.length
+    ? studyQueueIds.length && queuePosition >= 0
+      ? `${queuePosition + 1} / ${studyQueueIds.length} sprint`
+      : `${index + 1} / ${cards.length}`
+    : "0 / 0";
   $("#card").classList.remove("flip");
-  $("#front").textContent = card ? card.front : "Add or generate cards to begin.";
-  $("#back").textContent = card ? card.back : "Your answer appears here.";
+  clearStudyAssist();
+  renderCurrentCard(card);
   renderStudyWidgets();
   renderLearningInsights();
+  renderSmartWidgets();
   renderDeck();
   save(touch);
 }
 
-function parseOffline(text) {
+function parseOffline(text, cardMode = "mixed") {
+  const clozeDrafts = createClozeDrafts(text, ["cloze", "ncert"].includes(cardMode) ? 30 : 10);
+  if (cardMode === "ncert") {
+    return clozeDrafts.map((draft) =>
+      newCard(draft.front, draft.back, {
+        ...draft,
+        template: "ncert",
+        examTags: ["NCERT line-by-line"],
+        trap: /\b(?:except|exception|only|not|unlike|however|whereas|scientist|proposed|discovered)\b/i.test(
+          draft.clozeText
+        ),
+      })
+    );
+  }
+  if (cardMode === "cloze") {
+    return clozeDrafts.map((draft) => newCard(draft.front, draft.back, draft));
+  }
   const lines = text
     .replace(/\r/g, "")
     .replace(/[•●▪]/g, "\n")
@@ -697,6 +1081,12 @@ function parseOffline(text) {
       add(`Explain the relationship involving “${match[1]}”.`, match[2]);
     } else if (sentence.length > 40) add("What is the key idea in this concept?", sentence);
     if (output.length >= 30) break;
+  }
+  if (cardMode === "mixed") {
+    for (const draft of clozeDrafts) {
+      if (output.length >= 30) break;
+      output.push(newCard(draft.front, draft.back, draft));
+    }
   }
   return output;
 }
@@ -737,9 +1127,24 @@ async function unlockAI(provider, accessCode) {
   return data;
 }
 
-async function generateWithAI(text, provider) {
-  const data = await apiPost("/api/generate", { text, provider });
+async function generateWithAI(text, provider, cardMode) {
+  const data = await apiPost("/api/generate", { text, provider, cardMode });
   return data.cards;
+}
+
+async function generateFromImage(file, provider, cardMode) {
+  const imageData = await fileToDataUrl(file);
+  const data = await apiPost("/api/vision", { imageData, provider, cardMode });
+  return data.cards;
+}
+
+async function generateHintsWithAI(card, provider) {
+  const data = await apiPost("/api/hint", {
+    provider,
+    front: card.front,
+    back: card.back,
+  });
+  return Array.isArray(data.hints) ? data.hints : [];
 }
 
 async function lockAI() {
@@ -982,18 +1387,53 @@ async function submitAccount(path) {
 }
 
 function next(touch = true) {
-  if (cards.length) index = (index + 1) % cards.length;
+  if (cards.length && studyQueueIds.length) {
+    const position = Math.max(0, studyQueueIds.indexOf(cards[index]?.id));
+    const nextId = studyQueueIds[(position + 1) % studyQueueIds.length];
+    const queuedIndex = cards.findIndex((card) => card.id === nextId);
+    index = queuedIndex >= 0 ? queuedIndex : (index + 1) % cards.length;
+  } else if (cards.length) index = (index + 1) % cards.length;
   render(touch && cards.length > 0);
 }
 
 function previous(touch = true) {
-  if (cards.length) index = (index - 1 + cards.length) % cards.length;
+  if (cards.length && studyQueueIds.length) {
+    const position = Math.max(0, studyQueueIds.indexOf(cards[index]?.id));
+    const previousId = studyQueueIds[(position - 1 + studyQueueIds.length) % studyQueueIds.length];
+    const queuedIndex = cards.findIndex((card) => card.id === previousId);
+    index = queuedIndex >= 0 ? queuedIndex : (index - 1 + cards.length) % cards.length;
+  } else if (cards.length) index = (index - 1 + cards.length) % cards.length;
   render(touch && cards.length > 0);
+}
+
+function markMistakeCard(card) {
+  if (!card) return false;
+  const wasMistake = card.mistake;
+  const deadline = Date.now() + 48 * 60 * 60 * 1_000;
+  const currentDue = Date.parse(card.dueDate);
+  card.mistake = true;
+  card.mistakeAt = new Date().toISOString();
+  card.priority = "high";
+  if (!Number.isFinite(currentDue) || currentDue > deadline) card.dueDate = new Date(deadline).toISOString();
+  return !wasMistake;
+}
+
+function logCurrentMistake() {
+  const card = cards[index];
+  if (!card) {
+    toast("Create a deck first");
+    return;
+  }
+  const newlyLogged = markMistakeCard(card);
+  render(true);
+  toast(newlyLogged ? "Added to Mistake Notebook · review due within 48h" : "Already in your Mistake Notebook");
 }
 
 function score(quality) {
   const card = cards[index];
   if (!card) return;
+  const wasLeech = card.leech;
+  const wasMistake = card.mistake;
   if (quality < 3) {
     card.repetition = 0;
     card.interval = quality === 1 ? 0 : 1;
@@ -1014,8 +1454,22 @@ function score(quality) {
   );
   card.dueDate = new Date(Date.now() + card.interval * 86_400_000).toISOString();
   card.reviews += 1;
+  card.lastScore = quality;
+  if (quality === 1) card.lapseStreak += 1;
+  else card.lapseStreak = 0;
+  if (quality === 1) markMistakeCard(card);
+  if (card.lapseStreak >= 4) card.leech = true;
+  const today = localDateKey();
+  const dailyReviews = new Map(studyStats.dailyReviews.map((item) => [item.date, item.count]));
+  dailyReviews.set(today, Math.min(10_000, (dailyReviews.get(today) || 0) + 1));
+  studyStats = normalizeStudyStats({
+    ...studyStats,
+    dailyReviews: [...dailyReviews.entries()].map(([date, count]) => ({ date, count })),
+  });
   reviewed.add(card.id);
   next();
+  if (!wasLeech && card.leech) toast("Leech detected · added to Cram & Break Down");
+  else if (!wasMistake && card.mistake) toast("Mistake logged · high-priority review within 48h");
 }
 
 async function readFile(file) {
@@ -1062,12 +1516,597 @@ function startDashboardReview() {
     toast("Create a deck first");
     return;
   }
+  studyQueueIds = [];
   const dueIndex = cards.findIndex((card) => Date.parse(card.dueDate) <= Date.now());
   if (dueIndex >= 0) index = dueIndex;
   render(false);
   const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
   $("#studyPanel").scrollIntoView({ behavior, block: "start" });
   toast(dueIndex >= 0 ? "Due review ready" : "Continuing your deck");
+}
+
+async function showNextHint() {
+  const card = cards[index];
+  if (!card) {
+    toast("Create a deck first");
+    return;
+  }
+  const button = $("#hintButton");
+  button.disabled = true;
+  try {
+    if (!card.hints.length) {
+      if (unlockedProvider) {
+        try {
+          card.hints = (await generateHintsWithAI(card, unlockedProvider)).slice(0, 3);
+        } catch {
+          card.hints = buildOfflineHints(card.back);
+          toast("Using private offline hints");
+        }
+      } else {
+        card.hints = buildOfflineHints(card.back);
+      }
+      save(true);
+    }
+    hintStep = Math.min(card.hints.length, hintStep + 1);
+    const list = $("#hintList");
+    list.replaceChildren();
+    card.hints.slice(0, hintStep).forEach((hint, hintIndex) => {
+      const item = document.createElement("li");
+      const number = document.createElement("strong");
+      number.textContent = String(hintIndex + 1);
+      const copy = document.createElement("span");
+      copy.textContent = hint;
+      item.append(number, copy);
+      list.append(item);
+    });
+    $("#hintPanel").hidden = false;
+    button.textContent = hintStep >= card.hints.length ? "✓ All hints shown" : "✦ Next hint";
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function speakCurrentAnswer() {
+  const card = cards[index];
+  if (!card || !("speechSynthesis" in window)) {
+    toast(card ? "Text-to-speech is unavailable in this browser" : "Create a deck first");
+    return;
+  }
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(card.type === "cloze" ? clozeBack(card.clozeText) : card.back);
+  utterance.rate = 0.92;
+  utterance.pitch = 1;
+  window.speechSynthesis.speak(utterance);
+  toast("Reading the model answer");
+}
+
+function stopFeynmanRecording() {
+  window.clearInterval(feynmanTimer);
+  feynmanTimer = null;
+  if (feynmanRecorder?.state === "recording") feynmanRecorder.stop();
+  if (feynmanRecognition) {
+    try {
+      feynmanRecognition.stop();
+    } catch {
+      // Recognition may already have stopped after a period of silence.
+    }
+  }
+}
+
+async function toggleFeynmanRecording() {
+  if (feynmanRecorder?.state === "recording") {
+    stopFeynmanRecording();
+    return;
+  }
+  if (!cards[index]) {
+    toast("Create a deck first");
+    return;
+  }
+  if (!navigator.mediaDevices?.getUserMedia || !("MediaRecorder" in window)) {
+    toast("Voice recording is unavailable. You can type your explanation instead.");
+    $("#feynmanTranscript").focus();
+    return;
+  }
+  try {
+    feynmanStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    feynmanChunks = [];
+    feynmanRecorder = new MediaRecorder(feynmanStream);
+    feynmanRecorder.addEventListener("dataavailable", (event) => {
+      if (event.data.size) feynmanChunks.push(event.data);
+    });
+    feynmanRecorder.addEventListener("stop", () => {
+      if (cards[index]?.id !== feynmanCardId) {
+        feynmanStream?.getTracks().forEach((track) => track.stop());
+        feynmanStream = null;
+        return;
+      }
+      const blob = new Blob(feynmanChunks, { type: feynmanRecorder.mimeType || "audio/webm" });
+      if (feynmanAudioUrl) URL.revokeObjectURL(feynmanAudioUrl);
+      feynmanAudioUrl = URL.createObjectURL(blob);
+      $("#feynmanAudio").src = feynmanAudioUrl;
+      $("#feynmanAudio").hidden = false;
+      $("#feynmanRecord").textContent = "● Record again";
+      $("#feynmanStatus").textContent = "Recording complete. Type a short transcript, then compare.";
+      feynmanStream?.getTracks().forEach((track) => track.stop());
+      feynmanStream = null;
+    });
+    feynmanRecognition = null;
+    feynmanCardId = cards[index].id;
+    feynmanStartedAt = Date.now();
+    feynmanRecorder.start();
+    $("#feynmanRecord").textContent = "■ Stop recording";
+    $("#feynmanStatus").textContent = "Recording · 15 seconds remaining";
+    feynmanTimer = window.setInterval(() => {
+      const remaining = Math.max(0, 15 - Math.floor((Date.now() - feynmanStartedAt) / 1_000));
+      $("#feynmanStatus").textContent = `Recording · ${remaining} ${remaining === 1 ? "second" : "seconds"} remaining`;
+      if (!remaining) stopFeynmanRecording();
+    }, 250);
+  } catch {
+    toast("Microphone access was not granted. Type your explanation instead.");
+    $("#feynmanTranscript").focus();
+  }
+}
+
+function compareFeynmanExplanation() {
+  const card = cards[index];
+  const transcript = $("#feynmanTranscript").value.trim();
+  if (!card || transcript.length < 8) {
+    toast("Record or type a fuller explanation first");
+    return;
+  }
+  const comparison = compareExplanation(transcript, card.back);
+  const result = $("#feynmanResult");
+  const guidance =
+    comparison.score >= 75
+      ? "Strong explanation — you covered the important ideas."
+      : comparison.score >= 45
+        ? `Good start. Add: ${comparison.missing.join(", ") || "one more key detail"}.`
+        : `Break it down again using: ${comparison.missing.join(", ") || "the main definition"}.`;
+  result.textContent = `${comparison.score}% concept match · ${guidance}`;
+  result.dataset.score = comparison.score >= 75 ? "high" : comparison.score >= 45 ? "medium" : "low";
+  result.hidden = false;
+}
+
+function renderLeechDeck() {
+  const list = $("#leechList");
+  list.replaceChildren();
+  const leeches = cards.filter((card) => card.leech);
+  if (!leeches.length) {
+    const empty = document.createElement("p");
+    empty.className = "modalEmpty";
+    empty.textContent = "No leeches yet. MindDeck tags a card after four consecutive Again ratings.";
+    list.append(empty);
+    $("#startLeechCram").disabled = true;
+    return;
+  }
+  $("#startLeechCram").disabled = false;
+  leeches.forEach((card) => {
+    const row = document.createElement("div");
+    row.className = "leechRow";
+    const copy = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = card.front;
+    const detail = document.createElement("small");
+    detail.textContent = `${card.lapseStreak} consecutive lapses · try explaining why the answer is true`;
+    copy.append(title, detail);
+    const reset = document.createElement("button");
+    reset.type = "button";
+    reset.className = "btn";
+    reset.dataset.resetLeech = card.id;
+    reset.textContent = "Reset tag";
+    row.append(copy, reset);
+    list.append(row);
+  });
+}
+
+function startLeechCram() {
+  studyQueueIds = cards.filter((card) => card.leech).map((card) => card.id);
+  if (!studyQueueIds.length) return;
+  index = cards.findIndex((card) => card.id === studyQueueIds[0]);
+  $("#leechModal").classList.remove("open");
+  render(false);
+  $("#studyPanel").scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+  toast(`${studyQueueIds.length}-card rescue deck ready`);
+}
+
+function startCramSprint() {
+  if (!cards.length) {
+    openNotesComposer();
+    toast("Create a deck first");
+    return;
+  }
+  const due = cards.filter((card) => Date.parse(card.dueDate) <= Date.now());
+  const sprintCards = (due.length ? due : cards).slice(0, 30);
+  studyQueueIds = sprintCards.map((card) => card.id);
+  index = cards.findIndex((card) => card.id === studyQueueIds[0]);
+  selectTimerMode("focus");
+  resetTimer();
+  toggleTimer();
+  render(false);
+  $("#studyPanel").scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+  toast(`${studyQueueIds.length}-card Pomodoro sprint started`);
+}
+
+function isFormulaCramCard(card) {
+  if (!card) return false;
+  if (card.template === "formula") return true;
+  const searchable = [card.subject, card.front, ...card.examTags].join(" ");
+  return /\b(?:formula|constant|identity|equation|dimension|unit)\b/i.test(searchable);
+}
+
+function startStudyQueue(queue, message, closeSelector = "") {
+  if (!queue.length) return;
+  studyQueueIds = queue.map((card) => card.id);
+  index = cards.findIndex((card) => card.id === studyQueueIds[0]);
+  if (closeSelector) $(closeSelector).classList.remove("open");
+  render(false);
+  $("#studyPanel").scrollIntoView({
+    behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    block: "start",
+  });
+  toast(message);
+}
+
+function startFormulaCram() {
+  const formulas = cards.filter(isFormulaCramCard);
+  if (!formulas.length) {
+    toast("Add a Formula · Unit · Dimension card first");
+    return;
+  }
+  startStudyQueue(formulas, `${formulas.length}-card Formula Cram ready`);
+}
+
+function renderMistakeNotebook() {
+  const list = $("#mistakeList");
+  list.replaceChildren();
+  const mistakes = cards
+    .filter((card) => card.mistake)
+    .sort((left, right) => Date.parse(left.dueDate) - Date.parse(right.dueDate));
+  $("#startMistakeReview").disabled = !mistakes.length;
+  if (!mistakes.length) {
+    const empty = document.createElement("p");
+    empty.className = "modalEmpty";
+    empty.textContent = "No active mistakes. Rate a missed card Again or use Log mistake during study.";
+    list.append(empty);
+    return;
+  }
+  mistakes.forEach((card) => {
+    const row = document.createElement("div");
+    row.className = "leechRow";
+    const copy = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = card.front;
+    const detail = document.createElement("small");
+    const due = Date.parse(card.dueDate) <= Date.now() ? "due now" : `due ${new Date(card.dueDate).toLocaleString()}`;
+    detail.textContent = `High priority · ${due}`;
+    copy.append(title, detail);
+    const actions = document.createElement("div");
+    actions.className = "mistakeActions";
+    const resolve = document.createElement("button");
+    resolve.type = "button";
+    resolve.className = "btn";
+    resolve.dataset.resolveMistake = card.id;
+    resolve.textContent = "Resolve";
+    actions.append(resolve);
+    row.append(copy, actions);
+    list.append(row);
+  });
+}
+
+function startMistakeReview() {
+  const mistakes = cards
+    .filter((card) => card.mistake)
+    .sort((left, right) => Date.parse(left.dueDate) - Date.parse(right.dueDate));
+  startStudyQueue(mistakes, `${mistakes.length}-card mistake review ready`, "#mistakeModal");
+}
+
+function syncExamTemplate() {
+  const template = $("#examTemplate").value;
+  $$('[data-exam-fields]').forEach((group) => {
+    group.hidden = group.dataset.examFields !== template;
+  });
+}
+
+function resetExamCreator() {
+  [
+    "examSubject", "examTags", "examNcertLine", "examReactionPrompt", "examReactants", "examReagent",
+    "examIntermediate", "examMajor", "examMinor", "examFormulaName", "examFormula", "examUnit",
+    "examDimension", "examAssumptions", "examTransaction", "examDebit", "examCredit", "examNarration",
+    "examGraphTitle", "examXAxis", "examYAxis", "examGraphExplain", "examAssertion", "examReason",
+    "examAssertionExplain", "examDerivationPrompt", "examDerivationSteps",
+  ].forEach((id) => {
+    $(`#${id}`).value = "";
+  });
+  $("#examTrap").checked = false;
+  $("#examTemplate").value = "ncert";
+  $("#examGraphShape").value = "downward";
+  $("#examAssertionOption").selectedIndex = 0;
+  syncExamTemplate();
+}
+
+function openExamCreator() {
+  resetExamCreator();
+  $("#examModal").classList.add("open");
+  window.setTimeout(() => $("#examSubject").focus(), 80);
+}
+
+function examValue(id, maximum = 500) {
+  return $(`#${id}`).value.trim().slice(0, maximum);
+}
+
+function compactSections(sections) {
+  return sections.filter((section) => section.label && section.value);
+}
+
+function buildExamCard() {
+  const template = $("#examTemplate").value;
+  const subject = examValue("examSubject", 80);
+  const examTags = [...new Set(
+    examValue("examTags", 240)
+      .split(",")
+      .map((tag) => tag.trim().slice(0, 60))
+      .filter(Boolean)
+  )].slice(0, 6);
+  const enhancements = { template, subject, examTags, trap: $("#examTrap").checked };
+  let front = "";
+  let back = "";
+
+  if (template === "ncert") {
+    const clozeText = examValue("examNcertLine", 2_000);
+    if (!/\{\{(?:c\d+::)?[^}]+\}\}/i.test(clozeText)) throw new Error("Wrap one NCERT keyword in {{double braces}}.");
+    front = clozeFront(clozeText);
+    back = clozeBack(clozeText);
+    Object.assign(enhancements, {
+      type: "cloze",
+      clozeText,
+      sections: examTags.length ? [{ label: "Source / occurrence", value: examTags.join(" · ") }] : [],
+    });
+  } else if (template === "reaction") {
+    const prompt = examValue("examReactionPrompt");
+    const sections = compactSections([
+      { label: "Reactants", value: examValue("examReactants") },
+      { label: "Reagent / conditions", value: examValue("examReagent") },
+      { label: "Intermediate", value: examValue("examIntermediate") },
+      { label: "Major product", value: examValue("examMajor") },
+      { label: "Minor product", value: examValue("examMinor") },
+    ]);
+    if (!prompt || sections.length < 3) throw new Error("Add the reaction and at least three mechanism stages.");
+    front = `Complete the mechanism: ${prompt}`;
+    back = sections.find((section) => section.label === "Major product")?.value || sections.at(-1).value;
+    enhancements.sections = sections;
+  } else if (template === "formula") {
+    const name = examValue("examFormulaName");
+    const formula = examValue("examFormula");
+    const unit = examValue("examUnit");
+    const dimension = examValue("examDimension");
+    if (!formula || !unit || !dimension) throw new Error("Add the formula, SI unit, and dimensional formula.");
+    front = formula;
+    back = `${unit} · ${dimension}`;
+    enhancements.examTags = [...new Set([...examTags, "Formula"])].slice(0, 6);
+    enhancements.sections = compactSections([
+      { label: "Quantity", value: name },
+      { label: "SI unit", value: unit },
+      { label: "Dimensional formula", value: dimension },
+      { label: "Boundary conditions / assumptions", value: examValue("examAssumptions") },
+    ]);
+  } else if (template === "journal") {
+    const transaction = examValue("examTransaction");
+    const debit = examValue("examDebit");
+    const credit = examValue("examCredit");
+    const narration = examValue("examNarration");
+    if (!transaction || !debit || !credit || !narration) throw new Error("Complete the transaction, debit, credit, and narration.");
+    front = transaction;
+    back = `${debit} Dr. · ${credit} Cr.`;
+    enhancements.sections = [
+      { label: "Debit", value: debit },
+      { label: "Credit", value: credit },
+      { label: "Narration", value: narration },
+    ];
+  } else if (template === "graph") {
+    const title = examValue("examGraphTitle");
+    const explanation = examValue("examGraphExplain");
+    if (!title || !explanation) throw new Error("Add the graph relationship and its interpretation.");
+    front = title;
+    back = explanation;
+    enhancements.graphShape = $("#examGraphShape").value;
+    enhancements.sections = compactSections([
+      { label: "X-axis", value: examValue("examXAxis", 60) || "X" },
+      { label: "Y-axis", value: examValue("examYAxis", 60) || "Y" },
+      { label: "Shift / rotation", value: explanation },
+    ]);
+  } else if (template === "assertion") {
+    const assertion = examValue("examAssertion");
+    const reason = examValue("examReason");
+    const option = $("#examAssertionOption").value;
+    const explanation = examValue("examAssertionExplain");
+    if (!assertion || !reason || !explanation) throw new Error("Complete the assertion, reason, and breakdown.");
+    front = `Assertion (A): ${assertion}\nReason (R): ${reason}`;
+    back = option;
+    enhancements.sections = [
+      { label: "Correct option", value: option },
+      { label: "Why", value: explanation },
+    ];
+  } else if (template === "derivation") {
+    const prompt = examValue("examDerivationPrompt");
+    const steps = examValue("examDerivationSteps", 4_000)
+      .split("\n")
+      .map((step) => step.trim().slice(0, 500))
+      .filter(Boolean)
+      .slice(0, 12);
+    if (!prompt || steps.length < 2) throw new Error("Add a derivation prompt and at least two steps.");
+    front = prompt;
+    back = steps.at(-1);
+    enhancements.sections = steps.map((step, stepIndex) => ({ label: `Step ${stepIndex + 1}`, value: step }));
+  }
+
+  if (!front || !back) throw new Error("Complete the required card fields.");
+  return newCard(front, back, enhancements);
+}
+
+function saveExamCard() {
+  try {
+    const card = buildExamCard();
+    cards.push(card);
+    index = cards.length - 1;
+    studyQueueIds = [];
+    $("#examModal").classList.remove("open");
+    resetExamCreator();
+    render(true);
+    toast(`${TEMPLATE_LABELS[card.template]} card added`);
+  } catch (error) {
+    toast(error.message || "Could not add this exam card");
+  }
+}
+
+function shuffled(values) {
+  const output = [...values];
+  for (let cursor = output.length - 1; cursor > 0; cursor -= 1) {
+    const swap = Math.floor(Math.random() * (cursor + 1));
+    [output[cursor], output[swap]] = [output[swap], output[cursor]];
+  }
+  return output;
+}
+
+function finishMatchGame() {
+  window.clearInterval(matchTimer);
+  matchTimer = null;
+  const elapsed = Math.max(1, Math.round((Date.now() - matchState.startedAt) / 1_000));
+  $("#matchStatus").textContent = `Complete in ${elapsed}s · ${matchState.mistakes} ${matchState.mistakes === 1 ? "mistake" : "mistakes"}`;
+  $("#matchStatus").dataset.state = "complete";
+}
+
+function selectMatchCard(button) {
+  if (!matchState || button.disabled) return;
+  const side = button.dataset.matchSide;
+  const previous = matchState[side];
+  if (previous) previous.classList.remove("selected");
+  matchState[side] = button;
+  button.classList.add("selected");
+  if (!matchState.term || !matchState.definition) return;
+  const term = matchState.term;
+  const definition = matchState.definition;
+  if (term.dataset.matchId === definition.dataset.matchId) {
+    [term, definition].forEach((item) => {
+      item.disabled = true;
+      item.classList.remove("selected");
+      item.classList.add("matched");
+    });
+    matchState.matches += 1;
+    $("#matchScore").textContent = `${matchState.matches}/${matchState.total}`;
+    if (matchState.matches === matchState.total) finishMatchGame();
+  } else {
+    matchState.mistakes += 1;
+    term.classList.add("missed");
+    definition.classList.add("missed");
+    window.setTimeout(() => {
+      term.classList.remove("selected", "missed");
+      definition.classList.remove("selected", "missed");
+    }, 420);
+  }
+  matchState.term = null;
+  matchState.definition = null;
+}
+
+function startMatchGame() {
+  if (cards.length < 2) {
+    toast("Add at least two cards first");
+    return;
+  }
+  const selected = shuffled(cards).slice(0, Math.min(6, cards.length));
+  const terms = $("#matchTerms");
+  const definitions = $("#matchDefinitions");
+  terms.replaceChildren();
+  definitions.replaceChildren();
+  const makeButton = (card, side, text) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "matchCard";
+    button.dataset.matchId = card.id;
+    button.dataset.matchSide = side;
+    button.textContent = text;
+    button.addEventListener("click", () => selectMatchCard(button));
+    return button;
+  };
+  selected.forEach((card) => terms.append(makeButton(card, "term", card.front)));
+  shuffled(selected).forEach((card) => definitions.append(makeButton(card, "definition", card.back)));
+  matchState = { term: null, definition: null, matches: 0, mistakes: 0, total: selected.length, startedAt: Date.now() };
+  $("#matchScore").textContent = `0/${selected.length}`;
+  $("#matchStatus").textContent = "Match each term with its answer";
+  $("#matchStatus").dataset.state = "playing";
+  $("#matchTime").textContent = "0s";
+  $("#matchModal").classList.add("open");
+  window.clearInterval(matchTimer);
+  matchTimer = window.setInterval(() => {
+    $("#matchTime").textContent = `${Math.floor((Date.now() - matchState.startedAt) / 1_000)}s`;
+  }, 250);
+}
+
+function renderStarterDecks() {
+  const list = $("#starterDecks");
+  list.replaceChildren();
+  STARTER_DECKS.forEach((deck) => {
+    const card = document.createElement("article");
+    card.className = "starterDeck";
+    const copy = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = deck.title;
+    const description = document.createElement("small");
+    description.textContent = deck.description;
+    copy.append(title, description);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "btn";
+    button.dataset.starterDeck = deck.id;
+    button.textContent = "Import";
+    card.append(copy, button);
+    list.append(card);
+  });
+}
+
+function importSharedDrafts(drafts, message = "Shared deck imported") {
+  const normalized = drafts.map((draft) => normalizeCard(draft)).filter(Boolean);
+  if (!normalized.length || normalized.length !== drafts.length) throw new Error("That deck code is invalid.");
+  cards = normalized;
+  studyQueueIds = [];
+  index = 0;
+  reviewed.clear();
+  render(true);
+  toast(message);
+}
+
+async function shareCurrentDeck() {
+  try {
+    const code = encodeDeckShare(cards);
+    const url = `${window.location.origin}${window.location.pathname}#deck=${code}`;
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url);
+      toast("Unlisted deck link copied · anyone with it can import");
+    } else {
+      window.prompt("Copy this unlisted deck link (anyone with it can import)", url);
+    }
+  } catch (error) {
+    toast(error.message || "Could not create a share link");
+  }
+}
+
+function importDeckCode(rawValue) {
+  const raw = String(rawValue || "").trim();
+  const code = raw.includes("#deck=") ? raw.split("#deck=").pop() : raw.replace(/^MD-/i, "");
+  importSharedDrafts(decodeDeckShare(code));
+  $("#exchangeModal").classList.remove("open");
+  window.history.replaceState(null, "", window.location.pathname);
+}
+
+function importSharedDeckFromHash() {
+  if (!window.location.hash.startsWith("#deck=")) return;
+  try {
+    const drafts = decodeDeckShare(window.location.hash.slice(6));
+    if (window.confirm(`Import this shared deck with ${drafts.length} cards?`)) importSharedDrafts(drafts);
+  } catch {
+    toast("This shared deck link is invalid or expired");
+  } finally {
+    window.history.replaceState(null, "", window.location.pathname);
+  }
 }
 
 $$('.tab').forEach((button) => {
@@ -1103,7 +2142,7 @@ $("#signOut").addEventListener("click", async () => {
   try {
     await apiPost("/api/auth/signout", {});
     authState.user = null;
-    activateGuestStore();
+    await activateGuestStore();
     updateAccountUI();
     authModal.classList.remove("open");
     toast("Signed out · your local deck is still here");
@@ -1120,6 +2159,98 @@ $("#scene").addEventListener("click", () => cards.length && $("#card").classList
 $("#next").addEventListener("click", next);
 $("#prev").addEventListener("click", previous);
 $$('.rate').forEach((button) => button.addEventListener("click", () => score(Number(button.dataset.score))));
+$("#hintButton").addEventListener("click", () => showNextHint().catch(() => toast("Could not create a hint")));
+$("#ttsButton").addEventListener("click", speakCurrentAnswer);
+$("#logMistake").addEventListener("click", logCurrentMistake);
+$("#feynmanRecord").addEventListener("click", toggleFeynmanRecording);
+$("#feynmanCompare").addEventListener("click", compareFeynmanExplanation);
+$("#revealExamStep").addEventListener("click", revealNextExamStep);
+$("#examStepList").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-exam-step]");
+  if (!button) return;
+  revealExamStep(button);
+  examRevealCount = $$("#examStepList .examStep.revealed").length;
+  if (examRevealCount === $$("#examStepList .examStep").length) {
+    $("#revealExamStep").textContent = "All revealed";
+    $("#revealExamStep").disabled = true;
+  }
+});
+$("#cramLeeches").addEventListener("click", () => {
+  renderLeechDeck();
+  $("#leechModal").classList.add("open");
+});
+$("#leechClose").addEventListener("click", () => $("#leechModal").classList.remove("open"));
+$("#startLeechCram").addEventListener("click", startLeechCram);
+$("#leechList").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-reset-leech]");
+  if (!button) return;
+  const card = cards.find((item) => item.id === button.dataset.resetLeech);
+  if (!card) return;
+  card.leech = false;
+  card.lapseStreak = 0;
+  render(true);
+  renderLeechDeck();
+  toast("Leech tag reset");
+});
+$("#startCramSprint").addEventListener("click", startCramSprint);
+$("#openExamEngine").addEventListener("click", openExamCreator);
+$("#formulaCram").addEventListener("click", startFormulaCram);
+$("#mistakeNotebook").addEventListener("click", () => {
+  renderMistakeNotebook();
+  $("#mistakeModal").classList.add("open");
+});
+$("#mistakeClose").addEventListener("click", () => $("#mistakeModal").classList.remove("open"));
+$("#startMistakeReview").addEventListener("click", startMistakeReview);
+$("#mistakeList").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-resolve-mistake]");
+  if (!button) return;
+  const card = cards.find((item) => item.id === button.dataset.resolveMistake);
+  if (!card) return;
+  card.mistake = false;
+  card.mistakeAt = "";
+  card.priority = "normal";
+  render(true);
+  renderMistakeNotebook();
+  toast("Mistake marked resolved");
+});
+$("#examTemplate").addEventListener("change", syncExamTemplate);
+$("#examClose").addEventListener("click", () => {
+  $("#examModal").classList.remove("open");
+  resetExamCreator();
+});
+$("#examCancel").addEventListener("click", () => {
+  $("#examModal").classList.remove("open");
+  resetExamCreator();
+});
+$("#saveExamCard").addEventListener("click", saveExamCard);
+$("#startMatch").addEventListener("click", startMatchGame);
+$("#matchClose").addEventListener("click", () => {
+  $("#matchModal").classList.remove("open");
+  window.clearInterval(matchTimer);
+  matchTimer = null;
+});
+$("#openExchange").addEventListener("click", () => {
+  renderStarterDecks();
+  $("#exchangeModal").classList.add("open");
+});
+$("#exchangeClose").addEventListener("click", () => $("#exchangeModal").classList.remove("open"));
+$("#shareDeck").addEventListener("click", shareCurrentDeck);
+$("#importShareCode").addEventListener("click", () => {
+  try {
+    importDeckCode($("#shareCode").value);
+  } catch (error) {
+    $("#shareCodeError").textContent = error.message || "Invalid deck code.";
+  }
+});
+$("#starterDecks").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-starter-deck]");
+  if (!button) return;
+  const deck = STARTER_DECKS.find((item) => item.id === button.dataset.starterDeck);
+  if (!deck) return;
+  importSharedDrafts(deck.cards.map(([front, back]) => ({ front, back })), `${deck.title} imported`);
+  $("#exchangeModal").classList.remove("open");
+});
+$("#openOcclusion").addEventListener("click", () => openManualCreator("occlusion"));
 $("#timerToggle").addEventListener("click", toggleTimer);
 $("#timerReset").addEventListener("click", resetTimer);
 $$('[data-timer-mode]').forEach((button) =>
@@ -1133,13 +2264,20 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("beforeunload", storeTimerState);
 
 $("#generate").addEventListener("click", async () => {
-  const text = ($("#notesPane").classList.contains("active") ? $("#notes").value : fileText).trim();
+  const activePane = $(".pane.active")?.id || "notesPane";
+  const isPhoto = activePane === "photoPane";
+  const text = (activePane === "notesPane" ? $("#notes").value : fileText).trim();
   const provider = $("#provider").value;
+  const cardMode = $("#cardMode").value;
   const accessCode = $("#accessCode").value;
   const button = $("#generate");
   $("#error").textContent = "";
 
-  if (text.length < 20) {
+  if (isPhoto && !photoFile) {
+    $("#error").textContent = "Snap or choose a clear textbook, notes, or whiteboard image first.";
+    return;
+  }
+  if (!isPhoto && text.length < 20) {
     $("#error").textContent = "Add more notes or upload a file first.";
     return;
   }
@@ -1160,13 +2298,26 @@ $("#generate").addEventListener("click", async () => {
       $("#accessCode").value = "";
       syncProvider();
     }
-    button.textContent = "Generating…";
-    const generated =
-      provider === "offline"
-        ? parseOffline(text)
-        : (await generateWithAI(text, provider)).map((item) => normalizeCard(item)).filter(Boolean);
+    button.textContent = isPhoto ? "Reading image…" : "Generating…";
+    let generated;
+    if (isPhoto && provider === "offline") {
+      const extracted = await extractTextWithBrowserOcr(photoFile);
+      if (extracted.length < 20) throw new Error("The browser could not find enough readable text in that image.");
+      generated = parseOffline(extracted, cardMode);
+    } else if (isPhoto) {
+      generated = (await generateFromImage(photoFile, provider, cardMode))
+        .map((item) => normalizeCard(item))
+        .filter(Boolean);
+    } else if (provider === "offline") {
+      generated = parseOffline(text, cardMode);
+    } else {
+      generated = (await generateWithAI(text, provider, cardMode))
+        .map((item) => normalizeCard(item))
+        .filter(Boolean);
+    }
     if (!generated.length) throw new Error("No usable concepts found.");
     cards = generated;
+    studyQueueIds = [];
     index = 0;
     reviewed.clear();
     render(true);
@@ -1202,41 +2353,202 @@ drop.addEventListener("click", () => fileInput.click());
 drop.addEventListener("drop", (event) => readFile(event.dataTransfer.files[0]));
 fileInput.addEventListener("change", (event) => readFile(event.target.files[0]));
 
+const photoInput = $("#photoFile");
+const photoDrop = $("#photoDrop");
+
+function selectPhoto(file) {
+  $("#error").textContent = "";
+  if (!file) return;
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 4 * 1024 * 1024) {
+    photoFile = null;
+    $("#error").textContent = "Use a JPG, PNG, or WebP photo under 4 MB.";
+    return;
+  }
+  photoFile = file;
+  if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+  photoPreviewUrl = URL.createObjectURL(file);
+  $("#photoPreview").src = photoPreviewUrl;
+  $("#photoPreviewWrap").hidden = false;
+  photoDrop.hidden = true;
+  $("#photoInfo").textContent = `${file.name.slice(0, 80)} · ${(file.size / 1024 / 1024).toFixed(1)} MB`;
+}
+
+photoDrop.addEventListener("click", () => photoInput.click());
+photoDrop.addEventListener("keydown", (event) => {
+  if (["Enter", " "].includes(event.key)) {
+    event.preventDefault();
+    photoInput.click();
+  }
+});
+$("#photoPreviewWrap").addEventListener("click", () => photoInput.click());
+photoInput.addEventListener("change", (event) => selectPhoto(event.target.files[0]));
+["dragover", "dragenter"].forEach((name) =>
+  photoDrop.addEventListener(name, (event) => {
+    event.preventDefault();
+    photoDrop.classList.add("drag");
+  })
+);
+["dragleave", "drop"].forEach((name) =>
+  photoDrop.addEventListener(name, (event) => {
+    event.preventDefault();
+    photoDrop.classList.remove("drag");
+  })
+);
+photoDrop.addEventListener("drop", (event) => selectPhoto(event.dataTransfer.files[0]));
+
 const modal = $("#modal");
-$("#manual").addEventListener("click", () => modal.classList.add("open"));
-$("#quickCreate").addEventListener("click", () => modal.classList.add("open"));
+function openManualCreator(type = "basic") {
+  $("#mType").value = type;
+  syncManualType();
+  modal.classList.add("open");
+}
+
+function syncManualType() {
+  const type = $("#mType").value;
+  $("#basicFields").hidden = type === "cloze";
+  $("#clozeFields").hidden = type !== "cloze";
+  $("#occlusionFields").hidden = type !== "occlusion";
+}
+
+function renderPendingOcclusions() {
+  $("#occlusionDraftMasks").replaceChildren();
+  for (const mask of pendingOcclusions) {
+    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    rect.setAttribute("x", String(mask.x));
+    rect.setAttribute("y", String(mask.y));
+    rect.setAttribute("width", String(mask.width));
+    rect.setAttribute("height", String(mask.height));
+    rect.setAttribute("rx", "18");
+    rect.classList.add("occlusionMask");
+    $("#occlusionDraftMasks").append(rect);
+  }
+  $("#maskCount").textContent = `${pendingOcclusions.length} ${pendingOcclusions.length === 1 ? "mask" : "masks"}`;
+}
+
+function resetManualCreator() {
+  $("#mFront").value = "";
+  $("#mBack").value = "";
+  $("#mCloze").value = "";
+  $("#mImage").value = "";
+  pendingOcclusionFile = null;
+  pendingOcclusions = [];
+  if (pendingOcclusionUrl) URL.revokeObjectURL(pendingOcclusionUrl);
+  pendingOcclusionUrl = "";
+  $("#occlusionBuilder").hidden = true;
+  $("#occlusionDraftImage").removeAttribute("src");
+  renderPendingOcclusions();
+}
+
+$("#manual").addEventListener("click", () => openManualCreator());
+$("#quickCreate").addEventListener("click", () => openManualCreator());
 $("#quickReview").addEventListener("click", startDashboardReview);
 $("#quickNotes").addEventListener("click", openNotesComposer);
 $("#quickImport").addEventListener("click", () => $("#import").click());
-$("#close").addEventListener("click", () => modal.classList.remove("open"));
-$("#cancel").addEventListener("click", () => modal.classList.remove("open"));
-$("#saveCard").addEventListener("click", () => {
-  const front = $("#mFront").value.trim().slice(0, 500);
-  const back = $("#mBack").value.trim().slice(0, 2000);
+$("#mType").addEventListener("change", syncManualType);
+$("#mImage").addEventListener("change", (event) => {
+  const file = event.target.files[0];
+  if (!file || !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024) {
+    toast("Use a JPG, PNG, or WebP image under 5 MB");
+    return;
+  }
+  pendingOcclusionFile = file;
+  pendingOcclusions = [];
+  if (pendingOcclusionUrl) URL.revokeObjectURL(pendingOcclusionUrl);
+  pendingOcclusionUrl = URL.createObjectURL(file);
+  $("#occlusionDraftImage").src = pendingOcclusionUrl;
+  $("#occlusionBuilder").hidden = false;
+  renderPendingOcclusions();
+});
+$("#occlusionBuilder").addEventListener("click", (event) => {
+  if (event.target.closest("button") || !pendingOcclusionFile || pendingOcclusions.length >= 24) return;
+  const image = $("#occlusionDraftImage");
+  const bounds = image.getBoundingClientRect();
+  if (!bounds.width || !bounds.height) return;
+  const centerX = ((event.clientX - bounds.left) / bounds.width) * 1_000;
+  const centerY = ((event.clientY - bounds.top) / bounds.height) * 1_000;
+  const width = 210;
+  const height = 105;
+  pendingOcclusions.push({
+    x: Math.round(Math.min(1_000 - width, Math.max(0, centerX - width / 2))),
+    y: Math.round(Math.min(1_000 - height, Math.max(0, centerY - height / 2))),
+    width,
+    height,
+  });
+  renderPendingOcclusions();
+});
+$("#clearMasks").addEventListener("click", (event) => {
+  event.stopPropagation();
+  pendingOcclusions = [];
+  renderPendingOcclusions();
+});
+$("#close").addEventListener("click", () => {
+  modal.classList.remove("open");
+  resetManualCreator();
+});
+$("#cancel").addEventListener("click", () => {
+  modal.classList.remove("open");
+  resetManualCreator();
+});
+$("#saveCard").addEventListener("click", async () => {
+  const type = $("#mType").value;
+  let front = $("#mFront").value.trim().slice(0, 500);
+  let back = $("#mBack").value.trim().slice(0, 2000);
+  const enhancements = { type };
+  if (type === "cloze") {
+    const clozeText = $("#mCloze").value.trim().slice(0, 2000);
+    if (!/\{\{(?:c\d+::)?[^}]+\}\}/i.test(clozeText)) {
+      toast("Wrap the hidden answer in {{double braces}}");
+      return;
+    }
+    enhancements.clozeText = clozeText;
+    front = clozeFront(clozeText).slice(0, 500);
+    back = clozeBack(clozeText).slice(0, 2000);
+  }
   if (!front || !back) {
     toast("Add both sides");
     return;
   }
-  cards.push(newCard(front, back));
-  index = cards.length - 1;
-  $("#mFront").value = "";
-  $("#mBack").value = "";
-  modal.classList.remove("open");
-  render(true);
-  toast("Card added");
+  if (type === "occlusion" && (!pendingOcclusionFile || !pendingOcclusions.length)) {
+    toast("Choose an image and add at least one mask");
+    return;
+  }
+  const button = $("#saveCard");
+  button.disabled = true;
+  try {
+    const card = newCard(front, back, { ...enhancements, occlusions: pendingOcclusions });
+    if (type === "occlusion") {
+      card.imageAssetId = card.id;
+      await saveImageAsset(card.id, pendingOcclusionFile);
+    }
+    cards.push(card);
+    index = cards.length - 1;
+    modal.classList.remove("open");
+    resetManualCreator();
+    render(true);
+    toast(type === "occlusion" ? "Image occlusion card added" : type === "cloze" ? "Cloze card added" : "Card added");
+  } catch (error) {
+    toast(error.message || "Could not add this card");
+  } finally {
+    button.disabled = false;
+  }
 });
 
 $("#deckList").addEventListener("click", (event) => {
   const button = event.target.closest("[data-del]");
   if (!button) return;
-  cards.splice(Number(button.dataset.del), 1);
+  const [removed] = cards.splice(Number(button.dataset.del), 1);
+  if (removed?.imageAssetId) deleteImageAsset(removed.imageAssetId).catch(() => {});
   index = Math.min(index, Math.max(0, cards.length - 1));
   render(true);
 });
 
 $("#clear").addEventListener("click", () => {
   if (cards.length && !window.confirm("Start a new deck?")) return;
+  cards.forEach((card) => {
+    if (card.imageAssetId) deleteImageAsset(card.imageAssetId).catch(() => {});
+  });
   cards = [];
+  studyQueueIds = [];
   index = 0;
   reviewed.clear();
   render(true);
@@ -1268,6 +2580,7 @@ $("#jsonFile").addEventListener("change", async (event) => {
     const normalized = imported.map(normalizeCard).filter(Boolean);
     if (!normalized.length || normalized.length !== imported.length) throw new Error();
     cards = normalized;
+    studyQueueIds = [];
     index = 0;
     reviewed.clear();
     render(true);
@@ -1292,6 +2605,12 @@ document.addEventListener("keydown", (event) => {
 });
 
 loadTheme();
-load();
+await load();
+importSharedDeckFromHash();
 loadConfig();
 loadAccount().finally(loadTimerState);
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/static/sw.js", { scope: "/" }).catch(() => {});
+  });
+}

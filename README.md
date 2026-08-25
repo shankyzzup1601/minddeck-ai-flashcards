@@ -1,6 +1,20 @@
 # MindDeck AI Flashcards — Flask
 
-A production-ready Flask build of MindDeck with a responsive glass dashboard and three saved visual themes, note and PDF ingestion, offline flashcard generation, securely locked OpenAI/Gemini generation, email accounts with cross-device deck sync, an offline-resilient focus timer, daily goals, study streaks, a live memory index, a seven-day review forecast, quick study actions, SM-2 review scheduling, keyboard shortcuts, local persistence, and JSON import/export.
+A production-ready Flask build of MindDeck with a responsive glass dashboard, adaptive SM-2 scheduling, leech rescue decks, Feynman voice comparison, exam-engineered cards, cloze and image-occlusion cards, photo OCR, progressive hints, safe Markdown/LaTeX/code formatting, device TTS, a 12-week review heatmap, Pomodoro deck slicing, Formula Cram, a 48-hour Mistake Notebook, Speed Match, unlisted deck links, curated starter decks, secure OpenAI/Gemini generation, email accounts with cloud sync, and offline-first local persistence.
+
+## Smart Study features
+
+- Four-tier confidence grading feeds the SM-2 schedule; four consecutive `Again` ratings automatically tag a leech for the dedicated Cram & Break Down deck.
+- Feynman Mode records up to 15 seconds locally, accepts an editable transcript, and compares its key concepts with the model answer. Recordings are never uploaded or synced.
+- Text, extracted PDF text, and photos can generate normal, cloze, or mixed decks. Photo OCR uses browser OCR when supported or the explicitly unlocked server-side AI provider.
+- NCERT line-by-line generation targets exact keywords, scientist names, exceptions, and common traps. The manual Exam Card Engine also creates reaction-mechanism carousels, formula/unit/dimension matches, journal-entry dual cards, graph flips, Assertion–Reasoning trainers, and progressive derivations.
+- PYQ labels, subject metadata, and Exception & Trap badges stay attached to each card through local save, JSON import/export, unlisted deck links, and signed-in cloud sync.
+- Formula Cram filters formulas, constants, units, dimensions, and economic identities into a rapid swipe queue for last-day revision.
+- An `Again` rating automatically adds the card to the high-priority Mistake Notebook and guarantees a due time no later than 48 hours; errors can also be logged or resolved manually.
+- Image-occlusion assets stay in IndexedDB on the device that created them. Card metadata may sync, but the private image file does not.
+- Progressive hints work offline and upgrade to locked AI hints when an AI session is already unlocked.
+- Review activity, 30-card focus queues, Speed Match, unlisted no-upload share links, and offline starter packs are built in. Share links are not encrypted; anyone with the URL can import the deck.
+- A service worker plus IndexedDB shadow backup keeps the study shell and the latest local deck resilient when connectivity drops.
 
 ## Run locally
 
@@ -47,14 +61,15 @@ Never place secret values in this repository or in a client-side `.env` file. Af
 - Successful unlocks create a signed, `HttpOnly`, `Secure`, `SameSite=Strict` session that expires after 15 minutes.
 - Double-submit CSRF tokens, same-origin checks, and JSON-only mutating requests.
 - Separate brute-force and generation rate limits.
-- Strict request and response size limits
+- Strict request and response size limits.
 - A restrictive nonce-based Content Security Policy, browser process isolation, anti-framing, HSTS, no-sniff, and no-store responses.
 - PDF.js is pinned and self-hosted; the page executes no mutable third-party CDN scripts.
 - Imported deck values are schema-checked and rendered through safe DOM APIs rather than HTML injection.
 - Account passwords are handled by Supabase Auth; auth tokens stay in hardened server-issued cookies.
 - Cloud decks are validated on both client and server and isolated per user with forced Postgres Row Level Security.
-- Sync uses last-write-wins timestamps, retains an offline local copy, and syncs only normalized deck progress and study statistics; notes and uploaded PDF files never leave the device.
-- Generic upstream errors that do not reveal secrets
+- Sync uses last-write-wins timestamps, retains an offline IndexedDB copy, and syncs only normalized deck progress and study statistics. Original notes, PDF files, voice recordings, and image-occlusion files are never placed in cloud deck storage.
+- Photo content is sent only after the user explicitly selects a securely unlocked AI provider; MIME type, magic bytes, and size are validated first.
+- Generic upstream errors that do not reveal secrets.
 - Weekly dependency monitoring and a security test workflow on every pull request.
 
 The included `Procfile` and `render.yaml` support standard Gunicorn deployment. Signed-out decks remain in browser local storage; signed-in decks and review progress also sync to the user's protected cloud row.

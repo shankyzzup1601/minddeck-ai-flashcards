@@ -16,3 +16,5 @@ Do not publish API keys, access codes, auth cookies, session tokens, exploit pay
 - Store only a salted scrypt access-code hash, never the plaintext code.
 - Rotate `AI_SESSION_SECRET` to invalidate every active AI session.
 - Keep online providers locked when they are not actively needed.
+- Voice explanations and image-occlusion assets are device-only and must never be added to cloud deck payloads. Exam-card metadata (bounded tags, flags, and reveal sections) may sync only after strict client and server schema normalization.
+- Photo OCR uploads are accepted only through the same short-lived locked AI session, with strict type, signature, size, CSRF, origin, and rate-limit checks.
