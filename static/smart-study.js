@@ -319,13 +319,22 @@ export function encodeDeckShare(cards) {
   if (!Array.isArray(cards) || !cards.length || cards.length > 40) {
     throw new Error("Share links support decks with 1–40 cards.");
   }
-  const compact = cards.map((card) => ({
-    f: String(card.front || "").slice(0, 500),
-    b: String(card.back || "").slice(0, 2_000),
-    t: card.type === "cloze" ? "c" : "b",
-    c: card.type === "cloze" ? String(card.clozeText || "").slice(0, 2_000) : "",
-  }));
-  const code = utf8ToBase64Url(JSON.stringify({ v: 1, c: compact }));
+  const compact = cards.map((card) => {
+    const enhanced = normalizeEnhancements(card);
+    return {
+      f: String(card.front || "").slice(0, 500),
+      b: String(card.back || "").slice(0, 2_000),
+      t: enhanced.type === "cloze" ? "c" : "b",
+      c: enhanced.type === "cloze" ? enhanced.clozeText : "",
+      p: enhanced.template,
+      s: enhanced.subject,
+      g: enhanced.examTags,
+      x: enhanced.trap,
+      r: enhanced.sections,
+      h: enhanced.template === "graph" ? enhanced.graphShape : "",
+    };
+  });
+  const code = utf8ToBase64Url(JSON.stringify({ v: 2, c: compact }));
   if (code.length > 12_000) throw new Error("This deck is too large for a share link. Export JSON instead.");
   return code;
 }
@@ -333,14 +342,22 @@ export function encodeDeckShare(cards) {
 export function decodeDeckShare(code) {
   if (typeof code !== "string" || !/^[A-Za-z0-9_-]{8,12000}$/.test(code)) throw new Error("Invalid deck code.");
   const parsed = JSON.parse(base64UrlToUtf8(code));
-  if (parsed?.v !== 1 || !Array.isArray(parsed.c) || !parsed.c.length || parsed.c.length > 40) {
+  if (![1, 2].includes(parsed?.v) || !Array.isArray(parsed.c) || !parsed.c.length || parsed.c.length > 40) {
     throw new Error("Invalid deck code.");
   }
   return parsed.c.map((card) => ({
     front: String(card.f || "").slice(0, 500),
     back: String(card.b || "").slice(0, 2_000),
-    type: card.t === "c" ? "cloze" : "basic",
-    clozeText: card.t === "c" ? String(card.c || "").slice(0, 2_000) : "",
+    ...normalizeEnhancements({
+      type: card.t === "c" ? "cloze" : "basic",
+      clozeText: card.t === "c" ? String(card.c || "").slice(0, 2_000) : "",
+      template: parsed.v === 2 ? card.p : "basic",
+      subject: parsed.v === 2 ? card.s : "",
+      examTags: parsed.v === 2 ? card.g : [],
+      trap: parsed.v === 2 && card.x === true,
+      sections: parsed.v === 2 ? card.r : [],
+      graphShape: parsed.v === 2 ? card.h : "downward",
+    }),
   }));
 }
 
