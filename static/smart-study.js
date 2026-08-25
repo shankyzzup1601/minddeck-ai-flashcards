@@ -84,6 +84,18 @@ export async function deleteImageAsset(assetId) {
 
 export function normalizeEnhancements(value) {
   const type = ["basic", "cloze", "occlusion"].includes(value?.type) ? value.type : "basic";
+  const template = [
+    "basic",
+    "ncert",
+    "reaction",
+    "formula",
+    "journal",
+    "graph",
+    "assertion",
+    "derivation",
+  ].includes(value?.template)
+    ? value.template
+    : "basic";
   const clozeText = typeof value?.clozeText === "string" ? value.clozeText.trim().slice(0, 2_000) : "";
   const imageAssetId =
     typeof value?.imageAssetId === "string" && /^[a-z0-9_-]{4,80}$/i.test(value.imageAssetId)
@@ -104,6 +116,29 @@ export function normalizeEnhancements(value) {
   const hints = Array.isArray(value?.hints)
     ? value.hints.filter((hint) => typeof hint === "string" && hint.trim()).slice(0, 3).map((hint) => hint.trim().slice(0, 300))
     : [];
+  const examTags = Array.isArray(value?.examTags)
+    ? [...new Set(
+        value.examTags
+          .filter((tag) => typeof tag === "string" && tag.trim())
+          .map((tag) => tag.trim().slice(0, 60))
+      )].slice(0, 6)
+    : [];
+  const sections = Array.isArray(value?.sections)
+    ? value.sections.slice(0, 12).flatMap((section) => {
+        if (!section || typeof section !== "object") return [];
+        const label = typeof section.label === "string" ? section.label.trim().slice(0, 60) : "";
+        const content = typeof section.value === "string" ? section.value.trim().slice(0, 500) : "";
+        return label && content ? [{ label, value: content }] : [];
+      })
+    : [];
+  const subject = typeof value?.subject === "string" ? value.subject.trim().slice(0, 80) : "";
+  const graphShape = ["downward", "upward", "ppc", "isotherm", "bell"].includes(value?.graphShape)
+    ? value.graphShape
+    : "downward";
+  const mistakeAt =
+    typeof value?.mistakeAt === "string" && Number.isFinite(Date.parse(value.mistakeAt))
+      ? new Date(value.mistakeAt).toISOString()
+      : "";
   return {
     type,
     clozeText: type === "cloze" ? clozeText : "",
@@ -113,6 +148,15 @@ export function normalizeEnhancements(value) {
     leech: Boolean(value?.leech),
     lastScore: Math.min(4, Math.max(0, Math.round(Number(value?.lastScore) || 0))),
     hints,
+    template,
+    subject,
+    examTags,
+    trap: Boolean(value?.trap),
+    mistake: Boolean(value?.mistake),
+    mistakeAt,
+    priority: value?.priority === "high" ? "high" : "normal",
+    sections,
+    graphShape: template === "graph" ? graphShape : "downward",
   };
 }
 
