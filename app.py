@@ -3,12 +3,14 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import threading
 import time
 import urllib.error
 import urllib.request
 from collections import defaultdict, deque
+from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 from flask import Flask, g, jsonify, make_response, render_template, request
@@ -19,8 +21,11 @@ app.config["MAX_CONTENT_LENGTH"] = 256 * 1024
 
 MAX_NOTES_CHARS = 18_000
 MAX_PROVIDER_RESPONSE_BYTES = 1_000_000
+MAX_SUPABASE_RESPONSE_BYTES = 512_000
+MAX_CLOUD_CARDS = 500
 AI_SESSION_SECONDS = 15 * 60
-CSRF_SECONDS = 60 * 60
+CSRF_SECONDS = 24 * 60 * 60
+AUTH_REFRESH_SECONDS = 30 * 24 * 60 * 60
 
 _rate_buckets: dict[str, deque[float]] = defaultdict(deque)
 _rate_lock = threading.Lock()
@@ -30,6 +35,13 @@ def configured_key(provider: str) -> str:
     """Read provider secrets from the server environment for every request."""
     variable = "OPENAI_API_KEY" if provider == "openai" else "GEMINI_API_KEY"
     return os.environ.get(variable, "").strip()
+
+
+def configured_model(provider: str) -> str:
+    variable = "OPENAI_MODEL" if provider == "openai" else "GEMINI_MODEL"
+    fallback = "gpt-4o-mini" if provider == "openai" else "gemini-2.0-flash"
+    candidate = os.environ.get(variable, fallback).strip()
+    return candidate if re.fullmatch(r"[A-Za-z0-9._-]{1,100}", candidate) else fallback
 
 
 def access_code_hash() -> str:
@@ -52,6 +64,14 @@ def session_cookie_name() -> str:
     return "__Host-minddeck_ai" if is_https_request() else "minddeck_ai_dev"
 
 
+def auth_access_cookie_name() -> str:
+    return "__Host-minddeck_access" if is_https_request() else "minddeck_access_dev"
+
+
+def auth_refresh_cookie_name() -> str:
+    return "__Host-minddeck_refresh" if is_https_request() else "minddeck_refresh_dev"
+
+
 def provider_ready(provider: str) -> bool:
     # Fail closed unless all independent secrets are present and strong.
     return bool(
@@ -59,6 +79,224 @@ def provider_ready(provider: str) -> bool:
         and access_code_hash().startswith("scrypt:")
         and len(session_secret()) >= 32
     )
+
+
+def supabase_settings() -> tuple[str, str] | None:
+    """Return a tightly validated Supabase project URL and publishable key."""
+    base_url = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
+    publishable_key = (
+        os.environ.get("SUPABASE_PUBLISHABLE_KEY", "").strip()
+        or os.environ.get("SUPABASE_ANON_KEY", "").strip()
+    )
+    parsed = urlparse(base_url)
+    hostname = (parsed.hostname or "").lower()
+    try:
+        port = parsed.port
+    except ValueError:
+        return None
+    if not (
+        parsed.scheme == "https"
+        and hostname.endswith(".supabase.co")
+        and parsed.username is None
+        and parsed.password is None
+        and port in {None, 443}
+        and parsed.path in {"", "/"}
+        and not parsed.query
+        and not parsed.fragment
+        and 20 <= len(publishable_key) <= 4_096
+    ):
+        return None
+    return base_url, publishable_key
+
+
+def auth_ready() -> bool:
+    return supabase_settings() is not None
+
+
+class SupabaseError(Exception):
+    def __init__(self, status: int, payload=None):
+        super().__init__(f"Supabase request failed with status {status}")
+        self.status = status
+        self.payload = payload
+
+
+def supabase_json(
+    method: str,
+    path: str,
+    payload: dict | list | None = None,
+    *,
+    bearer: str | None = None,
+    prefer: str | None = None,
+):
+    settings = supabase_settings()
+    if not settings:
+        raise RuntimeError("Cloud accounts are not configured.")
+    if not path.startswith("/") or "://" in path or ".." in path:
+        raise ValueError("Invalid Supabase path.")
+
+    base_url, publishable_key = settings
+    body = None if payload is None else json.dumps(payload).encode("utf-8")
+    headers = {
+        "Accept": "application/json",
+        "apikey": publishable_key,
+        "User-Agent": "MindDeck/3.0",
+    }
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+    if bearer:
+        headers["Authorization"] = f"Bearer {bearer}"
+    if prefer:
+        headers["Prefer"] = prefer
+
+    upstream = urllib.request.Request(
+        base_url + path,
+        data=body,
+        headers=headers,
+        method=method,
+    )
+    try:
+        # The URL is built only after strict HTTPS *.supabase.co validation above.
+        with urllib.request.urlopen(upstream, timeout=15) as response:  # nosec B310
+            raw = response.read(MAX_SUPABASE_RESPONSE_BYTES + 1)
+            if len(raw) > MAX_SUPABASE_RESPONSE_BYTES:
+                raise ValueError("Cloud response was too large.")
+            return json.loads(raw.decode("utf-8")) if raw else {}
+    except urllib.error.HTTPError as exc:
+        raw = exc.read(MAX_SUPABASE_RESPONSE_BYTES + 1)
+        try:
+            error_payload = json.loads(raw.decode("utf-8")) if raw else {}
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            error_payload = {}
+        raise SupabaseError(exc.code, error_payload) from exc
+
+
+def set_auth_cookies(response, tokens: dict):
+    access_token = tokens.get("access_token")
+    refresh_token = tokens.get("refresh_token")
+    if not isinstance(access_token, str) or not 32 <= len(access_token) <= 4_096:
+        raise ValueError("Invalid access token.")
+    if not isinstance(refresh_token, str) or not 16 <= len(refresh_token) <= 4_096:
+        raise ValueError("Invalid refresh token.")
+
+    access_seconds = min(max(int(tokens.get("expires_in", 3_600)), 60), 3_600)
+    cookie_options = {
+        "secure": is_https_request(),
+        "httponly": True,
+        "samesite": "Strict",
+        "path": "/",
+    }
+    response.set_cookie(
+        auth_access_cookie_name(), access_token, max_age=access_seconds, **cookie_options
+    )
+    response.set_cookie(
+        auth_refresh_cookie_name(),
+        refresh_token,
+        max_age=AUTH_REFRESH_SECONDS,
+        **cookie_options,
+    )
+
+
+def clear_auth_cookies(response):
+    cookie_options = {
+        "secure": is_https_request(),
+        "httponly": True,
+        "samesite": "Strict",
+        "path": "/",
+    }
+    response.delete_cookie(auth_access_cookie_name(), **cookie_options)
+    response.delete_cookie(auth_refresh_cookie_name(), **cookie_options)
+
+
+def current_cloud_user() -> dict | None:
+    token = request.cookies.get(auth_access_cookie_name(), "")
+    if not 32 <= len(token) <= 4_096 or not auth_ready():
+        return None
+    try:
+        user = supabase_json("GET", "/auth/v1/user", bearer=token)
+    except (SupabaseError, RuntimeError, ValueError, urllib.error.URLError):
+        return None
+
+    user_id = user.get("id") if isinstance(user, dict) else None
+    email = user.get("email") if isinstance(user, dict) else None
+    if not isinstance(user_id, str) or not re.fullmatch(r"[0-9a-f-]{36}", user_id, re.I):
+        return None
+    return {
+        "id": user_id,
+        "email": email[:254] if isinstance(email, str) else "",
+        "account_key": hashlib.sha256(user_id.encode("ascii")).hexdigest()[:24],
+    }
+
+
+def normalize_cloud_deck(value) -> dict:
+    if not isinstance(value, dict):
+        raise ValueError("Invalid deck.")
+    raw_cards = value.get("cards", [])
+    if not isinstance(raw_cards, list) or len(raw_cards) > MAX_CLOUD_CARDS:
+        raise ValueError("Invalid deck size.")
+
+    normalized_cards = []
+    valid_ids = set()
+    for raw_card in raw_cards:
+        if not isinstance(raw_card, dict):
+            raise ValueError("Invalid card.")
+        front = raw_card.get("front", "")
+        back = raw_card.get("back", "")
+        card_id = raw_card.get("id", "")
+        if not (
+            isinstance(front, str)
+            and isinstance(back, str)
+            and isinstance(card_id, str)
+            and 1 <= len(front.strip()) <= 500
+            and 1 <= len(back.strip()) <= 2_000
+            and re.fullmatch(r"[a-z0-9_-]{4,80}", card_id, re.I)
+        ):
+            raise ValueError("Invalid card fields.")
+
+        def number(name: str, default: float, minimum: float, maximum: float):
+            raw = raw_card.get(name, default)
+            if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+                return default
+            return min(maximum, max(minimum, raw))
+
+        due_date = raw_card.get("dueDate", "")
+        if not isinstance(due_date, str) or not 10 <= len(due_date) <= 40:
+            due_date = datetime.now(timezone.utc).isoformat()
+        normalized_cards.append(
+            {
+                "id": card_id,
+                "front": front.strip(),
+                "back": back.strip(),
+                "interval": number("interval", 0, 0, 36_500),
+                "repetition": number("repetition", 0, 0, 10_000),
+                "easeFactor": number("easeFactor", 2.5, 1.3, 5),
+                "dueDate": due_date,
+                "reviews": number("reviews", 0, 0, 1_000_000),
+            }
+        )
+        valid_ids.add(card_id)
+
+    raw_reviewed = value.get("reviewed", [])
+    reviewed = []
+    if isinstance(raw_reviewed, list):
+        reviewed = list(
+            dict.fromkeys(
+                item for item in raw_reviewed if isinstance(item, str) and item in valid_ids
+            )
+        )[:MAX_CLOUD_CARDS]
+    raw_index = value.get("index", 0)
+    index = raw_index if isinstance(raw_index, int) and not isinstance(raw_index, bool) else 0
+    index = min(max(index, 0), max(0, len(normalized_cards) - 1))
+    raw_updated = value.get("updatedAt", 0)
+    now_ms = int(time.time() * 1_000)
+    updated_at = raw_updated if isinstance(raw_updated, int) and not isinstance(raw_updated, bool) else 0
+    updated_at = min(max(updated_at, 0), now_ms + 60_000)
+    return {
+        "version": 3,
+        "cards": normalized_cards,
+        "index": index,
+        "reviewed": reviewed,
+        "updatedAt": updated_at,
+    }
 
 
 def client_identifier() -> str:
@@ -206,6 +444,226 @@ def api_config():
     )
 
 
+@app.get("/api/auth/config")
+def auth_config():
+    user = current_cloud_user() if auth_ready() else None
+    return jsonify(
+        enabled=auth_ready(),
+        user={"email": user["email"], "accountKey": user["account_key"]} if user else None,
+        canRefresh=bool(
+            auth_ready()
+            and 16
+            <= len(request.cookies.get(auth_refresh_cookie_name(), ""))
+            <= 4_096
+        ),
+    )
+
+
+def valid_auth_fields(body: dict) -> tuple[str, str] | None:
+    email = str(body.get("email", "")).strip().lower()
+    password = str(body.get("password", ""))
+    if not (
+        3 <= len(email) <= 254
+        and re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email)
+        and 12 <= len(password) <= 128
+    ):
+        return None
+    return email, password
+
+
+@app.post("/api/auth/signup")
+def auth_signup():
+    invalid = validate_mutating_request()
+    if invalid:
+        return invalid
+    if not auth_ready():
+        return jsonify(error="Cloud accounts are not configured yet."), 503
+
+    allowed, retry_after = rate_limit_ok("auth-signup", 3, 60 * 60)
+    if not allowed:
+        return limited_response(retry_after)
+    body = request.get_json(silent=True) or {}
+    credentials = valid_auth_fields(body)
+    if not credentials:
+        return jsonify(error="Use a valid email and a password of at least 12 characters."), 400
+    email, password = credentials
+
+    try:
+        tokens = supabase_json(
+            "POST", "/auth/v1/signup", {"email": email, "password": password}
+        )
+        signed_in = isinstance(tokens, dict) and bool(tokens.get("access_token"))
+        response = jsonify(
+            created=True,
+            signedIn=signed_in,
+            message=(
+                "Account created and signed in."
+                if signed_in
+                else "Check your email to confirm the account, then sign in."
+            ),
+        )
+        if signed_in:
+            set_auth_cookies(response, tokens)
+        return response
+    except SupabaseError as exc:
+        if exc.status == 429:
+            return limited_response(60)
+        return jsonify(error="Could not create the account. Check the email and password."), 400
+    except (RuntimeError, ValueError, urllib.error.URLError):
+        app.logger.exception("Cloud account signup failed")
+        return jsonify(error="Cloud accounts are temporarily unavailable."), 502
+
+
+@app.post("/api/auth/signin")
+def auth_signin():
+    invalid = validate_mutating_request()
+    if invalid:
+        return invalid
+    if not auth_ready():
+        return jsonify(error="Cloud accounts are not configured yet."), 503
+
+    allowed, retry_after = rate_limit_ok("auth-signin", 5, 15 * 60)
+    if not allowed:
+        return limited_response(retry_after)
+    body = request.get_json(silent=True) or {}
+    credentials = valid_auth_fields(body)
+    if not credentials:
+        return jsonify(error="Email or password is incorrect."), 401
+    email, password = credentials
+
+    try:
+        tokens = supabase_json(
+            "POST",
+            "/auth/v1/token?grant_type=password",
+            {"email": email, "password": password},
+        )
+        response = jsonify(signedIn=True)
+        set_auth_cookies(response, tokens)
+        return response
+    except SupabaseError as exc:
+        if exc.status == 429:
+            return limited_response(60)
+        return jsonify(error="Email or password is incorrect."), 401
+    except (RuntimeError, ValueError, urllib.error.URLError):
+        app.logger.exception("Cloud account sign-in failed")
+        return jsonify(error="Cloud accounts are temporarily unavailable."), 502
+
+
+@app.post("/api/auth/refresh")
+def auth_refresh():
+    invalid = validate_mutating_request()
+    if invalid:
+        return invalid
+    if not auth_ready():
+        return jsonify(error="Cloud accounts are not configured yet."), 503
+
+    allowed, retry_after = rate_limit_ok("auth-refresh", 30, 60 * 60)
+    if not allowed:
+        return limited_response(retry_after)
+    refresh_token = request.cookies.get(auth_refresh_cookie_name(), "")
+    if not 16 <= len(refresh_token) <= 4_096:
+        return jsonify(error="Sign in to sync your deck."), 401
+
+    try:
+        tokens = supabase_json(
+            "POST",
+            "/auth/v1/token?grant_type=refresh_token",
+            {"refresh_token": refresh_token},
+        )
+        response = jsonify(refreshed=True)
+        set_auth_cookies(response, tokens)
+        return response
+    except SupabaseError:
+        response = jsonify(error="Your session expired. Please sign in again.")
+        response.status_code = 401
+        clear_auth_cookies(response)
+        return response
+    except (RuntimeError, ValueError, urllib.error.URLError):
+        return jsonify(error="Cloud accounts are temporarily unavailable."), 502
+
+
+@app.post("/api/auth/signout")
+def auth_signout():
+    invalid = validate_mutating_request()
+    if invalid:
+        return invalid
+
+    token = request.cookies.get(auth_access_cookie_name(), "")
+    if auth_ready() and 32 <= len(token) <= 4_096:
+        try:
+            supabase_json("POST", "/auth/v1/logout", bearer=token)
+        except (SupabaseError, RuntimeError, ValueError, urllib.error.URLError):
+            pass
+    response = jsonify(signedOut=True)
+    clear_auth_cookies(response)
+    return response
+
+
+@app.get("/api/deck")
+def cloud_deck():
+    if not auth_ready():
+        return jsonify(error="Cloud sync is not configured yet."), 503
+    user = current_cloud_user()
+    if not user:
+        return jsonify(error="Sign in to sync your deck."), 401
+    token = request.cookies.get(auth_access_cookie_name(), "")
+    try:
+        rows = supabase_json(
+            "GET",
+            "/rest/v1/minddeck_decks?select=deck,updated_at&limit=1",
+            bearer=token,
+        )
+        row = rows[0] if isinstance(rows, list) and rows else None
+        return jsonify(
+            deck=row.get("deck") if isinstance(row, dict) else None,
+            updatedAt=row.get("updated_at") if isinstance(row, dict) else None,
+        )
+    except SupabaseError as exc:
+        status = 401 if exc.status in {401, 403} else 502
+        return jsonify(error="Cloud sync needs you to sign in again."), status
+    except (RuntimeError, ValueError, urllib.error.URLError):
+        return jsonify(error="Cloud sync is temporarily unavailable."), 502
+
+
+@app.put("/api/deck")
+def save_cloud_deck():
+    invalid = validate_mutating_request()
+    if invalid:
+        return invalid
+    if not auth_ready():
+        return jsonify(error="Cloud sync is not configured yet."), 503
+
+    allowed, retry_after = rate_limit_ok("deck-save", 30, 60)
+    if not allowed:
+        return limited_response(retry_after)
+    user = current_cloud_user()
+    if not user:
+        return jsonify(error="Sign in to sync your deck."), 401
+    body = request.get_json(silent=True) or {}
+    try:
+        deck = normalize_cloud_deck(body.get("deck"))
+    except ValueError:
+        return jsonify(error=f"A cloud deck supports up to {MAX_CLOUD_CARDS} valid cards."), 400
+
+    token = request.cookies.get(auth_access_cookie_name(), "")
+    saved_at = datetime.now(timezone.utc).isoformat()
+    try:
+        rows = supabase_json(
+            "POST",
+            "/rest/v1/minddeck_decks?on_conflict=user_id",
+            {"user_id": user["id"], "deck": deck, "updated_at": saved_at},
+            bearer=token,
+            prefer="resolution=merge-duplicates,return=representation",
+        )
+        row = rows[0] if isinstance(rows, list) and rows else {}
+        return jsonify(saved=True, updatedAt=row.get("updated_at", saved_at))
+    except SupabaseError as exc:
+        status = 401 if exc.status in {401, 403} else 502
+        return jsonify(error="Cloud sync could not save this deck."), status
+    except (RuntimeError, ValueError, urllib.error.URLError):
+        return jsonify(error="Cloud sync is temporarily unavailable."), 502
+
+
 @app.post("/api/unlock")
 def unlock_ai():
     invalid = validate_mutating_request()
@@ -263,6 +721,15 @@ def lock_ai():
 
 
 def post_json(url: str, payload: dict, headers: dict | None = None) -> dict:
+    parsed = urlparse(url)
+    if not (
+        parsed.scheme == "https"
+        and parsed.hostname in {"api.openai.com", "generativelanguage.googleapis.com"}
+        and parsed.username is None
+        and parsed.password is None
+        and parsed.port in {None, 443}
+    ):
+        raise ValueError("Outbound AI host is not allowed.")
     req = urllib.request.Request(
         url,
         data=json.dumps(payload).encode("utf-8"),
@@ -273,7 +740,8 @@ def post_json(url: str, payload: dict, headers: dict | None = None) -> dict:
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=30) as response:
+    # The exact provider hosts are allowlisted immediately above.
+    with urllib.request.urlopen(req, timeout=30) as response:  # nosec B310
         raw = response.read(MAX_PROVIDER_RESPONSE_BYTES + 1)
         if len(raw) > MAX_PROVIDER_RESPONSE_BYTES:
             raise ValueError("Provider response was too large.")
@@ -340,7 +808,7 @@ def generate():
             data = post_json(
                 "https://api.openai.com/v1/chat/completions",
                 {
-                    "model": os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+                    "model": configured_model("openai"),
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0.2,
                     "max_tokens": 3_000,
@@ -353,7 +821,7 @@ def generate():
         else:
             data = post_json(
                 "https://generativelanguage.googleapis.com/v1beta/models/"
-                + os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+                + configured_model("gemini")
                 + ":generateContent",
                 {
                     "contents": [{"parts": [{"text": prompt}]}],
@@ -429,4 +897,8 @@ def secure_response(response):
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=False)
+    app.run(
+        host=os.environ.get("HOST", "127.0.0.1"),
+        port=int(os.environ.get("PORT", "5000")),
+        debug=False,
+    )
