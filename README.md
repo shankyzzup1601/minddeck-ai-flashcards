@@ -1,6 +1,6 @@
 # MindDeck AI Flashcards — Flask
 
-A production-ready Flask build of MindDeck with note and PDF ingestion, offline flashcard generation, securely locked OpenAI/Gemini generation, email accounts with cross-device deck sync, SM-2 review scheduling, keyboard shortcuts, local persistence, and JSON import/export.
+A production-ready Flask build of MindDeck with note and PDF ingestion, offline flashcard generation, securely locked OpenAI/Gemini generation, email accounts with cross-device deck sync, an offline-resilient focus timer, daily goals and study streak widgets, SM-2 review scheduling, keyboard shortcuts, local persistence, and JSON import/export.
 
 ## Run locally
 
@@ -51,7 +51,7 @@ Never place secret values in this repository or in a client-side `.env` file. Af
 - Imported deck values are schema-checked and rendered through safe DOM APIs rather than HTML injection.
 - Account passwords are handled by Supabase Auth; auth tokens stay in hardened server-issued cookies.
 - Cloud decks are validated on both client and server and isolated per user with forced Postgres Row Level Security.
-- Sync uses last-write-wins timestamps, retains an offline local copy, and never sends notes or uploaded PDF files to cloud storage.
+- Sync uses last-write-wins timestamps, retains an offline local copy, and syncs only normalized deck progress and study statistics; notes and uploaded PDF files never leave the device.
 - Generic upstream errors that do not reveal secrets
 - Weekly dependency monitoring and a security test workflow on every pull request.
 
