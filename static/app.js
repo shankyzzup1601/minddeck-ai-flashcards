@@ -57,7 +57,7 @@ let photoPreviewUrl = "";
 let aiProviders = { openai: false, gemini: false };
 let unlockedProvider = null;
 let deckUpdatedAt = 0;
-let authState = { enabled: false, user: null };
+let authState = { enabled: false, googleEnabled: false, user: null };
 let syncTimer = null;
 let syncInFlight = false;
 let activeStoreKey = GUEST_STORE;
@@ -1211,6 +1211,7 @@ function setSyncStatus(message, state = "idle") {
 
 function updateAccountUI() {
   const signedIn = Boolean(authState.user);
+  const googleAvailable = authState.enabled && authState.googleEnabled && !signedIn;
   const account = $("#account");
   account.disabled = !authState.enabled;
   account.textContent = signedIn
@@ -1221,6 +1222,9 @@ function updateAccountUI() {
   $("#authSignedOut").hidden = signedIn;
   $("#authSignedIn").hidden = !signedIn;
   $("#authUser").textContent = signedIn ? authState.user.email || "Signed in" : "";
+  $("#googleSignIn").hidden = !googleAvailable;
+  $("#oauthSecurity").hidden = !googleAvailable;
+  $("#emailAuthDivider").hidden = !googleAvailable;
   if (!authState.enabled) setSyncStatus("Saved on this device · cloud setup pending");
   else if (!signedIn) setSyncStatus("Saved on this device · sign in to sync");
 }
@@ -1251,6 +1255,7 @@ async function loadAccount() {
     }
     authState = {
       enabled: Boolean(data.enabled),
+      googleEnabled: Boolean(data.googleEnabled),
       user:
         data.user &&
         typeof data.user.email === "string" &&
@@ -1263,7 +1268,7 @@ async function loadAccount() {
     updateAccountUI();
     if (authState.user) await reconcileCloudDeck();
   } catch {
-    authState = { enabled: false, user: null };
+    authState = { enabled: false, googleEnabled: false, user: null };
     updateAccountUI();
   }
 }
@@ -1384,6 +1389,38 @@ async function submitAccount(path) {
       button.disabled = false;
     });
   }
+}
+
+async function startGoogleSignIn() {
+  const button = $("#googleSignIn");
+  $("#authError").textContent = "";
+  $("#authMessage").textContent = "";
+  button.disabled = true;
+  try {
+    const data = await apiPost("/api/auth/google/start", {});
+    const authorizationUrl = new URL(data.authorizationUrl);
+    const safeSupabaseUrl =
+      authorizationUrl.protocol === "https:" &&
+      authorizationUrl.hostname.endsWith(".supabase.co") &&
+      authorizationUrl.pathname === "/auth/v1/authorize" &&
+      authorizationUrl.searchParams.get("provider") === "google";
+    if (!safeSupabaseUrl) throw new Error("The Google sign-in address was invalid.");
+    window.location.assign(authorizationUrl.href);
+  } catch (error) {
+    $("#authError").textContent = error.message || "Google Sign-In could not start.";
+    button.disabled = false;
+  }
+}
+
+function consumeAuthResult() {
+  const params = new URLSearchParams(window.location.search);
+  const result = params.get("auth");
+  if (!result) return "";
+  params.delete("auth");
+  const query = params.toString();
+  const cleanUrl = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
+  window.history.replaceState(null, "", cleanUrl);
+  return result === "google-ok" ? "ok" : "error";
 }
 
 function next(touch = true) {
@@ -2136,6 +2173,7 @@ $("#authSignedOut").addEventListener("keydown", (event) => {
 });
 $("#authClose").addEventListener("click", () => authModal.classList.remove("open"));
 $("#authCancel").addEventListener("click", () => authModal.classList.remove("open"));
+$("#googleSignIn").addEventListener("click", startGoogleSignIn);
 $("#signIn").addEventListener("click", () => submitAccount("/api/auth/signin"));
 $("#signUp").addEventListener("click", () => submitAccount("/api/auth/signup"));
 $("#signOut").addEventListener("click", async () => {
@@ -2608,7 +2646,14 @@ loadTheme();
 await load();
 importSharedDeckFromHash();
 loadConfig();
-loadAccount().finally(loadTimerState);
+const authResult = consumeAuthResult();
+loadAccount()
+  .then(() => {
+    if (authResult === "ok" && authState.user) toast("Signed in with Google · cloud memory restored");
+    else if (authResult === "ok") toast("Google Sign-In finished, but the account could not be loaded");
+    else if (authResult === "error") toast("Google Sign-In was cancelled or could not be completed");
+  })
+  .finally(loadTimerState);
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/static/sw.js", { scope: "/" }).catch(() => {});
