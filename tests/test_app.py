@@ -68,6 +68,8 @@ class MindDeckSecurityTests(unittest.TestCase):
         self.assertNotIn('id="apiKey"', page)
         self.assertIn('id="accessCode"', page)
         self.assertIn('id="account"', page)
+        self.assertIn('id="timerWidget"', page)
+        self.assertIn('id="weekBars"', page)
         self.assertNotIn("unpkg.com", page)
         self.assertNotIn("cdnjs.cloudflare.com", page)
         self.assertNotIn("SUPABASE_PUBLISHABLE_KEY", page)
@@ -118,6 +120,37 @@ class MindDeckSecurityTests(unittest.TestCase):
         self.assertIn("for delete", schema)
         self.assertIn("auth.uid()", schema)
         self.assertNotIn("service_role", schema)
+
+    def test_cloud_study_stats_are_sanitized(self):
+        normalized = minddeck.normalize_cloud_deck(
+            {
+                "cards": [],
+                "index": 0,
+                "reviewed": [],
+                "updatedAt": 0,
+                "study": {
+                    "totalSeconds": 5_400,
+                    "sessions": 3,
+                    "dailyGoalMinutes": 50,
+                    "dailyFocus": [
+                        {"date": "2026-08-24", "seconds": 1_500},
+                        {"date": "2026-08-25", "seconds": 3_900},
+                        {"date": "2026-99-99", "seconds": 500},
+                    ],
+                },
+            }
+        )
+
+        self.assertEqual(normalized["study"]["totalSeconds"], 5_400)
+        self.assertEqual(normalized["study"]["sessions"], 3)
+        self.assertEqual(normalized["study"]["dailyGoalMinutes"], 50)
+        self.assertEqual(
+            normalized["study"]["dailyFocus"],
+            [
+                {"date": "2026-08-24", "seconds": 1_500},
+                {"date": "2026-08-25", "seconds": 3_900},
+            ],
+        )
 
     def test_signin_uses_httponly_auth_cookies(self):
         tokens = {
