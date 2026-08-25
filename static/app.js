@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
-const STORE = "minddeck-v2";
+const GUEST_STORE = "minddeck-v2";
 const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || "";
 const PDF_MODULE = "/static/vendor/pdf-4.10.38.min.mjs";
 const PDF_WORKER = "/static/vendor/pdf-4.10.38.worker.min.mjs";
@@ -12,6 +12,14 @@ let reviewed = new Set();
 let fileText = "";
 let aiProviders = { openai: false, gemini: false };
 let unlockedProvider = null;
+let deckUpdatedAt = 0;
+let authState = { enabled: false, user: null };
+let syncTimer = null;
+let syncInFlight = false;
+let activeStoreKey = GUEST_STORE;
+let activeAccountKey = null;
+let accountStoreFresh = false;
+let removeGuestAfterSync = false;
 
 function newCard(front, back) {
   return {
@@ -49,30 +57,85 @@ function normalizeCard(value) {
   return card;
 }
 
-function save() {
+function deckSnapshot() {
+  return {
+    version: 3,
+    cards,
+    index,
+    reviewed: [...reviewed],
+    updatedAt: deckUpdatedAt,
+  };
+}
+
+function save(touch = false) {
+  if (touch) deckUpdatedAt = Date.now();
   try {
-    localStorage.setItem(STORE, JSON.stringify({ cards, index, reviewed: [...reviewed] }));
+    localStorage.setItem(activeStoreKey, JSON.stringify(deckSnapshot()));
   } catch {
     toast("Could not save this deck locally");
   }
+  if (touch && authState.user) scheduleCloudSync();
+}
+
+function applyDeckState(value) {
+  if (!value || typeof value !== "object") return false;
+  const normalized = Array.isArray(value.cards) ? value.cards.map(normalizeCard).filter(Boolean) : [];
+  if (normalized.length !== (Array.isArray(value.cards) ? value.cards.length : 0)) return false;
+  cards = normalized;
+  index = Math.min(
+    finiteNumber(value.index, 0, 0, Math.max(0, cards.length - 1)),
+    Math.max(0, cards.length - 1)
+  );
+  reviewed = new Set(
+    Array.isArray(value.reviewed)
+      ? value.reviewed.filter((id) => typeof id === "string" && cards.some((card) => card.id === id))
+      : []
+  );
+  deckUpdatedAt = finiteNumber(value.updatedAt, 0, 0, Number.MAX_SAFE_INTEGER);
+  return true;
 }
 
 function load() {
   try {
-    const stored = JSON.parse(localStorage.getItem(STORE) || "{}");
-    cards = Array.isArray(stored.cards) ? stored.cards.map(normalizeCard).filter(Boolean) : [];
-    index = Math.min(finiteNumber(stored.index, 0, 0, Math.max(0, cards.length - 1)), Math.max(0, cards.length - 1));
-    reviewed = new Set(
-      Array.isArray(stored.reviewed)
-        ? stored.reviewed.filter((id) => typeof id === "string" && cards.some((card) => card.id === id))
-        : []
-    );
+    const stored = JSON.parse(localStorage.getItem(activeStoreKey) || "{}");
+    if (!applyDeckState(stored)) throw new Error();
   } catch {
     cards = [];
     index = 0;
     reviewed = new Set();
+    deckUpdatedAt = 0;
   }
-  render();
+  render(false);
+}
+
+function activateAccountStore(accountKey) {
+  if (!/^[a-f0-9]{24}$/.test(accountKey) || activeAccountKey === accountKey) return;
+  const nextStore = `minddeck-v3:user:${accountKey}`;
+  const saved = localStorage.getItem(nextStore);
+  activeStoreKey = nextStore;
+  activeAccountKey = accountKey;
+  accountStoreFresh = !saved;
+  if (saved) {
+    try {
+      if (!applyDeckState(JSON.parse(saved))) throw new Error();
+    } catch {
+      cards = [];
+      index = 0;
+      reviewed = new Set();
+      deckUpdatedAt = 0;
+      accountStoreFresh = true;
+    }
+  } else {
+    save(false);
+  }
+  render(false);
+}
+
+function activateGuestStore() {
+  activeStoreKey = GUEST_STORE;
+  activeAccountKey = null;
+  accountStoreFresh = false;
+  load();
 }
 
 function toast(message) {
@@ -112,7 +175,7 @@ function renderDeck() {
   });
 }
 
-function render() {
+function render(touch = false) {
   const card = cards[index];
   const due = cards.filter((item) => new Date(item.dueDate) <= new Date()).length;
   const mastery = cards.length
@@ -134,7 +197,7 @@ function render() {
   $("#front").textContent = card ? card.front : "Add or generate cards to begin.";
   $("#back").textContent = card ? card.back : "Your answer appears here.";
   renderDeck();
-  save();
+  save(touch);
 }
 
 function parseOffline(text) {
@@ -167,21 +230,26 @@ function parseOffline(text) {
   return output;
 }
 
-async function apiPost(path, body) {
+async function apiRequest(path, { method = "POST", body = null, refreshAuth = false } = {}) {
+  const headers = { Accept: "application/json" };
+  if (body !== null) {
+    headers["Content-Type"] = "application/json";
+    headers["X-CSRF-Token"] = CSRF_TOKEN;
+  }
   const response = await fetch(path, {
-    method: "POST",
+    method,
     credentials: "same-origin",
     cache: "no-store",
     redirect: "error",
     referrerPolicy: "no-referrer",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "X-CSRF-Token": CSRF_TOKEN,
-    },
-    body: JSON.stringify(body),
+    headers,
+    body: body === null ? undefined : JSON.stringify(body),
   });
   const data = await response.json().catch(() => ({ error: "The server returned an invalid response." }));
+  if (response.status === 401 && refreshAuth && path !== "/api/auth/refresh") {
+    await apiRequest("/api/auth/refresh", { body: {} });
+    return apiRequest(path, { method, body, refreshAuth: false });
+  }
   if (!response.ok) {
     const error = new Error(data.error || "The secure request failed.");
     error.status = response.status;
@@ -189,6 +257,8 @@ async function apiPost(path, body) {
   }
   return data;
 }
+
+const apiPost = (path, body) => apiRequest(path, { body });
 
 async function unlockAI(provider, accessCode) {
   const data = await apiPost("/api/unlock", { provider, accessCode });
@@ -257,14 +327,171 @@ async function loadConfig() {
   syncProvider();
 }
 
-function next() {
-  if (cards.length) index = (index + 1) % cards.length;
-  render();
+function setSyncStatus(message, state = "idle") {
+  const status = $("#syncState");
+  status.textContent = message;
+  status.dataset.state = state;
 }
 
-function previous() {
+function updateAccountUI() {
+  const signedIn = Boolean(authState.user);
+  const account = $("#account");
+  account.disabled = !authState.enabled;
+  account.textContent = signedIn
+    ? authState.user.email || "My account"
+    : authState.enabled
+      ? "Sign in"
+      : "Cloud setup needed";
+  $("#authSignedOut").hidden = signedIn;
+  $("#authSignedIn").hidden = !signedIn;
+  $("#authUser").textContent = signedIn ? authState.user.email || "Signed in" : "";
+  if (!authState.enabled) setSyncStatus("Saved on this device · cloud setup pending");
+  else if (!signedIn) setSyncStatus("Saved on this device · sign in to sync");
+}
+
+async function fetchAuthConfig() {
+  const response = await fetch("/api/auth/config", {
+    cache: "no-store",
+    credentials: "same-origin",
+    redirect: "error",
+    referrerPolicy: "no-referrer",
+    headers: { Accept: "application/json" },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error("Could not check cloud account status.");
+  return data;
+}
+
+async function loadAccount() {
+  try {
+    let data = await fetchAuthConfig();
+    if (data.enabled && !data.user && data.canRefresh) {
+      try {
+        await apiPost("/api/auth/refresh", {});
+        data = await fetchAuthConfig();
+      } catch {
+        data.user = null;
+      }
+    }
+    authState = {
+      enabled: Boolean(data.enabled),
+      user:
+        data.user &&
+        typeof data.user.email === "string" &&
+        typeof data.user.accountKey === "string" &&
+        /^[a-f0-9]{24}$/.test(data.user.accountKey)
+          ? data.user
+          : null,
+    };
+    if (authState.user) activateAccountStore(authState.user.accountKey);
+    updateAccountUI();
+    if (authState.user) await reconcileCloudDeck();
+  } catch {
+    authState = { enabled: false, user: null };
+    updateAccountUI();
+  }
+}
+
+async function uploadCloudDeck() {
+  if (!authState.user || syncInFlight) return;
+  if (cards.length > 500) {
+    setSyncStatus("Local only · cloud decks support 500 cards", "error");
+    return;
+  }
+  syncInFlight = true;
+  const savingVersion = deckUpdatedAt;
+  setSyncStatus("Syncing…", "busy");
+  try {
+    await apiRequest("/api/deck", {
+      method: "PUT",
+      body: { deck: deckSnapshot() },
+      refreshAuth: true,
+    });
+    if (removeGuestAfterSync) {
+      localStorage.removeItem(GUEST_STORE);
+      removeGuestAfterSync = false;
+    }
+    accountStoreFresh = false;
+    setSyncStatus("Saved securely in the cloud", "ok");
+    if (deckUpdatedAt > savingVersion) scheduleCloudSync();
+  } catch (error) {
+    if (error.status === 401) {
+      authState.user = null;
+      updateAccountUI();
+    }
+    setSyncStatus(error.message || "Cloud sync paused", "error");
+  } finally {
+    syncInFlight = false;
+  }
+}
+
+function scheduleCloudSync() {
+  window.clearTimeout(syncTimer);
+  syncTimer = window.setTimeout(uploadCloudDeck, 900);
+}
+
+async function reconcileCloudDeck() {
+  setSyncStatus("Checking cloud memory…", "busy");
+  try {
+    const data = await apiRequest("/api/deck", { method: "GET", refreshAuth: true });
+    const cloud = data.deck;
+    if (!cloud) {
+      removeGuestAfterSync = accountStoreFresh;
+      await uploadCloudDeck();
+      return;
+    }
+    const cloudUpdatedAt = finiteNumber(cloud.updatedAt, 0, 0, Number.MAX_SAFE_INTEGER);
+    if (!accountStoreFresh && cards.length && deckUpdatedAt > cloudUpdatedAt) {
+      await uploadCloudDeck();
+      return;
+    }
+    if (!applyDeckState(cloud)) throw new Error("The cloud deck was invalid.");
+    accountStoreFresh = false;
+    render(false);
+    setSyncStatus("Cloud deck restored", "ok");
+  } catch (error) {
+    setSyncStatus(error.message || "Cloud sync paused", "error");
+  }
+}
+
+async function submitAccount(path) {
+  const email = $("#authEmail").value.trim();
+  const password = $("#authPassword").value;
+  const buttons = [$("#signIn"), $("#signUp")];
+  $("#authError").textContent = "";
+  if (password.length < 12) {
+    $("#authError").textContent = "Use a password with at least 12 characters.";
+    return;
+  }
+  buttons.forEach((button) => {
+    button.disabled = true;
+  });
+  try {
+    const data = await apiPost(path, { email, password });
+    $("#authPassword").value = "";
+    $("#authMessage").textContent = data.message || "Signed in successfully.";
+    if (path.endsWith("signin") || data.signedIn) {
+      await loadAccount();
+      if (authState.user) $("#authModal").classList.remove("open");
+    }
+  } catch (error) {
+    $("#authPassword").value = "";
+    $("#authError").textContent = error.message || "Account request failed.";
+  } finally {
+    buttons.forEach((button) => {
+      button.disabled = false;
+    });
+  }
+}
+
+function next(touch = true) {
+  if (cards.length) index = (index + 1) % cards.length;
+  render(touch && cards.length > 0);
+}
+
+function previous(touch = true) {
   if (cards.length) index = (index - 1 + cards.length) % cards.length;
-  render();
+  render(touch && cards.length > 0);
 }
 
 function score(quality) {
@@ -332,6 +559,29 @@ $$('.tab').forEach((button) => {
   });
 });
 
+const authModal = $("#authModal");
+$("#account").addEventListener("click", () => {
+  $("#authError").textContent = "";
+  $("#authMessage").textContent = "";
+  authModal.classList.add("open");
+});
+$("#authClose").addEventListener("click", () => authModal.classList.remove("open"));
+$("#authCancel").addEventListener("click", () => authModal.classList.remove("open"));
+$("#signIn").addEventListener("click", () => submitAccount("/api/auth/signin"));
+$("#signUp").addEventListener("click", () => submitAccount("/api/auth/signup"));
+$("#signOut").addEventListener("click", async () => {
+  try {
+    await apiPost("/api/auth/signout", {});
+    authState.user = null;
+    activateGuestStore();
+    updateAccountUI();
+    authModal.classList.remove("open");
+    toast("Signed out · your local deck is still here");
+  } catch (error) {
+    toast(error.message || "Could not sign out");
+  }
+});
+
 $("#provider").addEventListener("change", syncProvider);
 $("#lockAi").addEventListener("click", () => lockAI().catch((error) => {
   $("#error").textContent = error.message;
@@ -378,7 +628,7 @@ $("#generate").addEventListener("click", async () => {
     cards = generated;
     index = 0;
     reviewed.clear();
-    render();
+    render(true);
     toast(`Created ${generated.length} cards`);
   } catch (error) {
     if (error.status === 401) {
@@ -427,7 +677,7 @@ $("#saveCard").addEventListener("click", () => {
   $("#mFront").value = "";
   $("#mBack").value = "";
   modal.classList.remove("open");
-  render();
+  render(true);
   toast("Card added");
 });
 
@@ -436,7 +686,7 @@ $("#deckList").addEventListener("click", (event) => {
   if (!button) return;
   cards.splice(Number(button.dataset.del), 1);
   index = Math.min(index, Math.max(0, cards.length - 1));
-  render();
+  render(true);
 });
 
 $("#clear").addEventListener("click", () => {
@@ -444,7 +694,7 @@ $("#clear").addEventListener("click", () => {
   cards = [];
   index = 0;
   reviewed.clear();
-  render();
+  render(true);
 });
 
 $("#export").addEventListener("click", () => {
@@ -475,7 +725,7 @@ $("#jsonFile").addEventListener("change", async (event) => {
     cards = normalized;
     index = 0;
     reviewed.clear();
-    render();
+    render(true);
     toast("Deck imported");
   } catch {
     toast("Invalid deck JSON");
@@ -496,3 +746,4 @@ document.addEventListener("keydown", (event) => {
 
 load();
 loadConfig();
+loadAccount();

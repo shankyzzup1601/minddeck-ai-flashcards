@@ -1,6 +1,7 @@
 import os
 import re
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from werkzeug.security import generate_password_hash
@@ -28,8 +29,12 @@ class MindDeckSecurityTests(unittest.TestCase):
         return response, match.group(1)
 
     def post(self, path, payload, csrf, origin="https://minddeck.test"):
-        return self.client.post(
-            path,
+        return self.request_json("POST", path, payload, csrf, origin)
+
+    def request_json(self, method, path, payload, csrf, origin="https://minddeck.test"):
+        return self.client.open(
+            method=method,
+            path=path,
             base_url=self.base_url,
             json=payload,
             headers={
@@ -48,6 +53,13 @@ class MindDeckSecurityTests(unittest.TestCase):
             "AI_SESSION_SECRET": "s" * 48,
         }
 
+    @staticmethod
+    def auth_environment():
+        return {
+            "SUPABASE_URL": "https://minddeck-test.supabase.co",
+            "SUPABASE_PUBLISHABLE_KEY": "publishable-test-key-" + "p" * 32,
+        }
+
     def test_home_has_no_browser_api_key_or_third_party_script(self):
         response, _csrf = self.home()
         page = response.get_data(as_text=True)
@@ -55,8 +67,10 @@ class MindDeckSecurityTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotIn('id="apiKey"', page)
         self.assertIn('id="accessCode"', page)
+        self.assertIn('id="account"', page)
         self.assertNotIn("unpkg.com", page)
         self.assertNotIn("cdnjs.cloudflare.com", page)
+        self.assertNotIn("SUPABASE_PUBLISHABLE_KEY", page)
         self.assertIn('/static/app.js', page)
         self.assertEqual(response.headers["X-Frame-Options"], "DENY")
         self.assertEqual(response.headers["Cross-Origin-Embedder-Policy"], "require-corp")
@@ -75,6 +89,143 @@ class MindDeckSecurityTests(unittest.TestCase):
         self.assertEqual(response.json["providers"], {"openai": False, "gemini": False})
         self.assertIsNone(response.json["unlockedProvider"])
         self.assertEqual(response.headers["Cache-Control"], "no-store, private, max-age=0")
+
+    def test_cloud_accounts_fail_closed_without_configuration(self):
+        with patch.dict(os.environ, {}, clear=True):
+            _home, csrf = self.home()
+            config = self.client.get("/api/auth/config", base_url=self.base_url)
+            signup = self.post(
+                "/api/auth/signup",
+                {"email": "student@example.com", "password": "a-strong-password"},
+                csrf,
+            )
+
+        self.assertEqual(config.status_code, 200)
+        self.assertFalse(config.json["enabled"])
+        self.assertIsNone(config.json["user"])
+        self.assertEqual(signup.status_code, 503)
+
+    def test_cloud_schema_forces_user_isolation(self):
+        schema = (Path(__file__).parents[1] / "supabase" / "schema.sql").read_text(
+            encoding="utf-8"
+        ).lower()
+
+        self.assertIn("force row level security", schema)
+        self.assertIn("revoke all on table public.minddeck_decks from anon", schema)
+        self.assertIn("for select", schema)
+        self.assertIn("for insert", schema)
+        self.assertIn("for update", schema)
+        self.assertIn("for delete", schema)
+        self.assertIn("auth.uid()", schema)
+        self.assertNotIn("service_role", schema)
+
+    def test_signin_uses_httponly_auth_cookies(self):
+        tokens = {
+            "access_token": "a" * 128,
+            "refresh_token": "r" * 64,
+            "expires_in": 3600,
+        }
+        with patch.dict(os.environ, self.auth_environment(), clear=True), patch.object(
+            minddeck, "supabase_json", return_value=tokens
+        ) as upstream:
+            _home, csrf = self.home()
+            response = self.post(
+                "/api/auth/signin",
+                {"email": "student@example.com", "password": "a-strong-password"},
+                csrf,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        cookies = "\n".join(response.headers.getlist("Set-Cookie"))
+        self.assertIn("__Host-minddeck_access=", cookies)
+        self.assertIn("__Host-minddeck_refresh=", cookies)
+        self.assertIn("HttpOnly", cookies)
+        self.assertIn("Secure", cookies)
+        self.assertIn("SameSite=Strict", cookies)
+        self.assertNotIn(tokens["access_token"], response.get_data(as_text=True))
+        self.assertEqual(upstream.call_args.args[1], "/auth/v1/token?grant_type=password")
+
+    def test_cloud_deck_requires_authentication(self):
+        with patch.dict(os.environ, self.auth_environment(), clear=True):
+            _home, csrf = self.home()
+            get_response = self.client.get("/api/deck", base_url=self.base_url)
+            put_response = self.request_json(
+                "PUT",
+                "/api/deck",
+                {"deck": {"cards": [], "index": 0, "reviewed": [], "updatedAt": 0}},
+                csrf,
+            )
+
+        self.assertEqual(get_response.status_code, 401)
+        self.assertEqual(put_response.status_code, 401)
+
+    def test_cloud_deck_is_saved_with_user_scoped_token(self):
+        tokens = {
+            "access_token": "a" * 128,
+            "refresh_token": "r" * 64,
+            "expires_in": 3600,
+        }
+        calls = []
+
+        def fake_supabase(method, path, payload=None, **kwargs):
+            calls.append((method, path, payload, kwargs))
+            if path.endswith("grant_type=password"):
+                return tokens
+            if path == "/auth/v1/user":
+                return {
+                    "id": "12345678-1234-1234-1234-123456789abc",
+                    "email": "student@example.com",
+                }
+            if path.startswith("/rest/v1/minddeck_decks"):
+                return [{"updated_at": "2026-08-25T10:00:00+00:00"}]
+            raise AssertionError(path)
+
+        deck = {
+            "cards": [
+                {
+                    "id": "card_1",
+                    "front": "What is management?",
+                    "back": "The process of achieving goals through people.",
+                    "interval": 1,
+                    "repetition": 1,
+                    "easeFactor": 2.5,
+                    "dueDate": "2026-08-26T10:00:00.000Z",
+                    "reviews": 1,
+                }
+            ],
+            "index": 0,
+            "reviewed": ["card_1"],
+            "updatedAt": 1_787_652_000_000,
+        }
+        with patch.dict(os.environ, self.auth_environment(), clear=True), patch.object(
+            minddeck, "supabase_json", side_effect=fake_supabase
+        ):
+            _home, csrf = self.home()
+            signed_in = self.post(
+                "/api/auth/signin",
+                {"email": "student@example.com", "password": "a-strong-password"},
+                csrf,
+            )
+            saved = self.request_json("PUT", "/api/deck", {"deck": deck}, csrf)
+
+        self.assertEqual(signed_in.status_code, 200)
+        self.assertEqual(saved.status_code, 200)
+        rest_call = next(call for call in calls if call[1].startswith("/rest/v1/minddeck_decks"))
+        self.assertEqual(rest_call[2]["user_id"], "12345678-1234-1234-1234-123456789abc")
+        self.assertEqual(rest_call[3]["bearer"], tokens["access_token"])
+        self.assertIn("resolution=merge-duplicates", rest_call[3]["prefer"])
+
+    def test_signout_clears_both_auth_cookies(self):
+        with patch.dict(os.environ, self.auth_environment(), clear=True):
+            _home, csrf = self.home()
+            self.client.set_cookie("__Host-minddeck_access", "a" * 128, domain="minddeck.test")
+            self.client.set_cookie("__Host-minddeck_refresh", "r" * 64, domain="minddeck.test")
+            with patch.object(minddeck, "supabase_json", return_value={}):
+                response = self.post("/api/auth/signout", {}, csrf)
+
+        self.assertEqual(response.status_code, 200)
+        cookies = "\n".join(response.headers.getlist("Set-Cookie"))
+        self.assertGreaterEqual(cookies.count("Max-Age=0"), 2)
 
     def test_mutating_requests_require_csrf_and_same_origin(self):
         _home, csrf = self.home()
