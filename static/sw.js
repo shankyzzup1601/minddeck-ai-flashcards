@@ -1,4 +1,4 @@
-const CACHE_NAME = "minddeck-shell-v4";
+const CACHE_NAME = "minddeck-shell-v5";
 const SHELL = [
   "/",
   "/static/app.js",
