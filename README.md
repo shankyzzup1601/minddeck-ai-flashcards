@@ -1,6 +1,6 @@
 # MindDeck AI Flashcards — Flask
 
-A production-ready Flask build of MindDeck with note and PDF ingestion, offline flashcard generation, securely locked OpenAI/Gemini generation, email accounts with cross-device deck sync, an offline-resilient focus timer, daily goals and study streak widgets, SM-2 review scheduling, keyboard shortcuts, local persistence, and JSON import/export.
+A production-ready Flask build of MindDeck with a responsive glass dashboard and three saved visual themes, note and PDF ingestion, offline flashcard generation, securely locked OpenAI/Gemini generation, email accounts with cross-device deck sync, an offline-resilient focus timer, daily goals and study streak widgets, SM-2 review scheduling, keyboard shortcuts, local persistence, and JSON import/export.
 
 ## Run locally
 
