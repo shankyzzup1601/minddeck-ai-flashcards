@@ -71,6 +71,8 @@ class MindDeckSecurityTests(unittest.TestCase):
         self.assertIn('id="timerWidget"', page)
         self.assertIn('id="weekBars"', page)
         self.assertIn('id="themeToggle"', page)
+        self.assertIn('id="togglePassword"', page)
+        self.assertIn('placeholder="Enter your password"', page)
         self.assertIn('data-theme="aurora"', page)
         self.assertIn('data-theme="rose"', page)
         self.assertNotIn("unpkg.com", page)
@@ -180,6 +182,63 @@ class MindDeckSecurityTests(unittest.TestCase):
         self.assertIn("SameSite=Strict", cookies)
         self.assertNotIn(tokens["access_token"], response.get_data(as_text=True))
         self.assertEqual(upstream.call_args.args[1], "/auth/v1/token?grant_type=password")
+
+    def test_signin_accepts_an_existing_password_below_new_account_minimum(self):
+        tokens = {
+            "access_token": "a" * 128,
+            "refresh_token": "r" * 64,
+            "expires_in": 3600,
+        }
+        with patch.dict(os.environ, self.auth_environment(), clear=True), patch.object(
+            minddeck, "supabase_json", return_value=tokens
+        ) as upstream:
+            _home, csrf = self.home()
+            response = self.post(
+                "/api/auth/signin",
+                {"email": "student@example.com", "password": "old-pass"},
+                csrf,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(upstream.call_args.args[2]["password"], "old-pass")
+
+    def test_signup_keeps_strong_new_password_requirement(self):
+        with patch.dict(os.environ, self.auth_environment(), clear=True), patch.object(
+            minddeck, "supabase_json"
+        ) as upstream:
+            _home, csrf = self.home()
+            response = self.post(
+                "/api/auth/signup",
+                {"email": "student@example.com", "password": "old-pass"},
+                csrf,
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("at least 12", response.json["error"])
+        upstream.assert_not_called()
+
+    def test_unconfirmed_email_gets_actionable_signin_message(self):
+        with patch.dict(os.environ, self.auth_environment(), clear=True), patch.object(
+            minddeck,
+            "supabase_json",
+            side_effect=minddeck.SupabaseError(400, {"code": "email_not_confirmed"}),
+        ):
+            _home, csrf = self.home()
+            response = self.post(
+                "/api/auth/signin",
+                {"email": "student@example.com", "password": "correct-password"},
+                csrf,
+            )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("Confirm your email", response.json["error"])
+
+    def test_non_object_auth_payload_is_rejected_without_server_error(self):
+        with patch.dict(os.environ, self.auth_environment(), clear=True):
+            _home, csrf = self.home()
+            response = self.request_json("POST", "/api/auth/signin", ["invalid"], csrf)
+
+        self.assertEqual(response.status_code, 401)
 
     def test_cloud_deck_requires_authentication(self):
         with patch.dict(os.environ, self.auth_environment(), clear=True):

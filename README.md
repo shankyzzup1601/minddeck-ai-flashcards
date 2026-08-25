@@ -15,6 +15,8 @@ A production-ready Flask build of MindDeck with a responsive glass dashboard and
 
 MindDeck uses Supabase Auth and Postgres for email/password accounts. Browser requests go only to this Flask server. Access and refresh tokens are stored in `HttpOnly`, `Secure`, `SameSite=Strict` cookies and are never exposed to JavaScript or local storage.
 
+New passwords require at least 12 characters. Signing in validates an existing password as-is, so accounts created under an earlier password policy are not incorrectly blocked by the new-account rule. The sign-in dialog also includes a show/hide control and explains when email confirmation is still required.
+
 1. Create a Supabase project.
 2. Open its SQL Editor and run `supabase/schema.sql` once. The migration enables and forces Row Level Security, removes anonymous table access, and gives each signed-in user access only to the row matching their Auth user ID.
 3. Add these environment variables to Vercel for Production, Preview, and Development:

@@ -802,13 +802,38 @@ async function reconcileCloudDeck() {
   }
 }
 
+function setPasswordVisibility(visible) {
+  const password = $("#authPassword");
+  const toggle = $("#togglePassword");
+  password.type = visible ? "text" : "password";
+  toggle.textContent = visible ? "Hide" : "Show";
+  toggle.setAttribute("aria-label", visible ? "Hide password" : "Show password");
+  toggle.setAttribute("aria-pressed", String(visible));
+}
+
 async function submitAccount(path) {
-  const email = $("#authEmail").value.trim();
-  const password = $("#authPassword").value;
+  const emailInput = $("#authEmail");
+  const passwordInput = $("#authPassword");
+  const email = emailInput.value.trim();
+  const password = passwordInput.value;
+  const creatingAccount = path.endsWith("signup");
   const buttons = [$("#signIn"), $("#signUp")];
   $("#authError").textContent = "";
-  if (password.length < 12) {
-    $("#authError").textContent = "Use a password with at least 12 characters.";
+  $("#authMessage").textContent = "";
+  emailInput.value = email;
+  if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    $("#authError").textContent = "Enter a valid email address.";
+    emailInput.focus();
+    return;
+  }
+  if (!password) {
+    $("#authError").textContent = "Enter your password.";
+    passwordInput.focus();
+    return;
+  }
+  if (creatingAccount && password.length < 12) {
+    $("#authError").textContent = "New passwords need at least 12 characters.";
+    passwordInput.focus();
     return;
   }
   buttons.forEach((button) => {
@@ -816,16 +841,17 @@ async function submitAccount(path) {
   });
   try {
     const data = await apiPost(path, { email, password });
-    $("#authPassword").value = "";
+    passwordInput.value = "";
     $("#authMessage").textContent = data.message || "Signed in successfully.";
     if (path.endsWith("signin") || data.signedIn) {
       await loadAccount();
       if (authState.user) $("#authModal").classList.remove("open");
     }
   } catch (error) {
-    $("#authPassword").value = "";
+    passwordInput.value = "";
     $("#authError").textContent = error.message || "Account request failed.";
   } finally {
+    setPasswordVisibility(false);
     buttons.forEach((button) => {
       button.disabled = false;
     });
@@ -912,7 +938,17 @@ $("#themeToggle").addEventListener("click", cycleTheme);
 $("#account").addEventListener("click", () => {
   $("#authError").textContent = "";
   $("#authMessage").textContent = "";
+  setPasswordVisibility(false);
   authModal.classList.add("open");
+});
+$("#togglePassword").addEventListener("click", () => {
+  setPasswordVisibility($("#authPassword").type === "password");
+});
+$("#authSignedOut").addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && event.target.matches("input")) {
+    event.preventDefault();
+    submitAccount("/api/auth/signin");
+  }
 });
 $("#authClose").addEventListener("click", () => authModal.classList.remove("open"));
 $("#authCancel").addEventListener("click", () => authModal.classList.remove("open"));

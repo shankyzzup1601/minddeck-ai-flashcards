@@ -501,16 +501,32 @@ def auth_config():
     )
 
 
-def valid_auth_fields(body: dict) -> tuple[str, str] | None:
-    email = str(body.get("email", "")).strip().lower()
-    password = str(body.get("password", ""))
+def valid_auth_fields(body, *, minimum_password_length: int) -> tuple[str, str] | None:
+    if not isinstance(body, dict):
+        return None
+    raw_email = body.get("email", "")
+    password = body.get("password", "")
+    if not isinstance(raw_email, str) or not isinstance(password, str):
+        return None
+    email = raw_email.strip().lower()
     if not (
         3 <= len(email) <= 254
         and re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email)
-        and 12 <= len(password) <= 128
+        and minimum_password_length <= len(password) <= 128
     ):
         return None
     return email, password
+
+
+def supabase_error_code(error: SupabaseError) -> str:
+    """Return only Supabase's documented machine-readable auth error code."""
+    if not isinstance(error.payload, dict):
+        return ""
+    for field in ("code", "error_code"):
+        value = error.payload.get(field)
+        if isinstance(value, str) and re.fullmatch(r"[a-z0-9_]{2,80}", value):
+            return value
+    return ""
 
 
 @app.post("/api/auth/signup")
@@ -525,7 +541,7 @@ def auth_signup():
     if not allowed:
         return limited_response(retry_after)
     body = request.get_json(silent=True) or {}
-    credentials = valid_auth_fields(body)
+    credentials = valid_auth_fields(body, minimum_password_length=12)
     if not credentials:
         return jsonify(error="Use a valid email and a password of at least 12 characters."), 400
     email, password = credentials
@@ -550,6 +566,8 @@ def auth_signup():
     except SupabaseError as exc:
         if exc.status == 429:
             return limited_response(60)
+        if supabase_error_code(exc) == "weak_password":
+            return jsonify(error="Use a stronger password with at least 12 characters."), 400
         return jsonify(error="Could not create the account. Check the email and password."), 400
     except (RuntimeError, ValueError, urllib.error.URLError):
         app.logger.exception("Cloud account signup failed")
@@ -568,7 +586,10 @@ def auth_signin():
     if not allowed:
         return limited_response(retry_after)
     body = request.get_json(silent=True) or {}
-    credentials = valid_auth_fields(body)
+    # Existing accounts must be allowed to use the password they registered
+    # with. Stronger minimums apply when creating a new password, not when
+    # verifying an existing one.
+    credentials = valid_auth_fields(body, minimum_password_length=1)
     if not credentials:
         return jsonify(error="Email or password is incorrect."), 401
     email, password = credentials
@@ -585,6 +606,8 @@ def auth_signin():
     except SupabaseError as exc:
         if exc.status == 429:
             return limited_response(60)
+        if supabase_error_code(exc) == "email_not_confirmed":
+            return jsonify(error="Confirm your email using the link we sent, then sign in."), 403
         return jsonify(error="Email or password is incorrect."), 401
     except (RuntimeError, ValueError, urllib.error.URLError):
         app.logger.exception("Cloud account sign-in failed")
