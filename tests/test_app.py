@@ -223,6 +223,9 @@ class MindDeckSecurityTests(unittest.TestCase):
             cross_site = self.post(
                 "/api/auth/google/start", {}, csrf, origin="https://attacker.example"
             )
+            downgraded_origin = self.post(
+                "/api/auth/google/start", {}, csrf, origin="http://minddeck.test"
+            )
 
         with patch.dict(os.environ, self.auth_environment(), clear=True):
             _home, csrf = self.home()
@@ -230,6 +233,7 @@ class MindDeckSecurityTests(unittest.TestCase):
 
         self.assertEqual(no_csrf.status_code, 403)
         self.assertEqual(cross_site.status_code, 403)
+        self.assertEqual(downgraded_origin.status_code, 400)
         self.assertEqual(unavailable.status_code, 503)
 
     def test_cloud_schema_forces_user_isolation(self):
