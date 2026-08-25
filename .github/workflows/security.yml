@@ -30,7 +30,13 @@ jobs:
       - name: Compile Python
         run: python -m compileall -q app.py tests scripts
       - name: Check browser JavaScript syntax
-        run: node --check static/app.js
+        run: |
+          node --check static/app.js
+          node --check static/smart-study.js
+          node --check static/sw.js
+          node --check static/offline.js
+      - name: Test browser study utilities
+        run: node tests/smart-study.test.mjs
       - name: Scan Python for security issues
         run: python -m bandit -q -r app.py scripts
       - name: Audit Python dependencies
