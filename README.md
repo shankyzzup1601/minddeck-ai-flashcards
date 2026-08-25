@@ -15,9 +15,10 @@ A production-ready Flask build of MindDeck with note and PDF ingestion, offline 
 
 Provider API keys are read only from server environment variables and are never accepted from browser requests, rendered into HTML, or committed to GitHub.
 
-Set these secrets in your hosting provider's encrypted environment settings:
+Run `python scripts/generate_secrets.py`, then place its two outputs in your hosting provider's encrypted environment settings. The plaintext access code is never stored:
 
-- `AI_ACCESS_CODE`: a unique access code of at least 12 characters. This locks all online AI requests.
+- `AI_ACCESS_CODE_HASH`: a salted scrypt hash of an owner code containing at least 20 characters.
+- `AI_SESSION_SECRET`: an independent random signing secret of at least 32 characters.
 - `OPENAI_API_KEY`: optional; enables Secure OpenAI.
 - `GEMINI_API_KEY`: optional; enables Secure Gemini.
 - `OPENAI_MODEL` or `GEMINI_MODEL`: optional model overrides.
@@ -26,10 +27,16 @@ Never place secret values in this repository or in a client-side `.env` file. Af
 
 ## Production safeguards
 
-- Same-origin checks and JSON-only AI requests
-- Best-effort per-IP request throttling
+- API keys remain server-only and the server fails closed if any required secret is absent.
+- Access codes are verified against a salted scrypt hash, never plaintext.
+- Successful unlocks create a signed, `HttpOnly`, `Secure`, `SameSite=Strict` session that expires after 15 minutes.
+- Double-submit CSRF tokens, same-origin checks, and JSON-only mutating requests.
+- Separate brute-force and generation rate limits.
 - Strict request and response size limits
-- Content Security Policy, anti-framing, HSTS, no-sniff, and no-store API responses
+- A restrictive nonce-based Content Security Policy, browser process isolation, anti-framing, HSTS, no-sniff, and no-store responses.
+- PDF.js is pinned and self-hosted; the page executes no mutable third-party CDN scripts.
+- Imported deck values are schema-checked and rendered through safe DOM APIs rather than HTML injection.
 - Generic upstream errors that do not reveal secrets
+- Weekly dependency monitoring and a security test workflow on every pull request.
 
 The included `Procfile` and `render.yaml` support standard Gunicorn deployment. Study decks remain in each browser's local storage.

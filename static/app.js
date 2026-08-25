@@ -1,0 +1,498 @@
+const $ = (selector) => document.querySelector(selector);
+const $$ = (selector) => [...document.querySelectorAll(selector)];
+
+const STORE = "minddeck-v2";
+const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || "";
+const PDF_MODULE = "/static/vendor/pdf-4.10.38.min.mjs";
+const PDF_WORKER = "/static/vendor/pdf-4.10.38.worker.min.mjs";
+
+let cards = [];
+let index = 0;
+let reviewed = new Set();
+let fileText = "";
+let aiProviders = { openai: false, gemini: false };
+let unlockedProvider = null;
+
+function newCard(front, back) {
+  return {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+    front: front.trim().slice(0, 500),
+    back: back.trim().slice(0, 2000),
+    interval: 0,
+    repetition: 0,
+    easeFactor: 2.5,
+    dueDate: new Date().toISOString(),
+    reviews: 0,
+  };
+}
+
+function finiteNumber(value, fallback, minimum, maximum) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.min(maximum, Math.max(minimum, number)) : fallback;
+}
+
+function normalizeCard(value) {
+  if (!value || typeof value !== "object") return null;
+  const front = typeof value.front === "string" ? value.front.trim().slice(0, 500) : "";
+  const back = typeof value.back === "string" ? value.back.trim().slice(0, 2000) : "";
+  if (!front || !back) return null;
+
+  const card = newCard(front, back);
+  if (typeof value.id === "string" && /^[a-z0-9_-]{4,80}$/i.test(value.id)) card.id = value.id;
+  card.interval = finiteNumber(value.interval, 0, 0, 36_500);
+  card.repetition = finiteNumber(value.repetition, 0, 0, 10_000);
+  card.easeFactor = finiteNumber(value.easeFactor, 2.5, 1.3, 5);
+  card.reviews = finiteNumber(value.reviews, 0, 0, 1_000_000);
+  if (typeof value.dueDate === "string" && Number.isFinite(Date.parse(value.dueDate))) {
+    card.dueDate = new Date(value.dueDate).toISOString();
+  }
+  return card;
+}
+
+function save() {
+  try {
+    localStorage.setItem(STORE, JSON.stringify({ cards, index, reviewed: [...reviewed] }));
+  } catch {
+    toast("Could not save this deck locally");
+  }
+}
+
+function load() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(STORE) || "{}");
+    cards = Array.isArray(stored.cards) ? stored.cards.map(normalizeCard).filter(Boolean) : [];
+    index = Math.min(finiteNumber(stored.index, 0, 0, Math.max(0, cards.length - 1)), Math.max(0, cards.length - 1));
+    reviewed = new Set(
+      Array.isArray(stored.reviewed)
+        ? stored.reviewed.filter((id) => typeof id === "string" && cards.some((card) => card.id === id))
+        : []
+    );
+  } catch {
+    cards = [];
+    index = 0;
+    reviewed = new Set();
+  }
+  render();
+}
+
+function toast(message) {
+  const element = $("#toast");
+  element.textContent = String(message).slice(0, 180);
+  element.classList.add("show");
+  window.setTimeout(() => element.classList.remove("show"), 2000);
+}
+
+function renderDeck() {
+  const list = $("#deckList");
+  list.replaceChildren();
+  if (!cards.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = "No cards yet. Generate a deck or add one manually.";
+    list.append(empty);
+    return;
+  }
+
+  cards.forEach((card, cardIndex) => {
+    const row = document.createElement("div");
+    row.className = "row";
+    const front = document.createElement("strong");
+    front.textContent = card.front;
+    const repetitions = document.createElement("span");
+    repetitions.textContent = `${card.repetition} reps`;
+    const due = document.createElement("span");
+    due.textContent = new Date(card.dueDate).toLocaleDateString();
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.dataset.del = String(cardIndex);
+    remove.setAttribute("aria-label", `Delete card ${cardIndex + 1}`);
+    remove.textContent = "×";
+    row.append(front, repetitions, due, remove);
+    list.append(row);
+  });
+}
+
+function render() {
+  const card = cards[index];
+  const due = cards.filter((item) => new Date(item.dueDate) <= new Date()).length;
+  const mastery = cards.length
+    ? Math.round((cards.filter((item) => item.repetition >= 3).length / cards.length) * 100)
+    : 0;
+  const completion = cards.length ? Math.round((reviewed.size / cards.length) * 100) : 0;
+
+  $("#count").textContent = cards.length;
+  $("#due").textContent = due;
+  $("#dueNav").textContent = due;
+  $("#mastery").textContent = `${mastery}%`;
+  $("#sideMastery").textContent = `${mastery}% mastered`;
+  $("#sideBar").value = mastery;
+  $("#complete").textContent = `${completion}% complete`;
+  $("#progress").value = completion;
+  $("#status").textContent = due ? `${due} due for review` : "All caught up";
+  $("#pager").textContent = cards.length ? `${index + 1} / ${cards.length}` : "0 / 0";
+  $("#card").classList.remove("flip");
+  $("#front").textContent = card ? card.front : "Add or generate cards to begin.";
+  $("#back").textContent = card ? card.back : "Your answer appears here.";
+  renderDeck();
+  save();
+}
+
+function parseOffline(text) {
+  const lines = text
+    .replace(/\r/g, "")
+    .replace(/[•●▪]/g, "\n")
+    .split(/\n+|(?<=[.!?])\s+/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 15);
+  const output = [];
+  const seen = new Set();
+
+  const add = (question, answer) => {
+    const normalized = question.toLowerCase();
+    if (!seen.has(normalized) && answer.length > 5) {
+      seen.add(normalized);
+      output.push(newCard(question, answer.replace(/[.!]$/, "")));
+    }
+  };
+
+  for (const sentence of lines) {
+    let match = sentence.match(/^(.{2,70}?)\s+(?:is|are|means|refers to|is defined as)\s+(.{8,300})[.!]?$/i);
+    if (match) add(`What is ${match[1]}?`, match[2]);
+    else if ((match = sentence.match(/^(.{3,80}?):\s*(.{8,300})$/))) add(`What is ${match[1]}?`, match[2]);
+    else if ((match = sentence.match(/^(.{5,130}?)\s+(?:because|due to|causes|leads to|results in)\s+(.{8,250})/i))) {
+      add(`Explain the relationship involving “${match[1]}”.`, match[2]);
+    } else if (sentence.length > 40) add("What is the key idea in this concept?", sentence);
+    if (output.length >= 30) break;
+  }
+  return output;
+}
+
+async function apiPost(path, body) {
+  const response = await fetch(path, {
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store",
+    redirect: "error",
+    referrerPolicy: "no-referrer",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "X-CSRF-Token": CSRF_TOKEN,
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => ({ error: "The server returned an invalid response." }));
+  if (!response.ok) {
+    const error = new Error(data.error || "The secure request failed.");
+    error.status = response.status;
+    throw error;
+  }
+  return data;
+}
+
+async function unlockAI(provider, accessCode) {
+  const data = await apiPost("/api/unlock", { provider, accessCode });
+  unlockedProvider = data.provider;
+  return data;
+}
+
+async function generateWithAI(text, provider) {
+  const data = await apiPost("/api/generate", { text, provider });
+  return data.cards;
+}
+
+async function lockAI() {
+  await apiPost("/api/lock", {});
+  unlockedProvider = null;
+  $("#accessCode").value = "";
+  syncProvider();
+  toast("Online AI locked");
+}
+
+function updateSecurityHint() {
+  const ready = aiProviders.openai || aiProviders.gemini;
+  if (unlockedProvider) {
+    $("#securityHint").textContent = "🔐 Online AI unlocked in a secure 15-minute session.";
+  } else if (ready) {
+    $("#securityHint").textContent = "🔒 API key protected on the server. Enter the owner access code to unlock AI.";
+  } else {
+    $("#securityHint").textContent = "🔒 Online AI is fully locked. Offline mode is ready.";
+  }
+}
+
+function syncProvider() {
+  const provider = $("#provider").value;
+  const online = provider !== "offline";
+  const alreadyUnlocked = online && unlockedProvider === provider;
+  $("#accessCode").disabled = !online || alreadyUnlocked;
+  $("#accessCode").placeholder = alreadyUnlocked ? "Secure session unlocked" : "Owner access code";
+  $("#lockAi").hidden = !unlockedProvider;
+  if (!online || alreadyUnlocked) $("#accessCode").value = "";
+  updateSecurityHint();
+}
+
+async function loadConfig() {
+  try {
+    const response = await fetch("/api/config", {
+      cache: "no-store",
+      credentials: "same-origin",
+      redirect: "error",
+      referrerPolicy: "no-referrer",
+      headers: { Accept: "application/json" },
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error();
+    aiProviders = data.providers || aiProviders;
+    unlockedProvider = typeof data.unlockedProvider === "string" ? data.unlockedProvider : null;
+    for (const provider of ["openai", "gemini"]) {
+      const option = $(`#provider option[value="${provider}"]`);
+      const ready = Boolean(aiProviders[provider]);
+      option.disabled = !ready;
+      option.textContent = `${provider === "openai" ? "Secure OpenAI" : "Secure Gemini"}${ready ? "" : " · locked"}`;
+    }
+  } catch {
+    aiProviders = { openai: false, gemini: false };
+    unlockedProvider = null;
+  }
+  syncProvider();
+}
+
+function next() {
+  if (cards.length) index = (index + 1) % cards.length;
+  render();
+}
+
+function previous() {
+  if (cards.length) index = (index - 1 + cards.length) % cards.length;
+  render();
+}
+
+function score(quality) {
+  const card = cards[index];
+  if (!card) return;
+  if (quality < 3) {
+    card.repetition = 0;
+    card.interval = quality === 1 ? 0 : 1;
+  } else {
+    card.interval =
+      card.repetition === 0
+        ? 1
+        : card.repetition === 1
+          ? quality === 4
+            ? 6
+            : 3
+          : Math.max(1, Math.round(card.interval * card.easeFactor * (quality === 4 ? 1.3 : 1)));
+    card.repetition += 1;
+  }
+  card.easeFactor = Math.max(
+    1.3,
+    card.easeFactor + (quality === 4 ? 0.1 : quality === 3 ? 0 : quality === 2 ? -0.15 : -0.3)
+  );
+  card.dueDate = new Date(Date.now() + card.interval * 86_400_000).toISOString();
+  card.reviews += 1;
+  reviewed.add(card.id);
+  next();
+}
+
+async function readFile(file) {
+  try {
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) throw new Error("File must be under 15 MB.");
+    if (file.name.toLowerCase().endsWith(".pdf")) {
+      const pdfjs = await import(PDF_MODULE);
+      pdfjs.GlobalWorkerOptions.workerSrc = PDF_WORKER;
+      const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+      if (pdf.numPages > 200) throw new Error("PDFs are limited to 200 pages.");
+      const pages = [];
+      let characters = 0;
+      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+        const page = await pdf.getPage(pageNumber);
+        const content = await page.getTextContent();
+        const text = content.items.map((item) => item.str).join(" ");
+        pages.push(text);
+        characters += text.length;
+        if (characters > 200_000) throw new Error("Extracted PDF text is too large.");
+      }
+      fileText = pages.join("\n");
+    } else {
+      fileText = (await file.text()).slice(0, 200_000);
+    }
+    $("#fileInfo").hidden = false;
+    $("#fileInfo").textContent = `✓ ${file.name.slice(0, 120)} · ${fileText.length.toLocaleString()} characters`;
+  } catch (error) {
+    $("#error").textContent = error.message || "Could not read file.";
+  }
+}
+
+$$('.tab').forEach((button) => {
+  button.addEventListener("click", () => {
+    $$(".tab,.pane").forEach((element) => element.classList.remove("active"));
+    button.classList.add("active");
+    $(`#${button.dataset.tab}Pane`).classList.add("active");
+  });
+});
+
+$("#provider").addEventListener("change", syncProvider);
+$("#lockAi").addEventListener("click", () => lockAI().catch((error) => {
+  $("#error").textContent = error.message;
+}));
+$("#scene").addEventListener("click", () => cards.length && $("#card").classList.toggle("flip"));
+$("#next").addEventListener("click", next);
+$("#prev").addEventListener("click", previous);
+$$('.rate').forEach((button) => button.addEventListener("click", () => score(Number(button.dataset.score))));
+
+$("#generate").addEventListener("click", async () => {
+  const text = ($("#notesPane").classList.contains("active") ? $("#notes").value : fileText).trim();
+  const provider = $("#provider").value;
+  const accessCode = $("#accessCode").value;
+  const button = $("#generate");
+  $("#error").textContent = "";
+
+  if (text.length < 20) {
+    $("#error").textContent = "Add more notes or upload a file first.";
+    return;
+  }
+  if (provider !== "offline" && !aiProviders[provider]) {
+    $("#error").textContent = "This AI provider is securely locked.";
+    return;
+  }
+  if (provider !== "offline" && unlockedProvider !== provider && !accessCode) {
+    $("#error").textContent = "Enter the owner access code or choose offline mode.";
+    return;
+  }
+
+  button.disabled = true;
+  try {
+    if (provider !== "offline" && unlockedProvider !== provider) {
+      button.textContent = "Unlocking secure AI…";
+      await unlockAI(provider, accessCode);
+      $("#accessCode").value = "";
+      syncProvider();
+    }
+    button.textContent = "Generating…";
+    const generated =
+      provider === "offline"
+        ? parseOffline(text)
+        : (await generateWithAI(text, provider)).map((item) => normalizeCard(item)).filter(Boolean);
+    if (!generated.length) throw new Error("No usable concepts found.");
+    cards = generated;
+    index = 0;
+    reviewed.clear();
+    render();
+    toast(`Created ${generated.length} cards`);
+  } catch (error) {
+    if (error.status === 401) {
+      unlockedProvider = null;
+      syncProvider();
+    }
+    $("#error").textContent = error.message || "Generation failed.";
+  } finally {
+    $("#accessCode").value = "";
+    button.disabled = false;
+    button.textContent = "✦ Generate flashcards";
+  }
+});
+
+const drop = $("#drop");
+const fileInput = $("#file");
+drop.addEventListener("click", () => fileInput.click());
+["dragover", "dragenter"].forEach((name) =>
+  drop.addEventListener(name, (event) => {
+    event.preventDefault();
+    drop.classList.add("drag");
+  })
+);
+["dragleave", "drop"].forEach((name) =>
+  drop.addEventListener(name, (event) => {
+    event.preventDefault();
+    drop.classList.remove("drag");
+  })
+);
+drop.addEventListener("drop", (event) => readFile(event.dataTransfer.files[0]));
+fileInput.addEventListener("change", (event) => readFile(event.target.files[0]));
+
+const modal = $("#modal");
+$("#manual").addEventListener("click", () => modal.classList.add("open"));
+$("#close").addEventListener("click", () => modal.classList.remove("open"));
+$("#cancel").addEventListener("click", () => modal.classList.remove("open"));
+$("#saveCard").addEventListener("click", () => {
+  const front = $("#mFront").value.trim().slice(0, 500);
+  const back = $("#mBack").value.trim().slice(0, 2000);
+  if (!front || !back) {
+    toast("Add both sides");
+    return;
+  }
+  cards.push(newCard(front, back));
+  index = cards.length - 1;
+  $("#mFront").value = "";
+  $("#mBack").value = "";
+  modal.classList.remove("open");
+  render();
+  toast("Card added");
+});
+
+$("#deckList").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-del]");
+  if (!button) return;
+  cards.splice(Number(button.dataset.del), 1);
+  index = Math.min(index, Math.max(0, cards.length - 1));
+  render();
+});
+
+$("#clear").addEventListener("click", () => {
+  if (cards.length && !window.confirm("Start a new deck?")) return;
+  cards = [];
+  index = 0;
+  reviewed.clear();
+  render();
+});
+
+$("#export").addEventListener("click", () => {
+  if (!cards.length) {
+    toast("No deck to export");
+    return;
+  }
+  const blob = new Blob([JSON.stringify({ name: "MindDeck Export", cards }, null, 2)], {
+    type: "application/json",
+  });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "minddeck-deck.json";
+  link.click();
+  URL.revokeObjectURL(link.href);
+});
+
+$("#import").addEventListener("click", () => $("#jsonFile").click());
+$("#jsonFile").addEventListener("change", async (event) => {
+  try {
+    const file = event.target.files[0];
+    if (!file || file.size > 5 * 1024 * 1024) throw new Error();
+    const parsed = JSON.parse(await file.text());
+    const imported = Array.isArray(parsed) ? parsed : parsed.cards;
+    if (!Array.isArray(imported) || imported.length > 10_000) throw new Error();
+    const normalized = imported.map(normalizeCard).filter(Boolean);
+    if (!normalized.length || normalized.length !== imported.length) throw new Error();
+    cards = normalized;
+    index = 0;
+    reviewed.clear();
+    render();
+    toast("Deck imported");
+  } catch {
+    toast("Invalid deck JSON");
+  } finally {
+    event.target.value = "";
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) return;
+  if (event.code === "Space") {
+    event.preventDefault();
+    $("#card").classList.toggle("flip");
+  } else if (event.key === "ArrowRight") next();
+  else if (event.key === "ArrowLeft") previous();
+  else if ("1234".includes(event.key)) score(Number(event.key));
+});
+
+load();
+loadConfig();
