@@ -1243,6 +1243,11 @@ def parse_cards(raw: str) -> list[dict]:
     return result
 
 
+AI_CARD_MODES = frozenset(
+    {"standard", "mixed", "cloze", "ncert", "formula", "assertion", "reaction", "journal", "derivation"}
+)
+
+
 def card_mode_instruction(card_mode: str) -> str:
     if card_mode == "ncert":
         return (
@@ -1260,6 +1265,34 @@ def card_mode_instruction(card_mode: str) -> str:
         return (
             "Create a balanced mix of normal Q&A and cloze-deletion cards. Cloze cards must "
             "contain type 'cloze' and clozeText with one {{c1::answer}} marker. "
+        )
+    if card_mode == "formula":
+        return (
+            "Create formula and numerical-concept cards with correct LaTeX wrapped in dollar signs. "
+            "Every card must use template 'formula', include subject, examTags containing 'Formula Only', "
+            "and a sections array with labelled Formula, SI Unit, Dimensional Formula, and Assumptions entries. "
+        )
+    if card_mode == "assertion":
+        return (
+            "Create standard Assertion and Reason exam cards. Every card must use template 'assertion' and "
+            "a sections array with Assertion (A), Reason (R), Correct Option, and Breakdown entries. The back "
+            "must identify one of the four standard A/R outcomes and explain it concisely. "
+        )
+    if card_mode == "reaction":
+        return (
+            "Create organic reaction mechanism cards. Every card must use template 'reaction' and a sections "
+            "array with Reactant, Reagent / Conditions, Intermediate, Major Product, and Mechanism entries. "
+        )
+    if card_mode == "journal":
+        return (
+            "Create accounting double-entry cards. The front must be a business transaction. Every card must "
+            "use template 'journal' and a sections array with Debit, Credit, and Narration entries. "
+        )
+    if card_mode == "derivation":
+        return (
+            "Create board-exam derivation cards using correct LaTeX. Every card must use template 'derivation', "
+            "examTags containing '3-Mark Board Derivation', and a sections array containing ordered Step 1, "
+            "Step 2, and later steps plus the final result. "
         )
     return "Create normal question-and-answer cards. "
 
@@ -1326,7 +1359,7 @@ def generate():
         return jsonify(error="Secrets are not accepted by this endpoint."), 400
     if provider not in {"openai", "gemini"}:
         return jsonify(error="Select a supported AI provider."), 400
-    if card_mode not in {"standard", "mixed", "cloze", "ncert"}:
+    if card_mode not in AI_CARD_MODES:
         return jsonify(error="Select a valid card style."), 400
     if not provider_ready(provider):
         return jsonify(error="This AI provider is securely locked by the owner."), 503
@@ -1395,7 +1428,7 @@ def generate_from_image():
     card_mode = str(body.get("cardMode", "mixed")).lower().strip()
     if "apiKey" in body or "accessCode" in body:
         return jsonify(error="Secrets are not accepted by this endpoint."), 400
-    if provider not in {"openai", "gemini"} or card_mode not in {"standard", "mixed", "cloze", "ncert"}:
+    if provider not in {"openai", "gemini"} or card_mode not in AI_CARD_MODES:
         return jsonify(error="Select a supported provider and card style."), 400
     if not provider_ready(provider):
         return jsonify(error="This AI provider is securely locked by the owner."), 503
