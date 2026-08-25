@@ -362,6 +362,128 @@ function renderStudyWidgets() {
   renderWeekBars();
 }
 
+function localDayEnd(offset = 0) {
+  const date = new Date();
+  date.setHours(23, 59, 59, 999);
+  date.setDate(date.getDate() + offset);
+  return date.getTime();
+}
+
+function calculateLearningInsights() {
+  const now = Date.now();
+  const todayEnd = localDayEnd();
+  const tomorrowEnd = localDayEnd(1);
+  const weekEnd = localDayEnd(6);
+  const dueTimes = cards.map((card) => Date.parse(card.dueDate)).filter(Number.isFinite);
+  const fresh = cards.filter((card) => card.repetition === 0 && card.reviews === 0).length;
+  const mastered = cards.filter((card) => card.repetition >= 3).length;
+  const learning = Math.max(0, cards.length - fresh - mastered);
+  const memoryScore = cards.length
+    ? Math.round(
+        cards.reduce(
+          (total, card) =>
+            total + Math.min(100, card.repetition * 25 + Math.min(card.reviews, 5) * 5),
+          0
+        ) / cards.length
+      )
+    : 0;
+  const dueToday = dueTimes.filter((dueTime) => dueTime <= todayEnd).length;
+  const dueTomorrow = dueTimes.filter(
+    (dueTime) => dueTime > todayEnd && dueTime <= tomorrowEnd
+  ).length;
+  const dueLater = dueTimes.filter(
+    (dueTime) => dueTime > tomorrowEnd && dueTime <= weekEnd
+  ).length;
+  const futureDue = dueTimes.filter((dueTime) => dueTime > now).sort((left, right) => left - right)[0];
+  return {
+    fresh,
+    learning,
+    mastered,
+    memoryScore,
+    dueToday,
+    dueTomorrow,
+    dueLater,
+    forecastTotal: dueToday + dueTomorrow + dueLater,
+    futureDue,
+  };
+}
+
+function renderLearningInsights() {
+  if (!$("#memoryWidget")) return;
+  const insights = calculateLearningInsights();
+  const { memoryScore } = insights;
+  $("#memoryScore").textContent = memoryScore;
+  $("#memoryArc").setAttribute("stroke-dasharray", `${memoryScore} 100`);
+  $("#freshCards").textContent = insights.fresh;
+  $("#learningCards").textContent = insights.learning;
+  $("#masteredCards").textContent = insights.mastered;
+
+  const memoryLabel =
+    memoryScore >= 90
+      ? "Excellent retention"
+      : memoryScore >= 70
+        ? "Strong recall"
+        : memoryScore >= 35
+          ? "Building strength"
+          : cards.length
+            ? "Taking root"
+            : "Ready to grow";
+  $("#memoryLabel").textContent = memoryLabel;
+  $("#memoryMessage").textContent = !cards.length
+    ? "Create a deck to start measuring long-term recall."
+    : memoryScore >= 70
+      ? "Your recall is strong. Keep reviews consistent to protect it."
+      : insights.fresh
+        ? "Review fresh cards and rate honestly to strengthen this score."
+        : "A short review session will keep your memory curve moving up.";
+
+  const forecasts = [
+    ["#forecastToday", "#forecastTodayBar", insights.dueToday],
+    ["#forecastTomorrow", "#forecastTomorrowBar", insights.dueTomorrow],
+    ["#forecastWeek", "#forecastWeekBar", insights.dueLater],
+  ];
+  const forecastMax = Math.max(1, cards.length);
+  for (const [labelSelector, barSelector, value] of forecasts) {
+    $(labelSelector).textContent = value;
+    const bar = $(barSelector);
+    bar.max = forecastMax;
+    bar.value = value;
+    bar.textContent = String(value);
+  }
+  $("#forecastTotal").textContent = insights.forecastTotal;
+
+  if (insights.dueToday) {
+    $("#nextReview").textContent = `${insights.dueToday} ${insights.dueToday === 1 ? "card is" : "cards are"} ready now`;
+  } else if (insights.futureDue) {
+    const daysAway = Math.max(1, Math.ceil((insights.futureDue - Date.now()) / 86_400_000));
+    const dateLabel = new Date(insights.futureDue).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+    });
+    $("#nextReview").textContent =
+      daysAway === 1 ? `Next review tomorrow · ${dateLabel}` : `Next review in ${daysAway} days · ${dateLabel}`;
+  } else {
+    $("#nextReview").textContent = cards.length
+      ? "Rate a card to create your review schedule"
+      : "No reviews scheduled yet";
+  }
+
+  $("#dailyPrompt").textContent = !cards.length
+    ? "Start with one concept. MindDeck will build the study path around it."
+    : insights.dueToday
+      ? `Clear ${insights.dueToday} due ${insights.dueToday === 1 ? "card" : "cards"} to protect your momentum.`
+      : insights.fresh
+        ? `${insights.fresh} fresh ${insights.fresh === 1 ? "card is" : "cards are"} waiting for a first review.`
+        : memoryScore >= 70
+          ? "Your deck is healthy. A short focus sprint will keep it strong."
+          : "One honest review round can lift your memory index today.";
+  $("#quickReviewHint").textContent = !cards.length
+    ? "Create a deck first"
+    : insights.dueToday
+      ? `${insights.dueToday} due now`
+      : "Continue your deck";
+}
+
 function storeTimerState() {
   try {
     localStorage.setItem(FOCUS_STORE, JSON.stringify(timerState));
@@ -544,6 +666,7 @@ function render(touch = false) {
   $("#front").textContent = card ? card.front : "Add or generate cards to begin.";
   $("#back").textContent = card ? card.back : "Your answer appears here.";
   renderStudyWidgets();
+  renderLearningInsights();
   renderDeck();
   save(touch);
 }
@@ -925,6 +1048,28 @@ async function readFile(file) {
   }
 }
 
+function openNotesComposer() {
+  const notesTab = $('[data-tab="notes"]');
+  if (!notesTab.classList.contains("active")) notesTab.click();
+  const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+  $("#createPanel").scrollIntoView({ behavior, block: "start" });
+  window.setTimeout(() => $("#notes").focus(), 350);
+}
+
+function startDashboardReview() {
+  if (!cards.length) {
+    openNotesComposer();
+    toast("Create a deck first");
+    return;
+  }
+  const dueIndex = cards.findIndex((card) => Date.parse(card.dueDate) <= Date.now());
+  if (dueIndex >= 0) index = dueIndex;
+  render(false);
+  const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+  $("#studyPanel").scrollIntoView({ behavior, block: "start" });
+  toast(dueIndex >= 0 ? "Due review ready" : "Continuing your deck");
+}
+
 $$('.tab').forEach((button) => {
   button.addEventListener("click", () => {
     $$(".tab,.pane").forEach((element) => element.classList.remove("active"));
@@ -1059,6 +1204,10 @@ fileInput.addEventListener("change", (event) => readFile(event.target.files[0]))
 
 const modal = $("#modal");
 $("#manual").addEventListener("click", () => modal.classList.add("open"));
+$("#quickCreate").addEventListener("click", () => modal.classList.add("open"));
+$("#quickReview").addEventListener("click", startDashboardReview);
+$("#quickNotes").addEventListener("click", openNotesComposer);
+$("#quickImport").addEventListener("click", () => $("#import").click());
 $("#close").addEventListener("click", () => modal.classList.remove("open"));
 $("#cancel").addEventListener("click", () => modal.classList.remove("open"));
 $("#saveCard").addEventListener("click", () => {
