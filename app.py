@@ -11,9 +11,9 @@ import urllib.error
 import urllib.request
 from collections import defaultdict, deque
 from datetime import datetime, timezone
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 
-from flask import Flask, g, jsonify, make_response, render_template, request
+from flask import Flask, g, jsonify, make_response, redirect, render_template, request
 from werkzeug.security import check_password_hash
 
 app = Flask(__name__)
@@ -27,6 +27,7 @@ MAX_IMAGE_BYTES = 4 * 1024 * 1024
 AI_SESSION_SECONDS = 15 * 60
 CSRF_SECONDS = 24 * 60 * 60
 AUTH_REFRESH_SECONDS = 30 * 24 * 60 * 60
+OAUTH_TRANSACTION_SECONDS = 10 * 60
 
 _rate_buckets: dict[str, deque[float]] = defaultdict(deque)
 _rate_lock = threading.Lock()
@@ -73,6 +74,16 @@ def auth_refresh_cookie_name() -> str:
     return "__Host-minddeck_refresh" if is_https_request() else "minddeck_refresh_dev"
 
 
+def oauth_cookie_name() -> str:
+    return "__Host-minddeck_oauth" if is_https_request() else "minddeck_oauth_dev"
+
+
+def oauth_secret() -> str:
+    """Use a dedicated OAuth secret when present, with the hardened AI secret as fallback."""
+    candidate = os.environ.get("OAUTH_SESSION_SECRET", "").strip() or session_secret()
+    return candidate if len(candidate) >= 32 else ""
+
+
 def provider_ready(provider: str) -> bool:
     # Fail closed unless all independent secrets are present and strong.
     return bool(
@@ -112,6 +123,50 @@ def supabase_settings() -> tuple[str, str] | None:
 
 def auth_ready() -> bool:
     return supabase_settings() is not None
+
+
+def normalize_app_origin(value: str) -> str | None:
+    """Return a safe origin with no path, credentials, query, or fragment."""
+    if not isinstance(value, str) or not 8 <= len(value) <= 300:
+        return None
+    parsed = urlparse(value.strip())
+    hostname = (parsed.hostname or "").lower()
+    try:
+        port = parsed.port
+    except ValueError:
+        return None
+    local_http = parsed.scheme == "http" and hostname in {"localhost", "127.0.0.1", "::1"}
+    if not (
+        (parsed.scheme == "https" or local_http)
+        and hostname
+        and parsed.username is None
+        and parsed.password is None
+        and parsed.path in {"", "/"}
+        and not parsed.query
+        and not parsed.fragment
+    ):
+        return None
+    return f"{parsed.scheme}://{parsed.netloc.lower()}"
+
+
+def configured_app_origin() -> str | None:
+    configured = os.environ.get("PUBLIC_APP_URL", "").strip()
+    return normalize_app_origin(configured) if configured else None
+
+
+def request_app_origin(*, require_browser_origin: bool = False) -> str | None:
+    """Resolve the callback origin without accepting an arbitrary redirect target."""
+    configured = os.environ.get("PUBLIC_APP_URL", "").strip()
+    browser_origin = normalize_app_origin(request.headers.get("Origin", ""))
+    scheme = "https" if is_https_request() else "http"
+    request_origin = normalize_app_origin(f"{scheme}://{request.host}")
+    if configured:
+        expected = normalize_app_origin(configured)
+        observed = browser_origin if require_browser_origin else request_origin
+        return expected if expected and observed == expected else None
+    if require_browser_origin:
+        return browser_origin
+    return request_origin
 
 
 class SupabaseError(Exception):
@@ -169,6 +224,18 @@ def supabase_json(
         except (UnicodeDecodeError, json.JSONDecodeError):
             error_payload = {}
         raise SupabaseError(exc.code, error_payload) from exc
+
+
+def google_auth_ready() -> bool:
+    """Fail closed unless Google is enabled upstream and OAuth cookies can be signed."""
+    if not auth_ready() or not oauth_secret():
+        return False
+    try:
+        settings = supabase_json("GET", "/auth/v1/settings")
+    except (SupabaseError, RuntimeError, ValueError, urllib.error.URLError):
+        return False
+    external = settings.get("external") if isinstance(settings, dict) else None
+    return isinstance(external, dict) and external.get("google") is True
 
 
 def set_auth_cookies(response, tokens: dict):
@@ -533,6 +600,107 @@ def session_fingerprint() -> str:
     return hashlib.sha256(user_agent.encode("utf-8")).hexdigest()[:24]
 
 
+def base64url_encode(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
+
+
+def base64url_decode(value: str) -> bytes:
+    return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+
+
+def sign_oauth_transaction(verifier: str, origin: str) -> str:
+    payload = {
+        "exp": int(time.time()) + OAUTH_TRANSACTION_SECONDS,
+        "fp": session_fingerprint(),
+        "nonce": secrets.token_urlsafe(18),
+        "origin": origin,
+        "v": 1,
+        "verifier": verifier,
+    }
+    encoded = base64url_encode(
+        json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    )
+    signature = hmac.new(
+        oauth_secret().encode("utf-8"),
+        f"minddeck-google-oauth-v1.{encoded}".encode("ascii"),
+        hashlib.sha256,
+    ).digest()
+    return f"{encoded}.{base64url_encode(signature)}"
+
+
+def verify_oauth_transaction(token: str, origin: str) -> dict | None:
+    if not oauth_secret() or not isinstance(token, str) or not 80 <= len(token) <= 2_048:
+        return None
+    parts = token.split(".")
+    if len(parts) != 2 or not all(re.fullmatch(r"[A-Za-z0-9_-]+", part) for part in parts):
+        return None
+    encoded, submitted_signature = parts
+    expected_signature = base64url_encode(
+        hmac.new(
+            oauth_secret().encode("utf-8"),
+            f"minddeck-google-oauth-v1.{encoded}".encode("ascii"),
+            hashlib.sha256,
+        ).digest()
+    )
+    if not hmac.compare_digest(submitted_signature, expected_signature):
+        return None
+    try:
+        payload = json.loads(base64url_decode(encoded).decode("utf-8"))
+    except (ValueError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict) or payload.get("v") != 1:
+        return None
+    expires = payload.get("exp")
+    verifier = payload.get("verifier")
+    nonce = payload.get("nonce")
+    fingerprint = payload.get("fp")
+    stored_origin = payload.get("origin")
+    now = int(time.time())
+    if not (
+        isinstance(expires, int)
+        and now <= expires <= now + OAUTH_TRANSACTION_SECONDS + 30
+        and isinstance(verifier, str)
+        and re.fullmatch(r"[A-Za-z0-9_-]{43,128}", verifier)
+        and isinstance(nonce, str)
+        and re.fullmatch(r"[A-Za-z0-9_-]{16,80}", nonce)
+        and isinstance(fingerprint, str)
+        and hmac.compare_digest(fingerprint, session_fingerprint())
+        and isinstance(stored_origin, str)
+        and hmac.compare_digest(stored_origin, origin)
+    ):
+        return None
+    return payload
+
+
+def set_oauth_cookie(response, transaction: str):
+    response.set_cookie(
+        oauth_cookie_name(),
+        transaction,
+        max_age=OAUTH_TRANSACTION_SECONDS,
+        secure=is_https_request(),
+        httponly=True,
+        samesite="Lax",
+        path="/",
+    )
+
+
+def clear_oauth_cookie(response):
+    response.delete_cookie(
+        oauth_cookie_name(),
+        secure=is_https_request(),
+        httponly=True,
+        samesite="Lax",
+        path="/",
+    )
+
+
+def oauth_result_redirect(result: str):
+    destination = "/?auth=google-ok" if result == "ok" else "/?auth=google-error"
+    response = redirect(destination, code=303)
+    clear_oauth_cookie(response)
+    return response
+
+
 def sign_session(provider: str) -> str:
     expires = int(time.time()) + AI_SESSION_SECONDS
     nonce = secrets.token_urlsafe(18)
@@ -612,6 +780,7 @@ def auth_config():
     user = current_cloud_user() if auth_ready() else None
     return jsonify(
         enabled=auth_ready(),
+        googleEnabled=google_auth_ready(),
         user={"email": user["email"], "accountKey": user["account_key"]} if user else None,
         canRefresh=bool(
             auth_ready()
@@ -620,6 +789,69 @@ def auth_config():
             <= 4_096
         ),
     )
+
+
+@app.post("/api/auth/google/start")
+def auth_google_start():
+    invalid = validate_mutating_request()
+    if invalid:
+        return invalid
+    if not google_auth_ready():
+        return jsonify(error="Google Sign-In is not configured yet."), 503
+
+    allowed, retry_after = rate_limit_ok("auth-google-start", 10, 15 * 60)
+    if not allowed:
+        return limited_response(retry_after)
+    origin = request_app_origin(require_browser_origin=True)
+    settings = supabase_settings()
+    if not origin or not settings:
+        return jsonify(error="Google Sign-In is unavailable on this address."), 400
+
+    verifier = secrets.token_urlsafe(64)
+    challenge = base64url_encode(hashlib.sha256(verifier.encode("ascii")).digest())
+    callback_url = f"{origin}/api/auth/google/callback"
+    query = urlencode(
+        {
+            "provider": "google",
+            "redirect_to": callback_url,
+            "code_challenge": challenge,
+            "code_challenge_method": "s256",
+        }
+    )
+    authorization_url = f"{settings[0]}/auth/v1/authorize?{query}"
+    response = jsonify(authorizationUrl=authorization_url)
+    set_oauth_cookie(response, sign_oauth_transaction(verifier, origin))
+    return response
+
+
+@app.get("/api/auth/google/callback")
+def auth_google_callback():
+    origin = request_app_origin()
+    transaction = verify_oauth_transaction(
+        request.cookies.get(oauth_cookie_name(), ""), origin or ""
+    )
+    if not origin or not transaction or request.args.get("error"):
+        return oauth_result_redirect("error")
+
+    code = request.args.get("code", "")
+    if not isinstance(code, str) or not re.fullmatch(r"[A-Za-z0-9._~-]{8,2048}", code):
+        return oauth_result_redirect("error")
+    allowed, _retry_after = rate_limit_ok("auth-google-callback", 20, 15 * 60)
+    if not allowed:
+        return oauth_result_redirect("error")
+
+    try:
+        tokens = supabase_json(
+            "POST",
+            "/auth/v1/token?grant_type=pkce",
+            {"auth_code": code, "code_verifier": transaction["verifier"]},
+        )
+        response = oauth_result_redirect("ok")
+        set_auth_cookies(response, tokens)
+        return response
+    except (SupabaseError, RuntimeError, ValueError, urllib.error.URLError):
+        app.logger.warning("Google OAuth callback could not complete")
+        return oauth_result_redirect("error")
 
 
 def valid_auth_fields(body, *, minimum_password_length: int) -> tuple[str, str] | None:
