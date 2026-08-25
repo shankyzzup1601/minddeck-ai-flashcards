@@ -360,6 +360,52 @@ def normalize_cloud_deck(value) -> dict:
                 for hint in raw_hints
                 if isinstance(hint, str) and hint.strip()
             ][:3]
+        template = raw_card.get("template", "basic")
+        if template not in {
+            "basic",
+            "ncert",
+            "reaction",
+            "formula",
+            "journal",
+            "graph",
+            "assertion",
+            "derivation",
+        }:
+            template = "basic"
+        subject = raw_card.get("subject", "")
+        if not isinstance(subject, str):
+            subject = ""
+        subject = subject.strip()[:80]
+        exam_tags = []
+        raw_exam_tags = raw_card.get("examTags", [])
+        if isinstance(raw_exam_tags, list):
+            exam_tags = list(
+                dict.fromkeys(
+                    tag.strip()[:60]
+                    for tag in raw_exam_tags
+                    if isinstance(tag, str) and tag.strip()
+                )
+            )[:6]
+        sections = []
+        raw_sections = raw_card.get("sections", [])
+        if isinstance(raw_sections, list):
+            for section in raw_sections[:12]:
+                if not isinstance(section, dict):
+                    continue
+                label = section.get("label", "")
+                content = section.get("value", "")
+                if not isinstance(label, str) or not isinstance(content, str):
+                    continue
+                label = label.strip()[:60]
+                content = content.strip()[:500]
+                if label and content:
+                    sections.append({"label": label, "value": content})
+        graph_shape = raw_card.get("graphShape", "downward")
+        if graph_shape not in {"downward", "upward", "ppc", "isotherm", "bell"}:
+            graph_shape = "downward"
+        mistake_at = raw_card.get("mistakeAt", "")
+        if not isinstance(mistake_at, str) or not 10 <= len(mistake_at) <= 40:
+            mistake_at = ""
         normalized_cards.append(
             {
                 "id": card_id,
@@ -378,6 +424,15 @@ def normalize_cloud_deck(value) -> dict:
                 "leech": bool(raw_card.get("leech", False)),
                 "lastScore": round(number("lastScore", 0, 0, 4)),
                 "hints": hints,
+                "template": template,
+                "subject": subject,
+                "examTags": exam_tags,
+                "trap": bool(raw_card.get("trap", False)),
+                "mistake": bool(raw_card.get("mistake", False)),
+                "mistakeAt": mistake_at,
+                "priority": "high" if raw_card.get("priority") == "high" else "normal",
+                "sections": sections,
+                "graphShape": graph_shape if template == "graph" else "downward",
             }
         )
         valid_ids.add(card_id)
@@ -398,7 +453,7 @@ def normalize_cloud_deck(value) -> dict:
     updated_at = raw_updated if isinstance(raw_updated, int) and not isinstance(raw_updated, bool) else 0
     updated_at = min(max(updated_at, 0), now_ms + 60_000)
     return {
-        "version": 4,
+        "version": 5,
         "cards": normalized_cards,
         "index": index,
         "reviewed": reviewed,
@@ -879,7 +934,7 @@ def post_json(url: str, payload: dict, headers: dict | None = None) -> dict:
         return json.loads(raw.decode("utf-8"))
 
 
-def parse_cards(raw: str) -> list[dict[str, str]]:
+def parse_cards(raw: str) -> list[dict]:
     cleaned = raw.replace("```json", "").replace("```", "").strip()
     parsed = json.loads(cleaned)
     cards = parsed.get("cards", []) if isinstance(parsed, dict) else parsed
@@ -904,6 +959,56 @@ def parse_cards(raw: str) -> list[dict[str, str]]:
             ):
                 normalized["type"] = "cloze"
                 normalized["clozeText"] = cloze_text.strip()
+            template = card.get("template")
+            if template in {
+                "ncert",
+                "reaction",
+                "formula",
+                "journal",
+                "graph",
+                "assertion",
+                "derivation",
+            }:
+                normalized["template"] = template
+            subject = card.get("subject")
+            if isinstance(subject, str) and subject.strip():
+                normalized["subject"] = subject.strip()[:80]
+            raw_tags = card.get("examTags")
+            if isinstance(raw_tags, list):
+                tags = list(
+                    dict.fromkeys(
+                        tag.strip()[:60]
+                        for tag in raw_tags
+                        if isinstance(tag, str) and tag.strip()
+                    )
+                )[:6]
+                if tags:
+                    normalized["examTags"] = tags
+            if card.get("trap") is True:
+                normalized["trap"] = True
+            raw_sections = card.get("sections")
+            if isinstance(raw_sections, list):
+                sections = []
+                for section in raw_sections[:12]:
+                    if not isinstance(section, dict):
+                        continue
+                    label = section.get("label")
+                    content = section.get("value")
+                    if isinstance(label, str) and isinstance(content, str):
+                        label = label.strip()[:60]
+                        content = content.strip()[:500]
+                        if label and content:
+                            sections.append({"label": label, "value": content})
+                if sections:
+                    normalized["sections"] = sections
+            if template == "graph" and card.get("graphShape") in {
+                "downward",
+                "upward",
+                "ppc",
+                "isotherm",
+                "bell",
+            }:
+                normalized["graphShape"] = card["graphShape"]
             result.append(normalized)
 
     if not result:
@@ -912,6 +1017,13 @@ def parse_cards(raw: str) -> list[dict[str, str]]:
 
 
 def card_mode_instruction(card_mode: str) -> str:
+    if card_mode == "ncert":
+        return (
+            "Create NCERT line-by-line cloze cards that target exact keywords, scientist names, "
+            "exceptions, and high-yield phrases. Every card must contain type 'cloze', template "
+            "'ncert', a clozeText string with exactly one {{c1::answer}} marker, an examTags array, "
+            "and a boolean trap field that is true only for exceptions or common traps. "
+        )
     if card_mode == "cloze":
         return (
             "Create cloze-deletion cards. Every card must also contain type 'cloze' and a "
@@ -987,7 +1099,7 @@ def generate():
         return jsonify(error="Secrets are not accepted by this endpoint."), 400
     if provider not in {"openai", "gemini"}:
         return jsonify(error="Select a supported AI provider."), 400
-    if card_mode not in {"standard", "mixed", "cloze"}:
+    if card_mode not in {"standard", "mixed", "cloze", "ncert"}:
         return jsonify(error="Select a valid card style."), 400
     if not provider_ready(provider):
         return jsonify(error="This AI provider is securely locked by the owner."), 503
@@ -1056,7 +1168,7 @@ def generate_from_image():
     card_mode = str(body.get("cardMode", "mixed")).lower().strip()
     if "apiKey" in body or "accessCode" in body:
         return jsonify(error="Secrets are not accepted by this endpoint."), 400
-    if provider not in {"openai", "gemini"} or card_mode not in {"standard", "mixed", "cloze"}:
+    if provider not in {"openai", "gemini"} or card_mode not in {"standard", "mixed", "cloze", "ncert"}:
         return jsonify(error="Select a supported provider and card style."), 400
     if not provider_ready(provider):
         return jsonify(error="This AI provider is securely locked by the owner."), 503
