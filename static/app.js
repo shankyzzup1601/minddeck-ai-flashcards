@@ -820,7 +820,8 @@ async function submitAccount(path) {
   const buttons = [$("#signIn"), $("#signUp")];
   $("#authError").textContent = "";
   $("#authMessage").textContent = "";
-  if (!email || !emailInput.validity.valid) {
+  emailInput.value = email;
+  if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     $("#authError").textContent = "Enter a valid email address.";
     emailInput.focus();
     return;
