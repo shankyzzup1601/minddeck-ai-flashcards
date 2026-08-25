@@ -6,6 +6,12 @@ const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content ||
 const PDF_MODULE = "/static/vendor/pdf-4.10.38.min.mjs";
 const PDF_WORKER = "/static/vendor/pdf-4.10.38.worker.min.mjs";
 const FOCUS_STORE = "minddeck-focus-timer-v1";
+const THEME_STORE = "minddeck-visual-theme-v1";
+const THEMES = Object.freeze([
+  { key: "cosmic", label: "Cosmic" },
+  { key: "aurora", label: "Aurora" },
+  { key: "rose", label: "Rose" },
+]);
 const TIMER_MODES = Object.freeze({
   focus: { label: "Focus sprint", duration: 25 * 60, isFocus: true },
   break: { label: "Quick reset", duration: 5 * 60, isFocus: false },
@@ -29,6 +35,39 @@ let removeGuestAfterSync = false;
 let studyStats = defaultStudyStats();
 let timerState = defaultTimerState();
 let timerInterval = null;
+let activeTheme = THEMES[0].key;
+
+function applyTheme(themeKey, announce = false) {
+  const theme = THEMES.find((item) => item.key === themeKey) || THEMES[0];
+  activeTheme = theme.key;
+  document.documentElement.dataset.theme = theme.key;
+  const label = $("#themeName");
+  const button = $("#themeToggle");
+  if (label) label.textContent = theme.label;
+  if (button) button.setAttribute("aria-label", `Visual theme: ${theme.label}. Activate to switch.`);
+  try {
+    localStorage.setItem(THEME_STORE, theme.key);
+  } catch {
+    // A private browsing policy may block persistence; the active tab still updates.
+  }
+  if (announce) toast(`${theme.label} palette active`);
+}
+
+function loadTheme() {
+  let storedTheme = THEMES[0].key;
+  try {
+    storedTheme = localStorage.getItem(THEME_STORE) || storedTheme;
+  } catch {
+    // Use the default palette when storage is unavailable.
+  }
+  applyTheme(storedTheme);
+}
+
+function cycleTheme() {
+  const currentIndex = THEMES.findIndex((theme) => theme.key === activeTheme);
+  const nextTheme = THEMES[(currentIndex + 1) % THEMES.length];
+  applyTheme(nextTheme.key, true);
+}
 
 function newCard(front, back) {
   return {
@@ -869,6 +908,7 @@ $$('.tab').forEach((button) => {
 });
 
 const authModal = $("#authModal");
+$("#themeToggle").addEventListener("click", cycleTheme);
 $("#account").addEventListener("click", () => {
   $("#authError").textContent = "";
   $("#authMessage").textContent = "";
@@ -1066,6 +1106,7 @@ document.addEventListener("keydown", (event) => {
   else if (event.key.toLowerCase() === "t") toggleTimer();
 });
 
+loadTheme();
 load();
 loadConfig();
 loadAccount().finally(loadTimerState);
