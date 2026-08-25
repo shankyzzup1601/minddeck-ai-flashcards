@@ -227,6 +227,47 @@ def current_cloud_user() -> dict | None:
     }
 
 
+def normalize_study_stats(value) -> dict:
+    raw = value if isinstance(value, dict) else {}
+
+    def integer(name: str, default: int, minimum: int, maximum: int) -> int:
+        candidate = raw.get(name, default)
+        if isinstance(candidate, bool) or not isinstance(candidate, (int, float)):
+            return default
+        return min(maximum, max(minimum, round(candidate)))
+
+    daily_by_date: dict[str, int] = {}
+    raw_daily = raw.get("dailyFocus", [])
+    if isinstance(raw_daily, list):
+        for item in raw_daily[-90:]:
+            if not isinstance(item, dict):
+                continue
+            date_value = item.get("date")
+            seconds = item.get("seconds")
+            if (
+                not isinstance(date_value, str)
+                or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_value)
+                or isinstance(seconds, bool)
+                or not isinstance(seconds, (int, float))
+            ):
+                continue
+            try:
+                datetime.strptime(date_value, "%Y-%m-%d")
+            except ValueError:
+                continue
+            daily_by_date[date_value] = min(86_400, max(0, round(seconds)))
+
+    return {
+        "totalSeconds": integer("totalSeconds", 0, 0, 315_360_000),
+        "sessions": integer("sessions", 0, 0, 1_000_000),
+        "dailyGoalMinutes": integer("dailyGoalMinutes", 25, 15, 240),
+        "dailyFocus": [
+            {"date": date_value, "seconds": seconds}
+            for date_value, seconds in sorted(daily_by_date.items())[-90:]
+        ],
+    }
+
+
 def normalize_cloud_deck(value) -> dict:
     if not isinstance(value, dict):
         raise ValueError("Invalid deck.")
@@ -295,6 +336,7 @@ def normalize_cloud_deck(value) -> dict:
         "cards": normalized_cards,
         "index": index,
         "reviewed": reviewed,
+        "study": normalize_study_stats(value.get("study")),
         "updatedAt": updated_at,
     }
 
