@@ -47,6 +47,16 @@ const TEMPLATE_LABELS = Object.freeze({
   assertion: "Assertion–Reasoning",
   derivation: "Derivation",
 });
+const SUBJECT_WORKSPACES = Object.freeze({
+  physics: { label: "Class 12 Physics", subject: "Physics", aliases: ["physics"] },
+  "physical-chemistry": {
+    label: "Physical Chemistry",
+    subject: "Physical Chemistry",
+    aliases: ["physical chemistry", "thermodynamics", "electrochemistry", "chemical kinetics"],
+  },
+  accountancy: { label: "Accountancy", subject: "Accountancy", aliases: ["accountancy", "accounts"] },
+  biology: { label: "Biology", subject: "Biology", aliases: ["biology", "botany", "zoology"] },
+});
 
 let cards = [];
 let index = 0;
@@ -85,6 +95,69 @@ let matchTimer = null;
 let matchState = null;
 let studyQueueIds = [];
 let examRevealCount = 0;
+
+function setWorkspace(workspace, scroll = true) {
+  const target = ["generate", "study", "deck"].includes(workspace) ? workspace : "generate";
+  document.body.dataset.workspace = target;
+  $$('[data-workspace-target]').forEach((button) => {
+    const active = button.dataset.workspaceTarget === target;
+    button.classList.toggle("active", active);
+    if (active) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+  });
+  const headings = {
+    generate: ["Generate Cards", "Create an exam-ready deck from notes, files, or a photo."],
+    study: ["Distraction-Free Study", "Flip fast, rate honestly, and keep moving."],
+    deck: ["Deck Command Center", "Filter, refine, and plan your next revision sprint."],
+  };
+  const [title, subtitle] = headings[target];
+  $(".top h1").textContent = title;
+  $(".top p").textContent = subtitle;
+  if (scroll) window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+}
+
+function subjectMatches(card, workspaceKey) {
+  const config = SUBJECT_WORKSPACES[workspaceKey];
+  if (!card || !config) return false;
+  const searchable = [card.subject, ...(card.examTags || []), card.front].join(" ").toLowerCase();
+  return config.aliases.some((alias) => searchable.includes(alias));
+}
+
+function renderSubjectCounts() {
+  const now = Date.now();
+  for (const [workspaceKey] of Object.entries(SUBJECT_WORKSPACES)) {
+    const matching = cards.filter((card) => subjectMatches(card, workspaceKey));
+    const due = matching.filter((card) => Date.parse(card.dueDate) <= now).length;
+    const label = $(`[data-subject-count="${workspaceKey}"]`);
+    if (label) label.textContent = due ? `${due} due · ${matching.length} cards` : `${matching.length} cards`;
+  }
+}
+
+function selectedGenerationMetadata(cardMode) {
+  const stream = $("#streamSelect").value;
+  const subject = $("#subjectSelect").value;
+  const chapter = $("#chapterTag").value.trim();
+  const selectedTags = $$(".examTagInput:checked").map((input) => input.value);
+  if (cardMode === "formula" && !selectedTags.includes("Formula Only")) selectedTags.push("Formula Only");
+  if (cardMode === "derivation" && !selectedTags.includes("3-Mark Board Derivation")) {
+    selectedTags.push("3-Mark Board Derivation");
+  }
+  return { stream, subject, chapter, selectedTags };
+}
+
+function applyGenerationMetadata(generated, cardMode) {
+  const { stream, subject, chapter, selectedTags } = selectedGenerationMetadata(cardMode);
+  const requestedTemplate = ["ncert", "formula", "assertion", "reaction", "journal", "derivation"].includes(cardMode)
+    ? cardMode
+    : "";
+  return generated.map((card) => {
+    card.subject = card.subject || subject;
+    card.examTags = [...new Set([...(card.examTags || []), stream, chapter, ...selectedTags].filter(Boolean))].slice(0, 6);
+    if (requestedTemplate && card.template === "basic") card.template = requestedTemplate;
+    if (selectedTags.includes("NCERT Exception / Trap")) card.trap = true;
+    return card;
+  });
+}
 
 function applyTheme(themeKey, announce = false) {
   const theme = THEMES.find((item) => item.key === themeKey) || THEMES[0];
@@ -1035,7 +1108,9 @@ function render(touch = false) {
   renderStudyWidgets();
   renderLearningInsights();
   renderSmartWidgets();
+  renderSubjectCounts();
   renderDeck();
+  $("#oralQuestion").textContent = card?.front || "Add or select a card to begin an oral exam.";
   save(touch);
 }
 
@@ -1087,6 +1162,21 @@ function parseOffline(text, cardMode = "mixed") {
       if (output.length >= 30) break;
       output.push(newCard(draft.front, draft.back, draft));
     }
+  }
+  const specialModes = {
+    formula: { label: "Formula Only", section: "Formula / derivation" },
+    assertion: { label: "Assertion & Reason", section: "Reasoning breakdown" },
+    reaction: { label: "Organic Reaction", section: "Mechanism" },
+    journal: { label: "Accounting Double Entry", section: "Debit · Credit · Narration" },
+    derivation: { label: "3-Mark Board Derivation", section: "Derivation steps" },
+  };
+  const special = specialModes[cardMode];
+  if (special) {
+    output.forEach((card) => {
+      card.template = cardMode;
+      card.examTags = [special.label];
+      card.sections = [{ label: special.section, value: card.back }];
+    });
   }
   return output;
 }
@@ -1174,6 +1264,10 @@ function syncProvider() {
   $("#accessCode").placeholder = alreadyUnlocked ? "Secure session unlocked" : "Owner access code";
   $("#lockAi").hidden = !unlockedProvider;
   if (!online || alreadyUnlocked) $("#accessCode").value = "";
+  const providerNames = { offline: "Smart offline parser", openai: "Secure OpenAI", gemini: "Secure Gemini" };
+  $("#generationProviderLabel").textContent = alreadyUnlocked
+    ? `${providerNames[provider]} · unlocked`
+    : providerNames[provider] || "Smart offline parser";
   updateSecurityHint();
 }
 
@@ -1201,6 +1295,60 @@ async function loadConfig() {
     unlockedProvider = null;
   }
   syncProvider();
+}
+
+function openSettings() {
+  syncProvider();
+  $("#settingsModal").classList.add("open");
+}
+
+async function unlockSelectedAI() {
+  const provider = $("#provider").value;
+  if (provider === "offline") {
+    toast("Offline generation is already ready");
+    return;
+  }
+  if (unlockedProvider === provider) {
+    toast(`${provider === "openai" ? "OpenAI" : "Gemini"} is already unlocked`);
+    return;
+  }
+  const accessCode = $("#accessCode").value;
+  if (!accessCode) {
+    $("#securityHint").textContent = "Enter the owner access code to unlock this provider.";
+    $("#accessCode").focus();
+    return;
+  }
+  const button = $("#settingsUnlock");
+  button.disabled = true;
+  button.textContent = "Unlocking…";
+  try {
+    await unlockAI(provider, accessCode);
+    $("#accessCode").value = "";
+    syncProvider();
+    toast("Secure AI session unlocked");
+  } catch (error) {
+    $("#securityHint").textContent = error.message || "Could not unlock AI.";
+  } finally {
+    button.disabled = false;
+    button.textContent = "Unlock selected AI";
+  }
+}
+
+function openOralExam() {
+  const card = cards[index];
+  if (!card) {
+    openNotesComposer();
+    toast("Create a card before starting an oral exam");
+    return;
+  }
+  $("#oralQuestion").textContent = card.front;
+  $("#oralModal").classList.add("open");
+}
+
+function closeOralExam(returnToStudy = false) {
+  stopFeynmanRecording();
+  $("#oralModal").classList.remove("open");
+  if (returnToStudy) setWorkspace("study");
 }
 
 function setSyncStatus(message, state = "idle") {
@@ -1540,6 +1688,7 @@ async function readFile(file) {
 }
 
 function openNotesComposer() {
+  setWorkspace("generate", false);
   const notesTab = $('[data-tab="notes"]');
   if (!notesTab.classList.contains("active")) notesTab.click();
   const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
@@ -1556,6 +1705,7 @@ function startDashboardReview() {
   studyQueueIds = [];
   const dueIndex = cards.findIndex((card) => Date.parse(card.dueDate) <= Date.now());
   if (dueIndex >= 0) index = dueIndex;
+  setWorkspace("study", false);
   render(false);
   const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
   $("#studyPanel").scrollIntoView({ behavior, block: "start" });
@@ -1741,6 +1891,7 @@ function startLeechCram() {
   if (!studyQueueIds.length) return;
   index = cards.findIndex((card) => card.id === studyQueueIds[0]);
   $("#leechModal").classList.remove("open");
+  setWorkspace("study", false);
   render(false);
   $("#studyPanel").scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
   toast(`${studyQueueIds.length}-card rescue deck ready`);
@@ -1759,6 +1910,7 @@ function startCramSprint() {
   selectTimerMode("focus");
   resetTimer();
   toggleTimer();
+  setWorkspace("study", false);
   render(false);
   $("#studyPanel").scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
   toast(`${studyQueueIds.length}-card Pomodoro sprint started`);
@@ -1776,6 +1928,7 @@ function startStudyQueue(queue, message, closeSelector = "") {
   studyQueueIds = queue.map((card) => card.id);
   index = cards.findIndex((card) => card.id === studyQueueIds[0]);
   if (closeSelector) $(closeSelector).classList.remove("open");
+  setWorkspace("study", false);
   render(false);
   $("#studyPanel").scrollIntoView({
     behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
@@ -1791,6 +1944,21 @@ function startFormulaCram() {
     return;
   }
   startStudyQueue(formulas, `${formulas.length}-card Formula Cram ready`);
+}
+
+function startSubjectReview(workspaceKey) {
+  const config = SUBJECT_WORKSPACES[workspaceKey];
+  if (!config) return;
+  const matching = cards.filter((card) => subjectMatches(card, workspaceKey));
+  if (!matching.length) {
+    $("#subjectSelect").value = config.subject;
+    openNotesComposer();
+    toast(`Create your first ${config.label} cards`);
+    return;
+  }
+  const due = matching.filter((card) => Date.parse(card.dueDate) <= Date.now());
+  const queue = due.length ? due : matching;
+  startStudyQueue(queue, `${queue.length}-card ${config.label} revision ready`);
 }
 
 function renderMistakeNotebook() {
@@ -2189,6 +2357,20 @@ $("#signOut").addEventListener("click", async () => {
   }
 });
 
+$$("[data-workspace-target]").forEach((button) =>
+  button.addEventListener("click", () => setWorkspace(button.dataset.workspaceTarget))
+);
+$$("[data-subject-filter]").forEach((button) =>
+  button.addEventListener("click", () => startSubjectReview(button.dataset.subjectFilter))
+);
+$("#settings").addEventListener("click", openSettings);
+$("#openGeneratorSettings").addEventListener("click", openSettings);
+$("#settingsClose").addEventListener("click", () => $("#settingsModal").classList.remove("open"));
+$("#settingsDone").addEventListener("click", () => $("#settingsModal").classList.remove("open"));
+$("#settingsUnlock").addEventListener("click", unlockSelectedAI);
+$("#openOral").addEventListener("click", openOralExam);
+$("#oralClose").addEventListener("click", () => closeOralExam(false));
+$("#oralDone").addEventListener("click", () => closeOralExam(true));
 $("#provider").addEventListener("change", syncProvider);
 $("#lockAi").addEventListener("click", () => lockAI().catch((error) => {
   $("#error").textContent = error.message;
@@ -2233,6 +2415,7 @@ $("#leechList").addEventListener("click", (event) => {
 $("#startCramSprint").addEventListener("click", startCramSprint);
 $("#openExamEngine").addEventListener("click", openExamCreator);
 $("#formulaCram").addEventListener("click", startFormulaCram);
+$("#quickFormulaCram").addEventListener("click", startFormulaCram);
 $("#mistakeNotebook").addEventListener("click", () => {
   renderMistakeNotebook();
   $("#mistakeModal").classList.add("open");
@@ -2324,7 +2507,7 @@ $("#generate").addEventListener("click", async () => {
     return;
   }
   if (provider !== "offline" && unlockedProvider !== provider && !accessCode) {
-    $("#error").textContent = "Enter the owner access code or choose offline mode.";
+    $("#error").textContent = "Open AI settings to unlock this provider, or choose offline mode.";
     return;
   }
 
@@ -2354,12 +2537,13 @@ $("#generate").addEventListener("click", async () => {
         .filter(Boolean);
     }
     if (!generated.length) throw new Error("No usable concepts found.");
-    cards = generated;
+    cards = applyGenerationMetadata(generated, cardMode);
     studyQueueIds = [];
     index = 0;
     reviewed.clear();
+    setWorkspace("study", false);
     render(true);
-    toast(`Created ${generated.length} cards`);
+    toast(`Created ${cards.length} exam-ready cards`);
   } catch (error) {
     if (error.status === 401) {
       unlockedProvider = null;
@@ -2481,7 +2665,7 @@ $("#manual").addEventListener("click", () => openManualCreator());
 $("#quickCreate").addEventListener("click", () => openManualCreator());
 $("#quickReview").addEventListener("click", startDashboardReview);
 $("#quickNotes").addEventListener("click", openNotesComposer);
-$("#quickImport").addEventListener("click", () => $("#import").click());
+$("#quickExam").addEventListener("click", openExamCreator);
 $("#mType").addEventListener("change", syncManualType);
 $("#mImage").addEventListener("change", (event) => {
   const file = event.target.files[0];
@@ -2589,6 +2773,7 @@ $("#clear").addEventListener("click", () => {
   studyQueueIds = [];
   index = 0;
   reviewed.clear();
+  setWorkspace("generate", false);
   render(true);
 });
 
@@ -2621,6 +2806,7 @@ $("#jsonFile").addEventListener("change", async (event) => {
     studyQueueIds = [];
     index = 0;
     reviewed.clear();
+    setWorkspace("deck", false);
     render(true);
     toast("Deck imported");
   } catch {
