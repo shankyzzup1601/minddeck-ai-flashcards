@@ -37,7 +37,7 @@ New passwords require at least 12 characters. Signing in validates an existing p
    - `SUPABASE_URL`: the exact project URL ending in `.supabase.co`.
    - `SUPABASE_PUBLISHABLE_KEY`: the project's publishable key. A legacy anon key also works as `SUPABASE_ANON_KEY`.
    - `OAUTH_SESSION_SECRET`: a random signing secret of at least 32 characters. If omitted, an already configured `AI_SESSION_SECRET` is used with OAuth-specific HMAC domain separation.
-   - `PUBLIC_APP_URL`: optional but recommended in production; use the exact origin with no trailing path, such as `https://minddeck-ai-flashcards.vercel.app`.
+   - `PUBLIC_APP_URL`: optional but recommended for the Production environment; use the exact origin with no trailing path, such as `https://minddeck-ai-flashcards.vercel.app`. Omit it from Preview, or give each environment its own exact preview origin.
 4. Redeploy the project.
 
 ### Google Sign-In setup
