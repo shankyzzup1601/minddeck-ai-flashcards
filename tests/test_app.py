@@ -83,6 +83,12 @@ class MindDeckSecurityTests(unittest.TestCase):
         self.assertIn('id="leechModal"', page)
         self.assertIn('id="matchModal"', page)
         self.assertIn('id="exchangeModal"', page)
+        self.assertIn('id="examModal"', page)
+        self.assertIn('id="examTemplate"', page)
+        self.assertIn('id="formulaCram"', page)
+        self.assertIn('id="mistakeModal"', page)
+        self.assertIn('id="examProgressive"', page)
+        self.assertIn('value="ncert"', page)
         self.assertIn('/static/manifest.webmanifest', page)
         self.assertIn('id="themeToggle"', page)
         self.assertIn('id="togglePassword"', page)
@@ -212,6 +218,42 @@ class MindDeckSecurityTests(unittest.TestCase):
         self.assertEqual(card["lapseStreak"], 4)
         self.assertTrue(card["leech"])
         self.assertEqual(len(card["hints"]), 3)
+
+    def test_cloud_deck_preserves_sanitized_exam_card_state(self):
+        normalized = minddeck.normalize_cloud_deck(
+            {
+                "cards": [
+                    {
+                        "id": "formula_card_1",
+                        "front": "$F = ma$",
+                        "back": "newton · [M L T^-2]",
+                        "template": "formula",
+                        "subject": "Physics",
+                        "examTags": ["JEE Main 2024", "JEE Main 2024", "Formula"],
+                        "trap": True,
+                        "mistake": True,
+                        "mistakeAt": "2026-08-25T10:30:00+00:00",
+                        "priority": "high",
+                        "sections": [
+                            {"label": "SI unit", "value": "newton (N)"},
+                            {"label": "Dimensional formula", "value": "[M L T^-2]"},
+                            {"label": 42, "value": "ignored"},
+                        ],
+                    }
+                ],
+                "updatedAt": 1,
+            }
+        )
+
+        card = normalized["cards"][0]
+        self.assertEqual(normalized["version"], 5)
+        self.assertEqual(card["template"], "formula")
+        self.assertEqual(card["subject"], "Physics")
+        self.assertEqual(card["examTags"], ["JEE Main 2024", "Formula"])
+        self.assertTrue(card["trap"])
+        self.assertTrue(card["mistake"])
+        self.assertEqual(card["priority"], "high")
+        self.assertEqual(len(card["sections"]), 2)
 
     def test_signin_uses_httponly_auth_cookies(self):
         tokens = {
@@ -445,6 +487,27 @@ class MindDeckSecurityTests(unittest.TestCase):
 
         self.assertEqual(cards[0]["type"], "cloze")
         self.assertEqual(cards[0]["clozeText"], "Plants use {{c1::chlorophyll}}.")
+
+    def test_ai_exam_card_fields_are_schema_checked(self):
+        cards = minddeck.parse_cards(
+            '{"cards":[{"front":"$F = ma$","back":"newton",'
+            '"template":"formula","subject":"Physics",'
+            '"examTags":["JEE Main 2024","Formula"],"trap":true,'
+            '"sections":[{"label":"SI unit","value":"newton (N)"}]}]}'
+        )
+
+        self.assertEqual(cards[0]["template"], "formula")
+        self.assertEqual(cards[0]["subject"], "Physics")
+        self.assertEqual(cards[0]["examTags"], ["JEE Main 2024", "Formula"])
+        self.assertTrue(cards[0]["trap"])
+        self.assertEqual(cards[0]["sections"], [{"label": "SI unit", "value": "newton (N)"}])
+
+    def test_ncert_mode_requests_exact_cloze_and_trap_metadata(self):
+        instruction = minddeck.card_mode_instruction("ncert")
+
+        self.assertIn("line-by-line", instruction)
+        self.assertIn("template 'ncert'", instruction)
+        self.assertIn("boolean trap", instruction)
 
     def test_scrypt_unlock_creates_short_lived_httponly_session(self):
         environment = self.secure_environment()
