@@ -1,14 +1,242 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MindDeck AI Flashcards</title><meta name="description" content="Create smart flashcards from notes and PDFs, then learn with spaced repetition."><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"><script src="https://unpkg.com/lucide@latest"></script><style>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MindDeck AI Flashcards</title>
+<meta name="description" content="Create smart flashcards from notes and PDFs, then learn with spaced repetition.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script nonce="{{ csp_nonce }}" src="https://unpkg.com/lucide@latest"></script>
+<style>
 :root{--bg:#0a0d14;--panel:#111620d9;--line:#ffffff15;--text:#f5f7ff;--muted:#8a93a7;--a:#6366f1;--b:#8b5cf6;--green:#34d399;--red:#fb7185}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font-family:'Plus Jakarta Sans',sans-serif}button,input,textarea,select{font:inherit}.glow{position:fixed;border-radius:50%;filter:blur(130px);opacity:.2;pointer-events:none}.g1{width:500px;height:500px;background:#4f46e5;left:-180px;top:-180px}.g2{width:520px;height:520px;background:#7c3aed;right:-180px;bottom:-220px}.app{position:relative;display:grid;grid-template-columns:235px 1fr;min-height:100vh}.side{border-right:1px solid var(--line);padding:28px 19px;display:flex;flex-direction:column;background:#0c1018c9}.brand{display:flex;align-items:center;gap:11px;font-size:20px;font-weight:800;margin:0 9px 30px}.logo{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:linear-gradient(135deg,var(--a),var(--b));box-shadow:0 8px 24px #6366f155}.label{font-size:9px;letter-spacing:1.7px;text-transform:uppercase;color:#60697c;margin:15px 12px 8px}.nav{width:100%;height:43px;border:0;border-radius:11px;background:transparent;color:var(--muted);display:flex;align-items:center;gap:11px;padding:0 13px;cursor:pointer}.nav.active,.nav:hover{background:#6366f119;color:#b9c0ff}.nav svg{width:17px}.nav em{margin-left:auto;font-style:normal}.sideStat{margin-top:auto;border:1px solid var(--line);border-radius:14px;padding:14px;background:#ffffff06}.sideStat small{font-size:9px;color:var(--muted)}.sideStat strong{display:block;font-size:12px;margin-top:5px}.bar{height:5px;border-radius:9px;background:#ffffff12;overflow:hidden;margin-top:10px}.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--a),var(--b));transition:.3s}.main{padding:24px 34px 50px;max-width:1400px;width:100%;margin:auto}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:25px}.top h1{font-size:15px;margin:0}.top p{font-size:10px;color:var(--muted);margin:4px 0}.actions{display:flex;gap:8px}.btn{height:38px;border:1px solid var(--line);border-radius:10px;background:#ffffff08;color:white;padding:0 14px;display:flex;align-items:center;gap:7px;font-size:10px;font-weight:700;cursor:pointer}.btn.primary{border:0;background:linear-gradient(135deg,var(--a),var(--b))}.btn svg{width:15px}.hero{display:flex;justify-content:space-between;align-items:end;margin-bottom:22px}.hero>div>small,.eyebrow{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#999cff}.hero h2{font-size:31px;letter-spacing:-1.3px;margin:7px 0}.hero p{font-size:11px;color:var(--muted);margin:0}.stats{display:flex;gap:8px}.stat{min-width:90px;border:1px solid var(--line);background:#ffffff06;border-radius:13px;padding:11px 13px}.stat strong{display:block;font-size:17px}.stat small{font-size:9px;color:var(--muted)}.grid{display:grid;grid-template-columns:minmax(350px,.9fr) minmax(420px,1.1fr);gap:17px}.panel{border:1px solid var(--line);border-radius:20px;background:var(--panel);backdrop-filter:blur(20px);overflow:hidden}.phead{padding:18px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between}.phead h3{margin:0;font-size:13px}.phead span{font-size:9px;color:var(--muted)}.compose,.study{padding:18px}.tabs{display:flex;background:#090c12;border-radius:11px;padding:4px;gap:4px;margin-bottom:14px}.tab{flex:1;height:33px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:10px;cursor:pointer}.tab.active{background:#252c3b;color:white}.pane{display:none}.pane.active{display:block}.notes{width:100%;height:218px;resize:vertical;border:1px solid var(--line);border-radius:13px;background:#090d15;color:white;padding:14px;outline:0;font-size:11px;line-height:1.7}.notes:focus{border-color:#6366f180}.drop{height:218px;border:1px dashed #ffffff28;border-radius:13px;background:#090d15;display:grid;place-items:center;text-align:center;cursor:pointer}.drop.drag{border-color:var(--a);background:#6366f114}.drop svg{color:#9297ff}.drop strong,.drop span{display:block;font-size:11px}.drop span{color:var(--muted);font-size:9px;margin-top:6px}.fileInfo{display:none;color:#6ee7b7;background:#34d39912;border-radius:8px;padding:9px;margin-top:9px;font-size:9px}.api{display:grid;grid-template-columns:120px 1fr;gap:8px;margin-top:12px}.api select,.api input{height:38px;border:1px solid var(--line);border-radius:9px;background:#090d15;color:#aeb6c7;padding:0 10px;outline:0;font-size:9px}.hint{font-size:8px;color:#646c7d;margin:7px 2px 12px}.generate{width:100%;height:43px;border:0;border-radius:11px;background:linear-gradient(135deg,var(--a),var(--b));color:white;font-size:11px;font-weight:700;cursor:pointer}.generate:disabled{opacity:.5}.error{height:14px;margin-top:8px;color:#fda4af;font-size:9px}.study{min-height:500px}.studyTop{display:flex;justify-content:space-between;align-items:center;margin-bottom:11px;font-size:9px;color:var(--muted)}.pill{color:#b8bcff;background:#6366f119;border-radius:99px;padding:6px 9px}.progress{height:4px;background:#ffffff12;border-radius:9px;margin-bottom:18px;overflow:hidden}.scene{perspective:1000px;height:270px;cursor:pointer}.card{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .55s}.card.flip{transform:rotateY(180deg)}.face{position:absolute;inset:0;backface-visibility:hidden;border:1px solid #ffffff19;border-radius:18px;background:radial-gradient(circle at 50% 0,#343d7855,transparent 48%),linear-gradient(145deg,#181e2b,#101520);display:flex;align-items:center;justify-content:center;text-align:center;padding:28px;box-shadow:0 20px 45px #0005}.face.back{transform:rotateY(180deg);background:radial-gradient(circle at 50% 0,#5a3c8255,transparent 48%),linear-gradient(145deg,#1b1929,#10131d)}.face small{position:absolute;top:18px;letter-spacing:2px;text-transform:uppercase;color:#788096;font-size:8px}.face p{font-size:17px;line-height:1.55;font-weight:600;margin:0}.face em{position:absolute;bottom:16px;font-size:8px;color:#646c7d;font-style:normal}.rates{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:14px}.rate{height:48px;border:1px solid var(--line);border-radius:10px;background:#ffffff07;color:#aab2c2;font-size:8px;cursor:pointer}.rate strong{display:block;font-size:10px;margin-bottom:2px}.again strong{color:var(--red)}.hard strong{color:#fbbf24}.good strong{color:#60a5fa}.easy strong{color:var(--green)}.pager{display:flex;justify-content:center;align-items:center;gap:17px;margin-top:13px}.pager button{width:33px;height:33px;border:1px solid var(--line);border-radius:9px;background:#ffffff08;color:white;cursor:pointer}.pager span{font-size:9px;color:var(--muted)}.deck{margin-top:17px}.row{display:grid;grid-template-columns:1fr 80px 90px 35px;align-items:center;gap:8px;padding:12px 18px;border-top:1px solid var(--line);font-size:9px}.row strong{font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.row span{color:var(--muted)}.row button{width:30px;height:30px;border:0;border-radius:8px;background:#ffffff08;color:white}.empty{padding:28px;text-align:center;color:var(--muted);font-size:10px}.modal{position:fixed;inset:0;background:#03050add;z-index:20;display:none;place-items:center;padding:20px;backdrop-filter:blur(8px)}.modal.open{display:grid}.dialog{width:min(500px,100%);border:1px solid var(--line);border-radius:20px;background:#121722;padding:22px}.dhead{display:flex;justify-content:space-between}.dialog h3{font-size:15px;margin:0}.close{border:0;background:none;color:var(--muted);font-size:20px}.dialog label{display:block;font-size:9px;color:var(--muted);margin:15px 0 7px}.dialog textarea{width:100%;height:85px;border:1px solid var(--line);border-radius:10px;background:#0a0e16;color:white;padding:11px;resize:vertical}.dactions{display:flex;justify-content:flex-end;gap:8px;margin-top:15px}.toast{position:fixed;right:20px;bottom:20px;background:#1d2532;border:1px solid var(--line);padding:11px 15px;border-radius:10px;font-size:9px;opacity:0;transform:translateY(60px);transition:.25s}.toast.show{opacity:1;transform:none}
 @media(max-width:1000px){.app{grid-template-columns:78px 1fr}.side{padding:24px 12px}.brand span,.nav span,.nav em,.label,.sideStat{display:none}.nav{justify-content:center}.grid{grid-template-columns:1fr}.main{padding:22px}}@media(max-width:650px){.app{display:block}.side{height:62px;padding:0 14px;position:sticky;top:0;z-index:10;flex-direction:row;align-items:center;border:0;border-bottom:1px solid var(--line)}.brand{margin:0}.side nav{display:none}.main{padding:17px 13px 35px}.top>div:first-child{display:none}.btn span{display:none}.hero{display:block}.hero h2{font-size:26px}.stats{margin-top:15px}.stat{min-width:0;flex:1}.api{grid-template-columns:1fr}.scene{height:245px}.face p{font-size:14px}.rates{grid-template-columns:repeat(2,1fr)}.row{grid-template-columns:1fr 55px 32px}.row span:nth-child(3){display:none}}
-</style></head><body><div class="glow g1"></div><div class="glow g2"></div><div class="app"><aside class="side"><div class="brand"><b class="logo"><i data-lucide="layers-3"></i></b><span>MindDeck</span></div><nav><p class="label">Workspace</p><button class="nav active"><i data-lucide="sparkles"></i><span>Generate</span></button><button class="nav"><i data-lucide="brain"></i><span>Study</span><em id="dueNav">0</em></button><button class="nav"><i data-lucide="library"></i><span>My deck</span></button><p class="label">Manage</p><button class="nav" id="import"><i data-lucide="upload"></i><span>Import JSON</span></button><button class="nav" id="export"><i data-lucide="download"></i><span>Export deck</span></button></nav><div class="sideStat"><small>Overall mastery</small><strong id="sideMastery">0% mastered</strong><div class="bar"><i id="sideBar"></i></div></div></aside><main class="main"><header class="top"><div><h1>AI Flashcard Studio</h1><p>Learn anything, remember everything.</p></div><div class="actions"><button class="btn" id="clear"><i data-lucide="rotate-ccw"></i><span>New deck</span></button><button class="btn primary" id="manual"><i data-lucide="plus"></i><span>Add card</span></button></div></header><section class="hero"><div><small>Smart study workspace</small><h2>Turn knowledge into memory.</h2><p>Generate focused flashcards from notes or files, then review at the perfect time.</p></div><div class="stats"><div class="stat"><strong id="count">0</strong><small>Total cards</small></div><div class="stat"><strong id="due">0</strong><small>Due today</small></div><div class="stat"><strong id="mastery">0%</strong><small>Mastery</small></div></div></section><section class="grid"><article class="panel"><div class="phead"><h3>Create a study deck</h3><span>AI or offline</span></div><div class="compose"><div class="tabs"><button class="tab active" data-tab="notes">Text / notes</button><button class="tab" data-tab="file">PDF / file</button></div><div class="pane active" id="notesPane"><textarea class="notes" id="notes" placeholder="Paste lecture notes, definitions, or a topic here..."></textarea></div><div class="pane" id="filePane"><label class="drop" id="drop"><input id="file" type="file" accept=".pdf,.txt" hidden><div><i data-lucide="file-up"></i><strong>Drop a PDF or text file here</strong><span>or click to browse · processed in your browser</span></div></label><div class="fileInfo" id="fileInfo"></div></div><div class="api"><select id="provider"><option value="offline">Smart offline parser</option><option value="openai">OpenAI</option><option value="gemini">Google Gemini</option></select><input id="apiKey" type="password" placeholder="Optional API key"></div><p class="hint">Your key is used only for this request and is never saved.</p><button class="generate" id="generate">✦ Generate flashcards</button><div class="error" id="error"></div></div></article><article class="panel"><div class="phead"><h3>Study session</h3><span>Space to flip · 1–4 to rate</span></div><div class="study"><div class="studyTop"><span class="pill" id="status">Ready to learn</span><span id="complete">0% complete</span></div><div class="bar progress"><i id="progress"></i></div><div class="scene" id="scene"><div class="card" id="card"><div class="face"><small>Question</small><p id="front">Add or generate cards to begin.</p><em>Click or press Space to reveal answer</em></div><div class="face back"><small>Answer</small><p id="back">Your answer appears here.</p><em>How well did you know this?</em></div></div></div><div class="rates"><button class="rate again" data-score="1"><strong>Again</strong>&lt; 1 min</button><button class="rate hard" data-score="2"><strong>Hard</strong>2 days</button><button class="rate good" data-score="3"><strong>Good</strong>4 days</button><button class="rate easy" data-score="4"><strong>Easy</strong>7 days</button></div><div class="pager"><button id="prev">←</button><span id="pager">0 / 0</span><button id="next">→</button></div></div></article></section><article class="panel deck"><div class="phead"><h3>Current deck</h3><span>Saved automatically</span></div><div id="deckList"></div></article></main></div><div class="modal" id="modal"><div class="dialog"><div class="dhead"><h3>Add a custom card</h3><button class="close" id="close">×</button></div><label>Question / front</label><textarea id="mFront"></textarea><label>Answer / back</label><textarea id="mBack"></textarea><div class="dactions"><button class="btn" id="cancel">Cancel</button><button class="btn primary" id="saveCard">Add card</button></div></div></div><input type="file" id="jsonFile" accept=".json" hidden><div class="toast" id="toast"></div>
-<script type="module">
-const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];let cards=[],idx=0,reviewed=new Set(),fileText='';const STORE='minddeck-v1';const fresh=(f,b)=>({id:Date.now().toString(36)+Math.random().toString(36).slice(2),front:f.trim(),back:b.trim(),interval:0,repetition:0,easeFactor:2.5,dueDate:new Date().toISOString(),reviews:0});function save(){localStorage.setItem(STORE,JSON.stringify({cards,idx,reviewed:[...reviewed]}))}function load(){try{let d=JSON.parse(localStorage.getItem(STORE)||'{}');cards=Array.isArray(d.cards)?d.cards:[];idx=Math.min(d.idx||0,Math.max(0,cards.length-1));reviewed=new Set(d.reviewed||[])}catch(e){}render()}function toast(t){let e=$('#toast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2000)}function safe(t){return String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function render(){let c=cards[idx],due=cards.filter(x=>new Date(x.dueDate)<=new Date()).length,master=cards.length?Math.round(cards.filter(x=>x.repetition>=3).length/cards.length*100):0,pct=cards.length?Math.round(reviewed.size/cards.length*100):0;$('#count').textContent=cards.length;$('#due').textContent=$('#dueNav').textContent=due;$('#mastery').textContent=master+'%';$('#sideMastery').textContent=master+'% mastered';$('#sideBar').style.width=master+'%';$('#complete').textContent=pct+'% complete';$('#progress').style.width=pct+'%';$('#status').textContent=due?due+' due for review':'All caught up';$('#pager').textContent=cards.length?(idx+1)+' / '+cards.length:'0 / 0';$('#card').classList.remove('flip');$('#front').textContent=c?c.front:'Add or generate cards to begin.';$('#back').textContent=c?c.back:'Your answer appears here.';$('#deckList').innerHTML=cards.length?cards.map((x,i)=>'<div class="row"><strong>'+safe(x.front)+'</strong><span>'+x.repetition+' reps</span><span>'+new Date(x.dueDate).toLocaleDateString()+'</span><button data-del="'+i+'">×</button></div>').join(''):'<div class="empty">No cards yet. Generate a deck or add one manually.</div>';save();lucide.createIcons()}
+</style>
+</head>
+<body>
+<div class="glow g1">
+</div>
+<div class="glow g2">
+</div>
+<div class="app">
+<aside class="side">
+<div class="brand">
+<b class="logo">
+<i data-lucide="layers-3">
+</i>
+</b>
+<span>MindDeck</span>
+</div>
+<nav>
+<p class="label">Workspace</p>
+<button class="nav active">
+<i data-lucide="sparkles">
+</i>
+<span>Generate</span>
+</button>
+<button class="nav">
+<i data-lucide="brain">
+</i>
+<span>Study</span>
+<em id="dueNav">0</em>
+</button>
+<button class="nav">
+<i data-lucide="library">
+</i>
+<span>My deck</span>
+</button>
+<p class="label">Manage</p>
+<button class="nav" id="import">
+<i data-lucide="upload">
+</i>
+<span>Import JSON</span>
+</button>
+<button class="nav" id="export">
+<i data-lucide="download">
+</i>
+<span>Export deck</span>
+</button>
+</nav>
+<div class="sideStat">
+<small>Overall mastery</small>
+<strong id="sideMastery">0% mastered</strong>
+<div class="bar">
+<i id="sideBar">
+</i>
+</div>
+</div>
+</aside>
+<main class="main">
+<header class="top">
+<div>
+<h1>AI Flashcard Studio</h1>
+<p>Learn anything, remember everything.</p>
+</div>
+<div class="actions">
+<button class="btn" id="clear">
+<i data-lucide="rotate-ccw">
+</i>
+<span>New deck</span>
+</button>
+<button class="btn primary" id="manual">
+<i data-lucide="plus">
+</i>
+<span>Add card</span>
+</button>
+</div>
+</header>
+<section class="hero">
+<div>
+<small>Smart study workspace</small>
+<h2>Turn knowledge into memory.</h2>
+<p>Generate focused flashcards from notes or files, then review at the perfect time.</p>
+</div>
+<div class="stats">
+<div class="stat">
+<strong id="count">0</strong>
+<small>Total cards</small>
+</div>
+<div class="stat">
+<strong id="due">0</strong>
+<small>Due today</small>
+</div>
+<div class="stat">
+<strong id="mastery">0%</strong>
+<small>Mastery</small>
+</div>
+</div>
+</section>
+<section class="grid">
+<article class="panel">
+<div class="phead">
+<h3>Create a study deck</h3>
+<span>AI or offline</span>
+</div>
+<div class="compose">
+<div class="tabs">
+<button class="tab active" data-tab="notes">Text / notes</button>
+<button class="tab" data-tab="file">PDF / file</button>
+</div>
+<div class="pane active" id="notesPane">
+<textarea class="notes" id="notes" placeholder="Paste lecture notes, definitions, or a topic here...">
+</textarea>
+</div>
+<div class="pane" id="filePane">
+<label class="drop" id="drop">
+<input id="file" type="file" accept=".pdf,.txt" hidden>
+<div>
+<i data-lucide="file-up">
+</i>
+<strong>Drop a PDF or text file here</strong>
+<span>or click to browse · processed in your browser</span>
+</div>
+</label>
+<div class="fileInfo" id="fileInfo">
+</div>
+</div>
+<div class="api">
+<select id="provider">
+<option value="offline">Smart offline parser</option>
+<option value="openai" disabled>Secure OpenAI · locked</option>
+<option value="gemini" disabled>Secure Gemini · locked</option>
+</select>
+<input id="accessCode" type="password" autocomplete="off" placeholder="AI access code" disabled>
+</div>
+<p class="hint" id="securityHint">🔒 API keys stay on the server. Online AI is locked; offline mode is ready.</p>
+<button class="generate" id="generate">✦ Generate flashcards</button>
+<div class="error" id="error">
+</div>
+</div>
+</article>
+<article class="panel">
+<div class="phead">
+<h3>Study session</h3>
+<span>Space to flip · 1–4 to rate</span>
+</div>
+<div class="study">
+<div class="studyTop">
+<span class="pill" id="status">Ready to learn</span>
+<span id="complete">0% complete</span>
+</div>
+<div class="bar progress">
+<i id="progress">
+</i>
+</div>
+<div class="scene" id="scene">
+<div class="card" id="card">
+<div class="face">
+<small>Question</small>
+<p id="front">Add or generate cards to begin.</p>
+<em>Click or press Space to reveal answer</em>
+</div>
+<div class="face back">
+<small>Answer</small>
+<p id="back">Your answer appears here.</p>
+<em>How well did you know this?</em>
+</div>
+</div>
+</div>
+<div class="rates">
+<button class="rate again" data-score="1">
+<strong>Again</strong>&lt; 1 min</button>
+<button class="rate hard" data-score="2">
+<strong>Hard</strong>2 days</button>
+<button class="rate good" data-score="3">
+<strong>Good</strong>4 days</button>
+<button class="rate easy" data-score="4">
+<strong>Easy</strong>7 days</button>
+</div>
+<div class="pager">
+<button id="prev">←</button>
+<span id="pager">0 / 0</span>
+<button id="next">→</button>
+</div>
+</div>
+</article>
+</section>
+<article class="panel deck">
+<div class="phead">
+<h3>Current deck</h3>
+<span>Saved automatically</span>
+</div>
+<div id="deckList">
+</div>
+</article>
+</main>
+</div>
+<div class="modal" id="modal">
+<div class="dialog">
+<div class="dhead">
+<h3>Add a custom card</h3>
+<button class="close" id="close">×</button>
+</div>
+<label>Question / front</label>
+<textarea id="mFront">
+</textarea>
+<label>Answer / back</label>
+<textarea id="mBack">
+</textarea>
+<div class="dactions">
+<button class="btn" id="cancel">Cancel</button>
+<button class="btn primary" id="saveCard">Add card</button>
+</div>
+</div>
+</div>
+<input type="file" id="jsonFile" accept=".json" hidden>
+<div class="toast" id="toast">
+</div>
+<script nonce="{{ csp_nonce }}" type="module">
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];let cards=[],idx=0,reviewed=new Set(),fileText='',aiProviders={openai:false,gemini:false};const STORE='minddeck-v1';const fresh=(f,b)=>({id:Date.now().toString(36)+Math.random().toString(36).slice(2),front:f.trim(),back:b.trim(),interval:0,repetition:0,easeFactor:2.5,dueDate:new Date().toISOString(),reviews:0});function save(){localStorage.setItem(STORE,JSON.stringify({cards,idx,reviewed:[...reviewed]}))}function load(){try{let d=JSON.parse(localStorage.getItem(STORE)||'{}');cards=Array.isArray(d.cards)?d.cards:[];idx=Math.min(d.idx||0,Math.max(0,cards.length-1));reviewed=new Set(d.reviewed||[])}catch(e){}render()}function toast(t){let e=$('#toast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2000)}function safe(t){return String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function render(){let c=cards[idx],due=cards.filter(x=>new Date(x.dueDate)<=new Date()).length,master=cards.length?Math.round(cards.filter(x=>x.repetition>=3).length/cards.length*100):0,pct=cards.length?Math.round(reviewed.size/cards.length*100):0;$('#count').textContent=cards.length;$('#due').textContent=$('#dueNav').textContent=due;$('#mastery').textContent=master+'%';$('#sideMastery').textContent=master+'% mastered';$('#sideBar').style.width=master+'%';$('#complete').textContent=pct+'% complete';$('#progress').style.width=pct+'%';$('#status').textContent=due?due+' due for review':'All caught up';$('#pager').textContent=cards.length?(idx+1)+' / '+cards.length:'0 / 0';$('#card').classList.remove('flip');$('#front').textContent=c?c.front:'Add or generate cards to begin.';$('#back').textContent=c?c.back:'Your answer appears here.';$('#deckList').innerHTML=cards.length?cards.map((x,i)=>`<div class="row"><strong>${safe(x.front)}</strong><span>${x.repetition} reps</span><span>${new Date(x.dueDate).toLocaleDateString()}</span><button data-del="${i}">×</button></div>`).join(''):'<div class="empty">No cards yet. Generate a deck or add one manually.</div>';save();lucide.createIcons()}
 function parse(text){let lines=text.replace(/\r/g,'').replace(/[•●▪]/g,'\n').split(/\n+|(?<=[.!?])\s+/).map(x=>x.trim()).filter(x=>x.length>15),out=[],seen=new Set();function add(q,a){if(!seen.has(q.toLowerCase())&&a.length>5){seen.add(q.toLowerCase());out.push(fresh(q,a.replace(/[.!]$/,'')))}}for(let s of lines){let m=s.match(/^(.{2,70}?)\s+(?:is|are|means|refers to|is defined as)\s+(.{8,300})[.!]?$/i);if(m)add('What is '+m[1]+'?',m[2]);else if((m=s.match(/^(.{3,80}?):\s*(.{8,300})$/)))add('What is '+m[1]+'?',m[2]);else if((m=s.match(/^(.{5,130}?)\s+(?:because|due to|causes|leads to|results in)\s+(.{8,250})/i)))add('Explain the relationship involving “'+m[1]+'”.',m[2]);else if(s.length>40)add('What is the key idea in this concept?',s);if(out.length>=30)break}return out}
-async function ai(text,p,key){let r=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text,provider:p,apiKey:key})});let d=await r.json();if(!r.ok)throw Error(d.error||'AI generation failed.');return d.cards}
+async function ai(text,p,code){let r=await fetch('/api/generate',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,provider:p,accessCode:code})});let d=await r.json();if(!r.ok)throw Error(d.error||'AI generation failed.');return d.cards}
+function syncProvider(){let p=$('#provider').value,online=p!=='offline';$('#accessCode').disabled=!online;if(!online)$('#accessCode').value=''}
+async function loadConfig(){try{let r=await fetch('/api/config',{cache:'no-store',credentials:'same-origin'}),d=await r.json();if(!r.ok)throw Error();aiProviders=d.providers||aiProviders;for(let p of ['openai','gemini']){let o=$(`#provider option[value="${p}"]`),ready=!!aiProviders[p];o.disabled=!ready;o.textContent=(p==='openai'?'Secure OpenAI':'Secure Gemini')+(ready?'':' · locked')}let ready=aiProviders.openai||aiProviders.gemini;$('#securityHint').textContent=ready?'🔒 API key protected on the server. Enter the owner access code to use online AI.':'🔒 API keys stay on the server. Online AI is locked; offline mode is ready.'}catch(e){$('#securityHint').textContent='🔒 Could not verify online AI. Offline mode is ready.'}syncProvider()}
 function next(){if(cards.length)idx=(idx+1)%cards.length;render()}function prev(){if(cards.length)idx=(idx-1+cards.length)%cards.length;render()}function score(q){let c=cards[idx];if(!c)return;if(q<3){c.repetition=0;c.interval=q===1?0:1}else{c.interval=c.repetition===0?1:c.repetition===1?(q===4?6:3):Math.max(1,Math.round(c.interval*c.easeFactor*(q===4?1.3:1)));c.repetition++}c.easeFactor=Math.max(1.3,c.easeFactor+(q===4?.1:q===3?0:q===2?-.15:-.3));c.dueDate=new Date(Date.now()+c.interval*864e5).toISOString();c.reviews++;reviewed.add(c.id);next()}
-$$('.tab').forEach(b=>b.onclick=()=>{$$('.tab,.pane').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('#'+b.dataset.tab+'Pane').classList.add('active')});$('#scene').onclick=()=>cards.length&&$('#card').classList.toggle('flip');$('#next').onclick=next;$('#prev').onclick=prev;$$('.rate').forEach(b=>b.onclick=()=>score(+b.dataset.score));$('#generate').onclick=async()=>{let text=($('#notesPane').classList.contains('active')?$('#notes').value:fileText).trim(),p=$('#provider').value,key=$('#apiKey').value.trim(),b=$('#generate');$('#error').textContent='';if(text.length<20)return $('#error').textContent='Add more notes or upload a file first.';if(p!=='offline'&&!key)return $('#error').textContent='Enter an API key or choose offline mode.';b.disabled=true;b.textContent='Generating…';try{let made=p==='offline'?parse(text):(await ai(text,p,key)).filter(x=>x.front&&x.back).map(x=>fresh(x.front,x.back));if(!made.length)throw Error('No usable concepts found.');cards=made;idx=0;reviewed.clear();render();toast('Created '+made.length+' cards')}catch(e){$('#error').textContent=e.message||'Generation failed.'}finally{b.disabled=false;b.textContent='✦ Generate flashcards'}};
+$$('.tab').forEach(b=>b.onclick=()=>{$$('.tab,.pane').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('#'+b.dataset.tab+'Pane').classList.add('active')});$('#provider').onchange=syncProvider;$('#scene').onclick=()=>cards.length&&$('#card').classList.toggle('flip');$('#next').onclick=next;$('#prev').onclick=prev;$$('.rate').forEach(b=>b.onclick=()=>score(+b.dataset.score));$('#generate').onclick=async()=>{let text=($('#notesPane').classList.contains('active')?$('#notes').value:fileText).trim(),p=$('#provider').value,code=$('#accessCode').value,b=$('#generate');$('#error').textContent='';if(text.length<20)return $('#error').textContent='Add more notes or upload a file first.';if(p!=='offline'&&!aiProviders[p])return $('#error').textContent='This AI provider is securely locked.';if(p!=='offline'&&!code)return $('#error').textContent='Enter the owner AI access code or choose offline mode.';b.disabled=true;b.textContent='Generating…';try{let made=p==='offline'?parse(text):(await ai(text,p,code)).filter(x=>x.front&&x.back).map(x=>fresh(x.front,x.back));if(!made.length)throw Error('No usable concepts found.');cards=made;idx=0;reviewed.clear();render();toast('Created '+made.length+' cards')}catch(e){$('#error').textContent=e.message||'Generation failed.'}finally{if(p!=='offline')$('#accessCode').value='';b.disabled=false;b.textContent='✦ Generate flashcards'}};
 const drop=$('#drop'),file=$('#file');drop.onclick=()=>file.click();['dragover','dragenter'].forEach(n=>drop.addEventListener(n,e=>{e.preventDefault();drop.classList.add('drag')}));['dragleave','drop'].forEach(n=>drop.addEventListener(n,e=>{e.preventDefault();drop.classList.remove('drag')}));drop.addEventListener('drop',e=>readFile(e.dataTransfer.files[0]));file.onchange=e=>readFile(e.target.files[0]);async function readFile(f){try{if(!f)return;if(f.size>15*1024*1024)throw Error('File must be under 15 MB.');if(f.name.toLowerCase().endsWith('.pdf')){let pdfjs=await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs');pdfjs.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';let pdf=await pdfjs.getDocument({data:await f.arrayBuffer()}).promise,a=[];for(let i=1;i<=pdf.numPages;i++){let p=await pdf.getPage(i),c=await p.getTextContent();a.push(c.items.map(x=>x.str).join(' '))}fileText=a.join('\n')}else fileText=await f.text();$('#fileInfo').style.display='block';$('#fileInfo').textContent='✓ '+f.name+' · '+fileText.length.toLocaleString()+' characters'}catch(e){$('#error').textContent=e.message||'Could not read file.'}}
 const modal=$('#modal');$('#manual').onclick=()=>modal.classList.add('open');$('#close').onclick=$('#cancel').onclick=()=>modal.classList.remove('open');$('#saveCard').onclick=()=>{let f=$('#mFront').value.trim(),b=$('#mBack').value.trim();if(!f||!b)return toast('Add both sides');cards.push(fresh(f,b));idx=cards.length-1;$('#mFront').value=$('#mBack').value='';modal.classList.remove('open');render();toast('Card added')};$('#deckList').onclick=e=>{let b=e.target.closest('[data-del]');if(!b)return;cards.splice(+b.dataset.del,1);idx=Math.min(idx,Math.max(0,cards.length-1));render()};$('#clear').onclick=()=>{if(cards.length&&!confirm('Start a new deck?'))return;cards=[];idx=0;reviewed.clear();render()};$('#export').onclick=()=>{if(!cards.length)return toast('No deck to export');let b=new Blob([JSON.stringify({name:'MindDeck Export',cards},null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='minddeck-deck.json';a.click();URL.revokeObjectURL(a.href)};$('#import').onclick=()=>$('#jsonFile').click();$('#jsonFile').onchange=async e=>{try{let d=JSON.parse(await e.target.files[0].text()),a=Array.isArray(d)?d:d.cards;if(!Array.isArray(a)||!a.every(x=>x.front&&x.back))throw Error();cards=a.map(x=>Object.assign(fresh(x.front,x.back),x));idx=0;reviewed.clear();render();toast('Deck imported')}catch(e){toast('Invalid deck JSON')}};document.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName))return;if(e.code==='Space'){e.preventDefault();$('#card').classList.toggle('flip')}else if(e.key==='ArrowRight')next();else if(e.key==='ArrowLeft')prev();else if('1234'.includes(e.key))score(+e.key)});load();lucide.createIcons();
-</script></body></html>
+loadConfig();
+</script>
+</body>
+</html>
