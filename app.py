@@ -149,11 +149,6 @@ def normalize_app_origin(value: str) -> str | None:
     return f"{parsed.scheme}://{parsed.netloc.lower()}"
 
 
-def configured_app_origin() -> str | None:
-    configured = os.environ.get("PUBLIC_APP_URL", "").strip()
-    return normalize_app_origin(configured) if configured else None
-
-
 def request_app_origin(*, require_browser_origin: bool = False) -> str | None:
     """Resolve the callback origin without accepting an arbitrary redirect target."""
     configured = os.environ.get("PUBLIC_APP_URL", "").strip()
@@ -165,7 +160,7 @@ def request_app_origin(*, require_browser_origin: bool = False) -> str | None:
         observed = browser_origin if require_browser_origin else request_origin
         return expected if expected and observed == expected else None
     if require_browser_origin:
-        return browser_origin
+        return browser_origin if browser_origin == request_origin else None
     return request_origin
 
 
