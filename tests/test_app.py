@@ -1,9 +1,11 @@
 import base64
+import hashlib
 import os
 import re
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlparse
 
 from werkzeug.security import generate_password_hash
 
@@ -61,6 +63,14 @@ class MindDeckSecurityTests(unittest.TestCase):
             "SUPABASE_PUBLISHABLE_KEY": "publishable-test-key-" + "p" * 32,
         }
 
+    @classmethod
+    def google_environment(cls):
+        return {
+            **cls.auth_environment(),
+            "OAUTH_SESSION_SECRET": "o" * 48,
+            "PUBLIC_APP_URL": cls.base_url,
+        }
+
     def test_home_has_no_browser_api_key_or_third_party_script(self):
         response, _csrf = self.home()
         page = response.get_data(as_text=True)
@@ -92,11 +102,14 @@ class MindDeckSecurityTests(unittest.TestCase):
         self.assertIn('/static/manifest.webmanifest', page)
         self.assertIn('id="themeToggle"', page)
         self.assertIn('id="togglePassword"', page)
+        self.assertIn('id="googleSignIn"', page)
+        self.assertIn('id="oauthSecurity"', page)
         self.assertIn('placeholder="Enter your password"', page)
         self.assertIn('data-theme="aurora"', page)
         self.assertIn('data-theme="rose"', page)
         self.assertNotIn("unpkg.com", page)
         self.assertNotIn("cdnjs.cloudflare.com", page)
+        self.assertNotIn("accounts.google.com/gsi", page)
         self.assertNotIn("SUPABASE_PUBLISHABLE_KEY", page)
         self.assertIn('/static/app.js', page)
         self.assertEqual(response.headers["X-Frame-Options"], "DENY")
@@ -132,8 +145,96 @@ class MindDeckSecurityTests(unittest.TestCase):
 
         self.assertEqual(config.status_code, 200)
         self.assertFalse(config.json["enabled"])
+        self.assertFalse(config.json["googleEnabled"])
         self.assertIsNone(config.json["user"])
         self.assertEqual(signup.status_code, 503)
+
+    def test_google_auth_config_checks_provider_and_signing_secret(self):
+        with patch.dict(os.environ, self.google_environment(), clear=True), patch.object(
+            minddeck,
+            "supabase_json",
+            return_value={"external": {"google": True, "email": True}},
+        ) as upstream:
+            config = self.client.get(
+                "/api/auth/config",
+                base_url=self.base_url,
+                headers={"User-Agent": self.user_agent, "X-Forwarded-Proto": "https"},
+            )
+
+        self.assertEqual(config.status_code, 200)
+        self.assertTrue(config.json["enabled"])
+        self.assertTrue(config.json["googleEnabled"])
+        self.assertEqual(upstream.call_args.args[:2], ("GET", "/auth/v1/settings"))
+
+        without_secret = self.auth_environment()
+        with patch.dict(os.environ, without_secret, clear=True), patch.object(
+            minddeck, "supabase_json"
+        ) as unavailable_upstream:
+            unavailable = self.client.get(
+                "/api/auth/config",
+                base_url=self.base_url,
+                headers={"User-Agent": self.user_agent, "X-Forwarded-Proto": "https"},
+            )
+
+        self.assertFalse(unavailable.json["googleEnabled"])
+        unavailable_upstream.assert_not_called()
+
+    def test_google_start_uses_pkce_and_httponly_transaction_cookie(self):
+        with patch.dict(os.environ, self.google_environment(), clear=True), patch.object(
+            minddeck, "google_auth_ready", return_value=True
+        ):
+            _home, csrf = self.home()
+            response = self.post("/api/auth/google/start", {}, csrf)
+
+        self.assertEqual(response.status_code, 200)
+        authorization_url = urlparse(response.json["authorizationUrl"])
+        query = parse_qs(authorization_url.query)
+        self.assertEqual(authorization_url.scheme, "https")
+        self.assertEqual(authorization_url.netloc, "minddeck-test.supabase.co")
+        self.assertEqual(authorization_url.path, "/auth/v1/authorize")
+        self.assertEqual(query["provider"], ["google"])
+        self.assertEqual(query["redirect_to"], [f"{self.base_url}/api/auth/google/callback"])
+        self.assertEqual(query["code_challenge_method"], ["s256"])
+        self.assertRegex(query["code_challenge"][0], r"^[A-Za-z0-9_-]{43}$")
+        cookies = "\n".join(response.headers.getlist("Set-Cookie"))
+        self.assertIn("__Host-minddeck_oauth=", cookies)
+        self.assertIn("HttpOnly", cookies)
+        self.assertIn("Secure", cookies)
+        self.assertIn("SameSite=Lax", cookies)
+        self.assertIn("Max-Age=600", cookies)
+        self.assertNotIn("code_verifier", response.get_data(as_text=True))
+        self.assertNotIn("access_token", response.get_data(as_text=True))
+
+    def test_google_start_requires_csrf_same_origin_and_configuration(self):
+        with patch.dict(os.environ, self.google_environment(), clear=True), patch.object(
+            minddeck, "google_auth_ready", return_value=True
+        ):
+            _home, csrf = self.home()
+            no_csrf = self.client.post(
+                "/api/auth/google/start",
+                base_url=self.base_url,
+                json={},
+                headers={
+                    "Origin": self.base_url,
+                    "User-Agent": self.user_agent,
+                    "X-Forwarded-Proto": "https",
+                },
+            )
+            cross_site = self.post(
+                "/api/auth/google/start", {}, csrf, origin="https://attacker.example"
+            )
+            downgraded_origin = self.post(
+                "/api/auth/google/start", {}, csrf, origin="http://minddeck.test"
+            )
+
+        with patch.dict(os.environ, self.auth_environment(), clear=True):
+            _home, csrf = self.home()
+            unavailable = self.post("/api/auth/google/start", {}, csrf)
+
+        self.assertEqual(no_csrf.status_code, 403)
+        self.assertEqual(cross_site.status_code, 403)
+        self.assertEqual(downgraded_origin.status_code, 400)
+        self.assertEqual(unavailable.status_code, 503)
 
     def test_cloud_schema_forces_user_isolation(self):
         schema = (Path(__file__).parents[1] / "supabase" / "schema.sql").read_text(
@@ -280,6 +381,115 @@ class MindDeckSecurityTests(unittest.TestCase):
         self.assertIn("SameSite=Strict", cookies)
         self.assertNotIn(tokens["access_token"], response.get_data(as_text=True))
         self.assertEqual(upstream.call_args.args[1], "/auth/v1/token?grant_type=password")
+
+    def test_google_callback_exchanges_pkce_server_side_and_sets_auth_cookies(self):
+        tokens = {
+            "access_token": "a" * 128,
+            "refresh_token": "r" * 64,
+            "provider_token": "google-provider-token-must-not-leak",
+            "expires_in": 3600,
+        }
+        with patch.dict(os.environ, self.google_environment(), clear=True), patch.object(
+            minddeck, "google_auth_ready", return_value=True
+        ):
+            _home, csrf = self.home()
+            started = self.post("/api/auth/google/start", {}, csrf)
+
+        challenge = parse_qs(urlparse(started.json["authorizationUrl"]).query)[
+            "code_challenge"
+        ][0]
+        auth_code = "12345678-1234-1234-1234-123456789abc"
+        with patch.dict(os.environ, self.google_environment(), clear=True), patch.object(
+            minddeck, "supabase_json", return_value=tokens
+        ) as upstream:
+            callback = self.client.get(
+                f"/api/auth/google/callback?code={auth_code}",
+                base_url=self.base_url,
+                headers={"User-Agent": self.user_agent, "X-Forwarded-Proto": "https"},
+            )
+
+        self.assertEqual(callback.status_code, 303)
+        self.assertEqual(callback.headers["Location"], "/?auth=google-ok")
+        self.assertEqual(upstream.call_args.args[0], "POST")
+        self.assertEqual(upstream.call_args.args[1], "/auth/v1/token?grant_type=pkce")
+        exchange = upstream.call_args.args[2]
+        self.assertEqual(exchange["auth_code"], auth_code)
+        derived_challenge = base64.urlsafe_b64encode(
+            hashlib.sha256(exchange["code_verifier"].encode("ascii")).digest()
+        ).rstrip(b"=").decode("ascii")
+        self.assertEqual(derived_challenge, challenge)
+        cookies = "\n".join(callback.headers.getlist("Set-Cookie"))
+        self.assertIn("__Host-minddeck_access=", cookies)
+        self.assertIn("__Host-minddeck_refresh=", cookies)
+        self.assertIn("__Host-minddeck_oauth=;", cookies)
+        self.assertIn("SameSite=Strict", cookies)
+        self.assertIn("SameSite=Lax", cookies)
+        self.assertIn("Max-Age=0", cookies)
+        response_text = callback.get_data(as_text=True)
+        self.assertNotIn(tokens["access_token"], response_text)
+        self.assertNotIn(tokens["refresh_token"], response_text)
+        self.assertNotIn(tokens["provider_token"], response_text)
+        self.assertNotIn(tokens["provider_token"], callback.headers["Location"])
+
+    def test_google_callback_rejects_missing_tampered_and_expired_transactions(self):
+        callback_path = "/api/auth/google/callback?code=12345678-1234-1234-1234-123456789abc"
+        with patch.dict(os.environ, self.google_environment(), clear=True), patch.object(
+            minddeck, "supabase_json"
+        ) as upstream:
+            missing = self.client.get(
+                callback_path,
+                base_url=self.base_url,
+                headers={"User-Agent": self.user_agent, "X-Forwarded-Proto": "https"},
+            )
+            self.client.set_cookie(
+                "__Host-minddeck_oauth", "tampered.transaction", domain="minddeck.test"
+            )
+            tampered = self.client.get(
+                callback_path,
+                base_url=self.base_url,
+                headers={"User-Agent": self.user_agent, "X-Forwarded-Proto": "https"},
+            )
+
+        with patch.dict(os.environ, self.google_environment(), clear=True), patch.object(
+            minddeck, "google_auth_ready", return_value=True
+        ), patch.object(minddeck.time, "time", return_value=1_000):
+            _home, csrf = self.home()
+            self.post("/api/auth/google/start", {}, csrf)
+        with patch.dict(os.environ, self.google_environment(), clear=True), patch.object(
+            minddeck, "supabase_json"
+        ) as expired_upstream, patch.object(minddeck.time, "time", return_value=2_000):
+            expired = self.client.get(
+                callback_path,
+                base_url=self.base_url,
+                headers={"User-Agent": self.user_agent, "X-Forwarded-Proto": "https"},
+            )
+
+        for response in (missing, tampered, expired):
+            self.assertEqual(response.status_code, 303)
+            self.assertEqual(response.headers["Location"], "/?auth=google-error")
+            self.assertIn("Max-Age=0", "\n".join(response.headers.getlist("Set-Cookie")))
+        upstream.assert_not_called()
+        expired_upstream.assert_not_called()
+
+    def test_google_callback_cancellation_clears_transaction_without_exchange(self):
+        with patch.dict(os.environ, self.google_environment(), clear=True), patch.object(
+            minddeck, "google_auth_ready", return_value=True
+        ):
+            _home, csrf = self.home()
+            self.post("/api/auth/google/start", {}, csrf)
+        with patch.dict(os.environ, self.google_environment(), clear=True), patch.object(
+            minddeck, "supabase_json"
+        ) as upstream:
+            response = self.client.get(
+                "/api/auth/google/callback?error=access_denied",
+                base_url=self.base_url,
+                headers={"User-Agent": self.user_agent, "X-Forwarded-Proto": "https"},
+            )
+
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["Location"], "/?auth=google-error")
+        self.assertIn("Max-Age=0", "\n".join(response.headers.getlist("Set-Cookie")))
+        upstream.assert_not_called()
 
     def test_signin_accepts_an_existing_password_below_new_account_minimum(self):
         tokens = {

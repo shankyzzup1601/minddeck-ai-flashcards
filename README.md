@@ -1,6 +1,6 @@
 # MindDeck AI Flashcards — Flask
 
-A production-ready Flask build of MindDeck with a responsive glass dashboard, adaptive SM-2 scheduling, leech rescue decks, Feynman voice comparison, exam-engineered cards, cloze and image-occlusion cards, photo OCR, progressive hints, safe Markdown/LaTeX/code formatting, device TTS, a 12-week review heatmap, Pomodoro deck slicing, Formula Cram, a 48-hour Mistake Notebook, Speed Match, unlisted deck links, curated starter decks, secure OpenAI/Gemini generation, email accounts with cloud sync, and offline-first local persistence.
+A production-ready Flask build of MindDeck with a responsive glass dashboard, adaptive SM-2 scheduling, leech rescue decks, Feynman voice comparison, exam-engineered cards, cloze and image-occlusion cards, photo OCR, progressive hints, safe Markdown/LaTeX/code formatting, device TTS, a 12-week review heatmap, Pomodoro deck slicing, Formula Cram, a 48-hour Mistake Notebook, Speed Match, unlisted deck links, curated starter decks, secure OpenAI/Gemini generation, email or Google accounts with cloud sync, and offline-first local persistence.
 
 ## Smart Study features
 
@@ -27,7 +27,7 @@ A production-ready Flask build of MindDeck with a responsive glass dashboard, ad
 
 ## Account and cloud-sync setup
 
-MindDeck uses Supabase Auth and Postgres for email/password accounts. Browser requests go only to this Flask server. Access and refresh tokens are stored in `HttpOnly`, `Secure`, `SameSite=Strict` cookies and are never exposed to JavaScript or local storage.
+MindDeck uses Supabase Auth and Postgres for email/password and Google accounts. Browser API requests go only to this Flask server. Access and refresh tokens are stored in `HttpOnly`, `Secure`, `SameSite=Strict` cookies and are never exposed to JavaScript or local storage. Google uses an authorization-code + PKCE flow: the short-lived verifier is held in a signed, `HttpOnly`, `SameSite=Lax` transaction cookie only until the cross-site callback returns.
 
 New passwords require at least 12 characters. Signing in validates an existing password as-is, so accounts created under an earlier password policy are not incorrectly blocked by the new-account rule. The sign-in dialog also includes a show/hide control and explains when email confirmation is still required.
 
@@ -36,7 +36,22 @@ New passwords require at least 12 characters. Signing in validates an existing p
 3. Add these environment variables to Vercel for Production, Preview, and Development:
    - `SUPABASE_URL`: the exact project URL ending in `.supabase.co`.
    - `SUPABASE_PUBLISHABLE_KEY`: the project's publishable key. A legacy anon key also works as `SUPABASE_ANON_KEY`.
+   - `OAUTH_SESSION_SECRET`: a random signing secret of at least 32 characters. If omitted, an already configured `AI_SESSION_SECRET` is used with OAuth-specific HMAC domain separation.
+   - `PUBLIC_APP_URL`: optional but recommended for the Production environment; use the exact origin with no trailing path, such as `https://minddeck-ai-flashcards.vercel.app`. Omit it from Preview, or give each environment its own exact preview origin.
 4. Redeploy the project.
+
+### Google Sign-In setup
+
+The app automatically reveals **Continue with Google** only when the Google provider is enabled in Supabase and a strong server signing secret is available.
+
+1. In Google Auth Platform, create a **Web application** OAuth client.
+2. Add `https://minddeck-ai-flashcards.vercel.app` under **Authorized JavaScript origins**. Add only your exact local origin while developing.
+3. Under **Authorized redirect URIs**, add the Supabase callback shown on the project's Google provider page. It has the form `https://<project-ref>.supabase.co/auth/v1/callback` — this is intentionally the Supabase URL, not the MindDeck callback.
+4. Configure Google's required `openid`, email, and profile scopes, then place the Google client ID and secret in **Supabase Dashboard → Authentication → Providers → Google** and enable the provider. Never place the Google client secret in Vercel or this repository.
+5. In **Supabase Dashboard → Authentication → URL Configuration → Redirect URLs**, add `https://minddeck-ai-flashcards.vercel.app/api/auth/google/callback` exactly.
+6. Redeploy MindDeck after adding `OAUTH_SESSION_SECRET` or confirm that the existing `AI_SESSION_SECRET` is at least 32 characters.
+
+For local development, allow `http://127.0.0.1:5000/api/auth/google/callback` in Supabase and use the matching local origin. Production should stay HTTPS-only.
 
 Do not configure or expose a Supabase secret/service-role key. MindDeck deliberately uses the signed-in user's token so database Row Level Security remains authoritative. Existing local cards are uploaded automatically when the user signs in and the cloud has no newer deck.
 
@@ -44,10 +59,11 @@ Do not configure or expose a Supabase secret/service-role key. MindDeck delibera
 
 Provider API keys are read only from server environment variables and are never accepted from browser requests, rendered into HTML, or committed to GitHub.
 
-Run `python scripts/generate_secrets.py`, then place its two outputs in your hosting provider's encrypted environment settings. The plaintext access code is never stored:
+Run `python scripts/generate_secrets.py`, then place its outputs in your hosting provider's encrypted environment settings. The plaintext access code is never stored:
 
 - `AI_ACCESS_CODE_HASH`: a salted scrypt hash of an owner code containing at least 20 characters.
 - `AI_SESSION_SECRET`: an independent random signing secret of at least 32 characters.
+- `OAUTH_SESSION_SECRET`: a separate random signing secret for short-lived Google OAuth transactions.
 - `OPENAI_API_KEY`: optional; enables Secure OpenAI.
 - `GEMINI_API_KEY`: optional; enables Secure Gemini.
 - `OPENAI_MODEL` or `GEMINI_MODEL`: optional model overrides.
@@ -65,7 +81,7 @@ Never place secret values in this repository or in a client-side `.env` file. Af
 - A restrictive nonce-based Content Security Policy, browser process isolation, anti-framing, HSTS, no-sniff, and no-store responses.
 - PDF.js is pinned and self-hosted; the page executes no mutable third-party CDN scripts.
 - Imported deck values are schema-checked and rendered through safe DOM APIs rather than HTML injection.
-- Account passwords are handled by Supabase Auth; auth tokens stay in hardened server-issued cookies.
+- Account passwords and Google identity checks are handled by Supabase Auth; auth tokens stay in hardened server-issued cookies. The Google PKCE verifier is signed, browser-bound, expires after 10 minutes, and is deleted on both successful and failed callbacks.
 - Cloud decks are validated on both client and server and isolated per user with forced Postgres Row Level Security.
 - Sync uses last-write-wins timestamps, retains an offline IndexedDB copy, and syncs only normalized deck progress and study statistics. Original notes, PDF files, voice recordings, and image-occlusion files are never placed in cloud deck storage.
 - Photo content is sent only after the user explicitly selects a securely unlocked AI provider; MIME type, magic bytes, and size are validated first.

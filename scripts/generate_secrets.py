@@ -17,6 +17,7 @@ def main() -> None:
     print("\nAdd these values to the hosting provider's encrypted environment settings:")
     print(f"AI_ACCESS_CODE_HASH={generate_password_hash(code, method='scrypt')}")
     print(f"AI_SESSION_SECRET={secrets.token_urlsafe(48)}")
+    print(f"OAUTH_SESSION_SECRET={secrets.token_urlsafe(48)}")
     print("\nDo not save or commit the plaintext access code.")
 
 

@@ -15,6 +15,8 @@ Do not publish API keys, access codes, auth cookies, session tokens, exploit pay
 - Provider keys belong only in the hosting provider's encrypted environment settings.
 - Store only a salted scrypt access-code hash, never the plaintext code.
 - Rotate `AI_SESSION_SECRET` to invalidate every active AI session.
+- Keep `OAUTH_SESSION_SECRET` server-only and at least 32 characters; rotating it invalidates every pending Google login transaction. If it is not configured, MindDeck uses the strong `AI_SESSION_SECRET` with an OAuth-specific HMAC context.
+- Google authentication must use the server-mediated PKCE callback. Never add Google access, refresh, ID, or Supabase session tokens to page JavaScript, URL fragments, local storage, logs, or repository files.
 - Keep online providers locked when they are not actively needed.
 - Voice explanations and image-occlusion assets are device-only and must never be added to cloud deck payloads. Exam-card metadata (bounded tags, flags, and reveal sections) may sync only after strict client and server schema normalization.
 - Photo OCR uploads are accepted only through the same short-lived locked AI session, with strict type, signature, size, CSRF, origin, and rate-limit checks.
