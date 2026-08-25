@@ -2080,9 +2080,9 @@ async function shareCurrentDeck() {
     const url = `${window.location.origin}${window.location.pathname}#deck=${code}`;
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(url);
-      toast("Private deck link copied");
+      toast("Unlisted deck link copied · anyone with it can import");
     } else {
-      window.prompt("Copy this private deck link", url);
+      window.prompt("Copy this unlisted deck link (anyone with it can import)", url);
     }
   } catch (error) {
     toast(error.message || "Could not create a share link");
