@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>MindDeck AI Flashcards</title>
 <meta name="description" content="Create smart flashcards from notes and PDFs, then learn with spaced repetition.">
-<meta name="theme-color" content="#6366f1">
+<meta name="theme-color" content="#080a0f">
 <link rel="manifest" href="/static/manifest.webmanifest">
 <link rel="icon" href="/static/minddeck-icon.svg" type="image/svg+xml">
 <meta name="csrf-token" content="{{ csrf_token }}">
@@ -68,6 +68,281 @@ body[data-workspace="study"] #studyPanel,body[data-workspace="study"] #studyPane
 @keyframes ambientSpin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 @media(max-width:1120px){.focusGrid,.insightGrid{grid-template-columns:1fr 1fr}.smartGrid{grid-template-columns:1fr}.timerWidget,.quickWidget{grid-column:1/-1}.hero{align-items:flex-start}.stats{flex-wrap:wrap;justify-content:flex-end}.subjectSwitcher{grid-template-columns:repeat(2,minmax(140px,1fr))}}@media(max-width:1000px){.app{grid-template-columns:78px 1fr}.side{padding:24px 12px}.brand span,.nav span,.nav em,.label,.sideStat{display:none}.nav{justify-content:center}.grid{grid-template-columns:1fr}.main{padding:22px}.heroCard{display:block}.heroCard .stats{margin:15px 0 0}}@media(max-width:820px){.insightGrid{grid-template-columns:1fr}.quickWidget{grid-column:auto}.smartTools{grid-template-columns:1fr 1fr}.starterDecks{grid-template-columns:1fr}.subjectHeading{display:block}.formulaCramTop{margin-top:10px}}@media(max-width:650px){.app{display:block}.side{height:62px;padding:0 10px;position:sticky;top:0;z-index:18;flex-direction:row;align-items:center;border:0;border-bottom:1px solid var(--line)}.brand{margin:0}.side nav{display:flex;flex:1;justify-content:flex-end;gap:3px}.side nav .label{display:none}.side .nav{width:38px;height:38px;padding:0;justify-content:center}.side .nav span,.side .nav em{display:none}.main{padding:17px 13px 35px}.top>div:first-child{display:none}.btn span{display:none}.hero{display:block}.hero h2{font-size:20px}.stats{margin-top:15px}.stat{min-width:0;flex:1}.focusGrid{grid-template-columns:1fr}.timerWidget{grid-column:auto;grid-template-columns:1fr;text-align:center}.timerVisual{margin:auto}.widgetKicker{justify-content:center}.timerPresets,.timerActions{justify-content:center}.api,.creationOptions{grid-template-columns:1fr}.scene{height:245px}.face p,.richContent{font-size:14px}.rates{grid-template-columns:repeat(2,1fr)}.row{grid-template-columns:1fr 55px 32px}.row span:nth-child(3){display:none}.account{max-width:92px}.authActions{grid-template-columns:1fr}.top{top:69px;padding:8px;margin-bottom:14px}.actions{width:100%;justify-content:flex-end;gap:5px}.actions .btn{height:35px;padding:0 9px}.themeToggle{min-width:35px;padding:0}.heroCard{min-height:0;padding:20px 16px;border-radius:19px}.heroCard .stats{min-width:0;grid-template-columns:repeat(3,1fr)}.heroCard .stat{padding:10px}.heroCard .stat strong{font-size:20px}.heroBadge{font-size:7px}.subjectSwitcher{grid-template-columns:1fr 1fr}.subjectChip{min-height:52px;padding:9px}.formulaCramTop{width:100%}.widget,.panel{border-radius:17px}.memoryLayout{grid-template-columns:110px 1fr}.memoryVisual{width:106px;height:106px}.quickActions{grid-template-columns:1fr 1fr}.smartIntro{display:block}.smartSignal{display:inline-block;margin-top:10px}.smartTools{grid-template-columns:1fr 1fr}.smartTool{min-height:83px}.reviewHeatmap{gap:3px}.studyAssist{grid-template-columns:1fr 1fr}.assistNote{grid-column:1/-1;text-align:left}.feynmanTop{display:block}.feynmanActions{margin-top:9px}.matchBoard{grid-template-columns:1fr 1fr}.shareBox{grid-template-columns:1fr}.g3{display:none}}
+/* Midnight UI: opaque surfaces, restrained depth, and a focused SM-2 orbit. */
+:root{
+  --bg:#080a0f;
+  --panel:#11151d;
+  --surface:#11151d;
+  --surface-strong:#151a23;
+  --surface-soft:#191e28;
+  --line:#2a303b;
+  --text:#f4f5f7;
+  --muted:#8b94a4;
+  --a:#7c5cff;
+  --b:#6044df;
+  --green:#26d6a2;
+  --red:#ff667d;
+  --hero-a:#11151d;
+  --hero-b:#11151d;
+  --accent-glow:#7c5cff42;
+  --shadow:0 24px 60px #00000070;
+  --soft-shadow:0 14px 34px #00000055;
+  --edge:#050609;
+}
+html[data-theme="aurora"]{--a:#19c6b3;--b:#0f8f86;--green:#73e6c6;--accent-glow:#19c6b33d;--hero-a:#101817;--hero-b:#101817}
+html[data-theme="rose"]{--a:#ff4d7d;--b:#be3462;--green:#ffc857;--accent-glow:#ff4d7d3d;--hero-a:#191117;--hero-b:#191117}
+html,body{background:#080a0f}
+body{background:#080a0f;color:var(--text)}
+body:before{
+  background:linear-gradient(#ffffff04 1px,transparent 1px),linear-gradient(90deg,#ffffff04 1px,transparent 1px);
+  background-size:44px 44px;
+  opacity:.42;
+}
+.glow{display:none}
+.ambientGrid{
+  inset:0;
+  height:auto;
+  transform:none;
+  animation:none;
+  background-image:linear-gradient(115deg,transparent 0 48%,#7c5cff0d 48% 49%,transparent 49% 100%);
+  background-size:150px 150px;
+  -webkit-mask-image:linear-gradient(to bottom,#0008,transparent 76%);
+  mask-image:linear-gradient(to bottom,#0008,transparent 76%);
+  opacity:.45;
+}
+.side,.top,.panel,.widget,.heroCard,.heroCard .stat,.sideStat,.dialog,.toast,.photoInfo,.maskToolbar{
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+}
+.side{
+  border-right:1px solid #222731;
+  background:#090b10;
+  box-shadow:none;
+}
+.side:after{height:88px;background:var(--a);opacity:1}
+.logo{
+  border:1px solid #4e3ac0;
+  border-radius:10px;
+  background:#7658f3;
+  box-shadow:6px 6px 0 #262038;
+  transform:rotate(-3deg);
+  animation:none;
+}
+.logo:before,.logo:after{display:none}
+.nav{border-radius:8px}
+.nav:hover{transform:translateX(3px)}
+.nav.active,.nav[aria-current="page"]{
+  background:#171323;
+  color:#ece8ff;
+  box-shadow:inset 3px 0 var(--a);
+  transform:none;
+}
+.nav.active:before{display:none}
+.sideStat{border-color:#252b35;background:#0f1218;box-shadow:none}
+.top{
+  border:1px solid #262c36;
+  border-radius:12px;
+  background:#0d1016;
+  box-shadow:0 14px 35px #0007;
+  transform:none;
+}
+.top:before{display:none}
+.btn{
+  overflow:visible;
+  border-color:#2d3440;
+  border-radius:8px;
+  background:#171b23;
+  box-shadow:0 4px 0 #050609;
+}
+.btn:before{display:none}
+.btn:hover:not(:disabled){transform:translateY(-2px);border-color:#4a5261;background:#1d222c;box-shadow:0 6px 0 #050609}
+.btn.primary,.generate{border:1px solid #947fff;background:var(--a);box-shadow:0 6px 0 #2b2353;color:#fff}
+.btn.primary:hover:not(:disabled),.generate:hover:not(:disabled){background:#896cff;box-shadow:0 8px 0 #2b2353;filter:none}
+.themeToggle .glyph{background:var(--a);box-shadow:none}
+.heroCard{
+  min-height:218px;
+  border:1px solid #2b313c;
+  border-radius:18px;
+  background:#11151d;
+  box-shadow:0 12px 0 #050609,0 30px 70px #0007;
+  perspective:none;
+}
+.heroCard:before{
+  z-index:0;
+  width:5px;
+  height:auto;
+  inset:20px auto 20px 0;
+  border-radius:0 4px 4px 0;
+  background:var(--a);
+  filter:none;
+  opacity:1;
+  animation:none;
+  transform:none;
+}
+.heroCard:after{
+  width:320px;
+  height:100%;
+  top:0;
+  right:0;
+  bottom:auto;
+  left:auto;
+  border-radius:0;
+  background:repeating-linear-gradient(135deg,#ffffff05 0 1px,transparent 1px 12px);
+  filter:none;
+  opacity:.65;
+}
+.subjectWorkspace,.heroCard .stats{transform:none}
+.heroBadge{border-color:#333946;background:#0a0d12;box-shadow:none;color:#bdb2ff}
+.hero h2{-webkit-text-fill-color:initial;background:none;color:#fff}
+.heroCard .stats{position:relative;z-index:2}
+.heroCard .stat{
+  border-color:#2b313c;
+  background:#0c0f15;
+  box-shadow:0 6px 0 #050609;
+  transform:none;
+}
+.heroCard .stat:hover{transform:translateY(-3px);background:#11151d;box-shadow:0 9px 0 #050609}
+.heroCard .stat:before,.subjectChip:before,.smartTool:before,.quickAction:before{display:none}
+.subjectChip{
+  border-color:#2b313c;
+  border-radius:10px;
+  background:#151922;
+  box-shadow:0 5px 0 #06070a;
+  transform:none;
+}
+.subjectChip:hover{
+  transform:translateY(-3px);
+  border-color:var(--a);
+  background:#1b1829;
+  box-shadow:0 8px 0 #06070a;
+}
+.heroActionCluster{position:relative;z-index:3}
+.deckSculpture{
+  display:grid;
+  place-items:center;
+  flex:0 0 118px;
+  width:118px;
+  height:86px;
+  border:1px solid #2c323d;
+  border-radius:50%;
+  background:#090b10;
+  filter:none;
+  box-shadow:0 10px 0 #050609;
+}
+.memoryCore{
+  position:relative;
+  z-index:4;
+  width:55px;
+  height:55px;
+  display:grid;
+  place-content:center;
+  border:1px solid var(--a);
+  border-radius:50%;
+  background:#151922;
+  color:#fff;
+  text-align:center;
+  box-shadow:0 0 0 7px #090b10;
+}
+.memoryCore strong{font-size:10px;letter-spacing:.8px}
+.memoryCore small{margin-top:3px;color:var(--green);font-size:5px;font-weight:900;letter-spacing:1.3px}
+.memoryRing{
+  position:absolute;
+  border:1px solid #424a59;
+  border-radius:50%;
+  transform-style:preserve-3d;
+}
+.memoryRing:after{
+  content:"";
+  position:absolute;
+  right:-4px;
+  top:calc(50% - 4px);
+  width:8px;
+  height:8px;
+  border:2px solid #090b10;
+  border-radius:50%;
+  background:var(--green);
+  box-shadow:0 0 10px var(--green);
+}
+.memoryRingOne{width:106px;height:65px;animation:memoryOrbitOne 7s linear infinite}
+.memoryRingTwo{width:72px;height:108px;border-style:dashed;border-color:#52446f;animation:memoryOrbitTwo 10s linear infinite reverse}
+.formulaCramTop{
+  border-color:#2f6f5d;
+  border-radius:8px;
+  background:#10221d;
+  color:#60e6bd;
+  box-shadow:0 5px 0 #06100d;
+  transform:none;
+}
+.formulaCramTop:before{display:none}
+.formulaCramTop:hover{transform:translateY(-2px);background:#153027;box-shadow:0 7px 0 #06100d;filter:none}
+.widget,.panel{
+  border-color:#282e38;
+  border-radius:14px;
+  background:#11151d;
+  box-shadow:0 8px 0 #050609,0 22px 45px #0006;
+  transform:none;
+}
+.widget:hover,.panel:hover{transform:translateY(-2px);border-color:#343b47;box-shadow:0 10px 0 #050609,0 28px 52px #0007}
+.widget:after,.panel:after,.widget:before{display:none}
+.phead{background:#0d1016;box-shadow:inset 0 -1px #242a34}
+.widgetIcon,.timerPreset,.goalControls,.miniMetrics div,.memoryStats div,.heatMetrics div,.quickAction,.smartTool,.rate,.signedInBox,.leechRow,.starterDeck,.matchMeta span,.examFieldGroup{
+  border-color:#2b313c;
+  background:#171b23;
+  box-shadow:none;
+}
+.quickAction,.smartTool{transform:none;box-shadow:0 5px 0 #06070a}
+.quickAction:hover,.smartTool:hover:not(:disabled){transform:translateY(-3px);border-color:#4b5361;background:#1d222c;box-shadow:0 8px 0 #06070a}
+.quickAction.primaryAction{border-color:#5f4ac3;background:#1d1830}
+.smartTool i,.quickAction>i,.widgetIcon{background:#252035;box-shadow:none;transform:none}
+.smartSignal{border-color:#286b57;background:#10251e;color:#5de1b6}
+.tabs{border-color:#222832;background:#090b10}
+.tab.active{background:#222734;box-shadow:none}
+.notes,.drop,.api select,.api input,.lockAi,.authFields input,.dialog textarea,.manualType,.creationOptions select,.creationOptions input,.feynmanTranscript,.shareBox input,.examFormGrid input,.examFormGrid select,.examShared input,.examShared select{
+  border-color:#2b323e;
+  background:#090c11;
+  box-shadow:inset 0 2px 0 #050609;
+}
+.drop:hover{background:#0d1118}
+.timerVisual:after{background:#0b0e13;box-shadow:inset 0 0 0 1px #222832}
+.timerTrack,.memoryTrack{stroke:#292f39}
+.weekBar,.heatCell{background:#242a34}
+.face{
+  border-color:#343b47;
+  background:#151a23;
+  box-shadow:inset 0 1px #343b47,0 22px 50px #0009;
+}
+.face.back{background:#191523}
+.face:before{display:none}
+.face:after{border-color:#242a34;box-shadow:none}
+.card:before{background:#050609;box-shadow:0 26px 60px #000c}
+.rate{box-shadow:0 5px 0 #06070a}
+.rate:hover{background:#1d222c;box-shadow:0 8px 0 #06070a}
+.pager button,.row button{border-color:#2d3440;background:#171b23;box-shadow:0 4px 0 #050609}
+.row:hover{background:#151922;transform:translateX(4px);box-shadow:none}
+.modal{background:#05070aeb;-webkit-backdrop-filter:none;backdrop-filter:none}
+.dialog{border-color:#303744;background:#11151d;box-shadow:0 12px 0 #050609,0 45px 95px #000c}
+.toast{border-color:#343b47;background:#151a23;box-shadow:0 8px 0 #050609}
+.photoInfo,.maskToolbar{background:#090c11}
+.richContent code{border-color:#2b323e;background:#080a0f}
+.mathToken{background:#201a35;color:#d0c8ff}
+.cardTypeBadge,.examChip,.deckBadge{background:#1b1f29}
+.hintPanel,.examStep.revealed{background:#1b172a}
+.feynmanBox,.examProgressive,.oralPrompt{background:#0c0f15}
+@keyframes memoryOrbitOne{
+  from{transform:rotateX(66deg) rotateZ(0deg)}
+  to{transform:rotateX(66deg) rotateZ(360deg)}
+}
+@keyframes memoryOrbitTwo{
+  from{transform:rotateY(66deg) rotateZ(0deg)}
+  to{transform:rotateY(66deg) rotateZ(360deg)}
+}
+@media(max-width:1120px){.deckSculpture{display:none}}
+@media(max-width:650px){
+  .side{background:#090b10}
+  .top{background:#0d1016}
+  .heroCard{border-radius:14px}
+  .widget,.panel{border-radius:12px}
+}
 </style>
 </head>
 <body data-workspace="generate">
@@ -147,11 +422,9 @@ body[data-workspace="study"] #studyPanel,body[data-workspace="study"] #studyPane
 </div>
 <div class="heroActionCluster">
 <div class="deckSculpture" aria-hidden="true">
-<span class="deckOrbit orbitOne"></span>
-<span class="deckOrbit orbitTwo"></span>
-<span class="deckSlice sliceBack"></span>
-<span class="deckSlice sliceMiddle"></span>
-<span class="deckSlice sliceFront"><i>◆</i><small>SM-2</small></span>
+<span class="memoryRing memoryRingOne"></span>
+<span class="memoryRing memoryRingTwo"></span>
+<span class="memoryCore"><strong>SM-2</strong><small>ACTIVE</small></span>
 </div>
 <button class="formulaCramTop" id="quickFormulaCram" type="button">Σ Quick 10-Min Formula Cram</button>
 </div>

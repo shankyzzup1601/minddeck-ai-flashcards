@@ -28,9 +28,9 @@ const PDF_WORKER = "/static/vendor/pdf-4.10.38.worker.min.mjs";
 const FOCUS_STORE = "minddeck-focus-timer-v1";
 const THEME_STORE = "minddeck-visual-theme-v1";
 const THEMES = Object.freeze([
-  { key: "cosmic", label: "Cosmic" },
-  { key: "aurora", label: "Aurora" },
-  { key: "rose", label: "Rose" },
+  { key: "cosmic", label: "Midnight" },
+  { key: "aurora", label: "Terminal" },
+  { key: "rose", label: "Crimson" },
 ]);
 const TIMER_MODES = Object.freeze({
   focus: { label: "Focus sprint", duration: 25 * 60, isFocus: true },
