@@ -649,49 +649,57 @@ html.splash-seen #splash-screen{display:none}
   .splashFootnote{display:none}
   .splashAura.one{left:4%;top:25%;width:72vw}.splashAura.two{right:0;bottom:18%;width:68vw}
 }
+
+/* User-selected MindDeck splash screen. Dashboard styles remain unchanged. */
+body.splash-lock{overflow:hidden}
+#splash-screen{
+  position:fixed;inset:0;z-index:9999;
+  background:radial-gradient(circle at center,#150e28 0%,#08060f 100%);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  overflow:hidden;color:#fff;perspective:1200px;
+  transition:opacity .7s cubic-bezier(.4,0,.2,1),transform .7s cubic-bezier(.4,0,.2,1);
+}
+#splash-screen:before{display:none}
+#splash-screen.hide{opacity:0;transform:scale(1.08);filter:none;pointer-events:none}
+.mdSplashGlow{position:absolute;border-radius:50%;pointer-events:none}
+.mdSplashGlow.purple{width:clamp(250px,40vw,450px);height:clamp(250px,40vw,450px);background:#8b5cf633;filter:blur(100px)}
+.mdSplashGlow.pink{width:clamp(200px,35vw,380px);height:clamp(200px,35vw,380px);background:#ff336626;filter:blur(90px);transform:translateY(80px)}
+.mdSplashScene{position:relative;width:clamp(260px,75vw,360px);height:clamp(160px,45vw,220px);transform-style:preserve-3d;animation:mdSplashFloat 6s ease-in-out infinite alternate;margin-bottom:2.5rem}
+@keyframes mdSplashFloat{0%{transform:rotateX(12deg) rotateY(-18deg) translateY(-8px)}100%{transform:rotateX(-8deg) rotateY(16deg) translateY(12px)}}
+.mdSplashCard{position:absolute;inset:0;background:#ffffff0a;border:1px solid #ffffff1f;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-radius:20px;padding:1.5rem;display:flex;flex-direction:column;justify-content:space-between;box-shadow:0 20px 50px #0009,inset 0 0 20px #ffffff08}
+.mdSplashCardBack{position:absolute;inset:0;background:#8b5cf614;border:1px solid #8b5cf633;border-radius:20px;transform:translateZ(-35px) scale(.92) rotate(-6deg);filter:blur(2px)}
+.mdSplashHeader{display:flex;align-items:center;gap:12px}
+.mdSplashLogo{width:38px;height:38px;background:linear-gradient(135deg,#a855f7,#ec4899);border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.1rem;box-shadow:0 0 15px #ec489966}
+.mdSplashBrand{font-size:1.1rem;font-weight:700;letter-spacing:.5px}
+.mdSplashBody{margin:0;color:#ffffffd9;font-size:clamp(.85rem,2.8vw,1rem);font-weight:500;line-height:1.4}
+.mdSplashFooter{font-size:.7rem;color:#ec4899;text-transform:uppercase;letter-spacing:1.5px;font-weight:600}
+.mdSplashLoader{width:clamp(220px,65vw,320px);min-height:50px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.mdSplashTrack{width:100%;height:6px;background:#ffffff14;border-radius:100px;overflow:hidden;position:relative}
+.mdSplashFill{width:0;height:100%;background:linear-gradient(90deg,#8b5cf6,#ff3366);border-radius:100px;box-shadow:0 0 14px #ff3366b3;transition:width .05s linear}
+.mdSplashPercent{font-size:.75rem;color:#ffffff66;margin-top:10px;font-family:monospace;letter-spacing:1px}
+.mdSplashBegin{display:none;font-size:clamp(1rem,3.5vw,1.25rem);font-weight:700;background:linear-gradient(90deg,#ff4081,#a855f7);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:1px;animation:mdSplashPulse 1.2s ease-in-out infinite alternate}
+@keyframes mdSplashPulse{0%{transform:scale(.96);filter:drop-shadow(0 0 5px #ff408166)}100%{transform:scale(1.04);filter:drop-shadow(0 0 18px #a855f7cc)}}
+@media (prefers-reduced-motion:reduce){.mdSplashScene,.mdSplashBegin{animation:none}#splash-screen{transition-duration:.15s}}
+
 </style>
-<script nonce="{{ csp_nonce }}">
-try {
-  if (sessionStorage.getItem("minddeck-splash-v2")) document.documentElement.classList.add("splash-seen");
-} catch (_) {}
-</script>
 </head>
 <body data-workspace="generate">
 <div id="splash-screen" role="dialog" aria-modal="true" aria-label="MindDeck is loading">
-<div class="splashBackdrop" aria-hidden="true">
-<div class="splashMesh"></div>
-<div class="splashAura one"></div>
-<div class="splashAura two"></div>
-<div class="splashOrbit"></div>
-<i class="splashSpark s1"></i><i class="splashSpark s2"></i><i class="splashSpark s3"></i><i class="splashSpark s4"></i>
-</div>
-<button class="splashSkip" id="splashSkip" type="button">Skip intro</button>
-<div class="splashStage">
-<div class="splashIdentity">
-<div class="splashEyebrow"><i>◆</i><span>AI-powered study companion</span></div>
-<h1>MindDeck</h1>
-<p>Turn notes into lasting memory.</p>
-</div>
-<div class="splashScene" aria-hidden="true">
-<div class="splashHalo"></div>
-<div class="splashLayer back"></div>
-<div class="splashLayer middle"></div>
-<div class="splashCard">
-<div class="splashCardTop">
-<div class="splashMiniBrand"><div class="splashLogo">◆</div><div><b>MindDeck</b><small>ACTIVE RECALL</small></div></div>
-<span class="splashReady"><i></i>Ready</span>
-</div>
-<div class="splashCardBody"><span class="splashSubject">Principles of Management</span><p class="splashQuestion">What is conceptual skill?</p></div>
-<div class="splashCardBottom"><span>Tap to reveal</span><div class="splashDots"><i></i><i></i><i></i></div></div>
+<div class="mdSplashGlow purple" aria-hidden="true"></div>
+<div class="mdSplashGlow pink" aria-hidden="true"></div>
+<div class="mdSplashScene" aria-hidden="true">
+<div class="mdSplashCardBack"></div>
+<div class="mdSplashCard">
+<div class="mdSplashHeader"><div class="mdSplashLogo">M</div><span class="mdSplashBrand">MindDeck</span></div>
+<p class="mdSplashBody">What is conceptual skill?</p>
+<span class="mdSplashFooter">AI Memory Engine</span>
 </div>
 </div>
-<div class="splashLoader" role="status" aria-live="polite">
-<div class="splashLoadMeta"><span id="splashStatus">Preparing your study space</span><b class="splashPercent" id="splashPercent">0%</b></div>
-<div class="splashTrack" id="splashTrack"><div class="splashFill" id="splashFill"></div></div>
-<button class="splashBegin" id="splashBegin" type="button">Start learning <span>→</span></button>
+<div class="mdSplashLoader" role="status" aria-live="polite">
+<div class="mdSplashTrack" id="track"><div class="mdSplashFill" id="fill"></div></div>
+<div class="mdSplashPercent" id="percent-label">0%</div>
+<div class="mdSplashBegin" id="begin-text">Let's begin ✨</div>
 </div>
-</div>
-<div class="splashFootnote">15 clear questions · focused daily review</div>
 </div>
 <div class="ambientGrid" aria-hidden="true"></div>
 <div class="glow g1">
@@ -1399,88 +1407,46 @@ try {
 </div>
 <script nonce="{{ csp_nonce }}">
 (() => {
-  const splash = document.getElementById("splash-screen");
-  if (!splash) return;
+  const fill = document.getElementById("fill");
+  const percentLabel = document.getElementById("percent-label");
+  const track = document.getElementById("track");
+  const beginText = document.getElementById("begin-text");
+  const splashScreen = document.getElementById("splash-screen");
+  if (!fill || !percentLabel || !track || !beginText || !splashScreen) return;
 
-  if (document.documentElement.classList.contains("splash-seen")) {
-    splash.remove();
+  document.body.classList.add("splash-lock");
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let progress = reduceMotion ? 100 : 0;
+
+  const finish = () => {
+    fill.style.width = "100%";
+    percentLabel.textContent = "100%";
+    window.setTimeout(() => {
+      track.style.display = "none";
+      percentLabel.style.display = "none";
+      beginText.style.display = "block";
+      window.setTimeout(() => {
+        splashScreen.classList.add("hide");
+        document.body.classList.remove("splash-lock");
+        window.setTimeout(() => splashScreen.remove(), reduceMotion ? 160 : 720);
+      }, reduceMotion ? 80 : 800);
+    }, reduceMotion ? 20 : 300);
+  };
+
+  if (reduceMotion) {
+    finish();
     return;
   }
 
-  const fill = document.getElementById("splashFill");
-  const percent = document.getElementById("splashPercent");
-  const track = document.getElementById("splashTrack");
-  const begin = document.getElementById("splashBegin");
-  const skip = document.getElementById("splashSkip");
-  const status = document.getElementById("splashStatus");
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  let progress = 0;
-  let progressTimer;
-  let exitTimer;
-  let fallbackTimer;
-  let closing = false;
-
-  document.body.classList.add("splash-lock");
-
-  const rememberSplash = () => {
-    try {
-      sessionStorage.setItem("minddeck-splash-v2", "1");
-    } catch (_) {}
-  };
-
-  const onKeydown = (event) => {
-    if (event.key === "Escape") dismissSplash();
-  };
-
-  const dismissSplash = () => {
-    if (closing) return;
-    closing = true;
-    clearInterval(progressTimer);
-    clearTimeout(exitTimer);
-    clearTimeout(fallbackTimer);
-    rememberSplash();
-    document.removeEventListener("keydown", onKeydown);
-    document.body.classList.remove("splash-lock");
-    splash.setAttribute("aria-hidden", "true");
-    splash.classList.add("hide");
-    window.setTimeout(() => {
-      document.documentElement.classList.add("splash-seen");
-      splash.remove();
-    }, reduceMotion ? 30 : 720);
-  };
-
-  const showReady = () => {
-    clearInterval(progressTimer);
-    fill.style.width = "100%";
-    percent.textContent = "100%";
-    status.textContent = "Your study space is ready";
-    window.setTimeout(() => {
-      track.hidden = true;
-      percent.hidden = true;
-      begin.style.display = "flex";
-      exitTimer = window.setTimeout(dismissSplash, reduceMotion ? 80 : 900);
-    }, reduceMotion ? 20 : 220);
-  };
-
-  skip.addEventListener("click", dismissSplash);
-  begin.addEventListener("click", dismissSplash);
-  document.addEventListener("keydown", onKeydown);
-
-  if (reduceMotion) {
-    progress = 100;
-    showReady();
-  } else {
-    progressTimer = window.setInterval(() => {
-      progress = Math.min(100, progress + 2);
-      fill.style.width = `${progress}%`;
-      percent.textContent = `${progress}%`;
-      if (progress === 34) status.textContent = "Organising your cards";
-      if (progress === 70) status.textContent = "Preparing active recall";
-      if (progress === 100) showReady();
-    }, 35);
-  }
-
-  fallbackTimer = window.setTimeout(dismissSplash, 6000);
+  const interval = window.setInterval(() => {
+    progress = Math.min(100, progress + 2);
+    fill.style.width = progress + "%";
+    percentLabel.textContent = progress + "%";
+    if (progress >= 100) {
+      window.clearInterval(interval);
+      finish();
+    }
+  }, 35);
 })();
 </script>
 <script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=13"></script>
