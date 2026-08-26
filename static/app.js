@@ -51,7 +51,7 @@ const TEMPLATE_LABELS = Object.freeze({
   derivation: "Derivation",
 });
 const SUBJECT_WORKSPACES = Object.freeze({
-  physics: { label: "Class 12 Physics", subject: "Physics", aliases: ["physics"] },
+  physics: { label: "Physics", subject: "Physics", aliases: ["physics"] },
   "physical-chemistry": {
     label: "Physical Chemistry",
     subject: "Physical Chemistry",
