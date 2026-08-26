@@ -272,6 +272,34 @@ def clear_auth_cookies(response):
     response.delete_cookie(auth_refresh_cookie_name(), **cookie_options)
 
 
+def google_avatar_url(user: dict) -> str:
+    metadata = user.get("user_metadata") if isinstance(user, dict) else None
+    if not isinstance(metadata, dict):
+        return ""
+    for field in ("avatar_url", "picture"):
+        candidate = metadata.get(field)
+        if (
+            not isinstance(candidate, str)
+            or not 1 <= len(candidate) <= 2_048
+            or any(ord(character) < 33 for character in candidate)
+        ):
+            continue
+        try:
+            parsed = urlparse(candidate)
+            port = parsed.port
+        except ValueError:
+            continue
+        if (
+            parsed.scheme == "https"
+            and parsed.hostname == "lh3.googleusercontent.com"
+            and not parsed.username
+            and not parsed.password
+            and port in (None, 443)
+        ):
+            return candidate
+    return ""
+
+
 def current_cloud_user() -> dict | None:
     token = request.cookies.get(auth_access_cookie_name(), "")
     if not 32 <= len(token) <= 4_096 or not auth_ready():
@@ -288,6 +316,7 @@ def current_cloud_user() -> dict | None:
     return {
         "id": user_id,
         "email": email[:254] if isinstance(email, str) else "",
+        "avatar_url": google_avatar_url(user),
         "account_key": hashlib.sha256(user_id.encode("ascii")).hexdigest()[:24],
     }
 
@@ -778,7 +807,13 @@ def auth_config():
     return jsonify(
         enabled=auth_ready(),
         googleEnabled=google_auth_ready(),
-        user={"email": user["email"], "accountKey": user["account_key"]} if user else None,
+        user={
+            "email": user["email"],
+            "avatarUrl": user["avatar_url"],
+            "accountKey": user["account_key"],
+        }
+        if user
+        else None,
         canRefresh=bool(
             auth_ready()
             and 1
@@ -1594,7 +1629,7 @@ def secure_response(response):
         "default-src 'self'; "
         f"script-src 'self'{nonce_source}; script-src-attr 'none'; "
         f"style-src 'self'{nonce_source}; style-src-attr 'none'; "
-        "font-src 'self'; img-src 'self' data:; connect-src 'self'; "
+        "font-src 'self'; img-src 'self' data: https://lh3.googleusercontent.com; connect-src 'self'; "
         "worker-src 'self' blob:; object-src 'none'; base-uri 'none'; "
         "form-action 'self'; frame-src 'none'; frame-ancestors 'none'; "
         "manifest-src 'self'; media-src 'self' blob:; require-trusted-types-for 'script'; "
