@@ -53,9 +53,9 @@ const TEMPLATE_LABELS = Object.freeze({
 const SUBJECT_WORKSPACES = Object.freeze({
   physics: { label: "Physics", subject: "Physics", aliases: ["physics"] },
   "physical-chemistry": {
-    label: "Physical Chemistry",
-    subject: "Physical Chemistry",
-    aliases: ["physical chemistry", "thermodynamics", "electrochemistry", "chemical kinetics"],
+    label: "Chemistry",
+    subject: "Chemistry",
+    aliases: ["chemistry", "physical chemistry", "organic chemistry", "inorganic chemistry", "thermodynamics", "electrochemistry", "chemical kinetics"],
   },
   accountancy: { label: "Accountancy", subject: "Accountancy", aliases: ["accountancy", "accounts"] },
   biology: { label: "Biology", subject: "Biology", aliases: ["biology", "botany", "zoology"] },
