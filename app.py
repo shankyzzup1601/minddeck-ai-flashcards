@@ -239,7 +239,8 @@ def set_auth_cookies(response, tokens: dict):
     refresh_token = tokens.get("refresh_token")
     if not isinstance(access_token, str) or not 32 <= len(access_token) <= 4_096:
         raise ValueError("Invalid access token.")
-    if not isinstance(refresh_token, str) or not 16 <= len(refresh_token) <= 4_096:
+    # Supabase refresh tokens are opaque and may be shorter than 16 characters.
+    if not isinstance(refresh_token, str) or not refresh_token or len(refresh_token) > 4_096:
         raise ValueError("Invalid refresh token.")
 
     access_seconds = min(max(int(tokens.get("expires_in", 3_600)), 60), 3_600)
@@ -780,7 +781,7 @@ def auth_config():
         user={"email": user["email"], "accountKey": user["account_key"]} if user else None,
         canRefresh=bool(
             auth_ready()
-            and 16
+            and 1
             <= len(request.cookies.get(auth_refresh_cookie_name(), ""))
             <= 4_096
         ),
@@ -975,7 +976,7 @@ def auth_refresh():
     if not allowed:
         return limited_response(retry_after)
     refresh_token = request.cookies.get(auth_refresh_cookie_name(), "")
-    if not 16 <= len(refresh_token) <= 4_096:
+    if not refresh_token or len(refresh_token) > 4_096:
         return jsonify(error="Sign in to sync your deck."), 401
 
     try:
