@@ -1,7 +1,7 @@
-const CACHE_NAME = "minddeck-shell-v18";
+const CACHE_NAME = "minddeck-shell-v19";
 const SHELL = [
   "/",
-  "/static/app.js?v=14",
+  "/static/app.js?v=15",
   "/static/smart-study.js",
   "/static/minddeck-icon.svg?v=2",
   "/static/manifest.webmanifest",
@@ -19,9 +19,12 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: "window", includeUncontrolled: true }))
+      .then((clients) => Promise.all(clients.map((client) => client.navigate(client.url).catch(() => {}))))
   );
-  self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {
