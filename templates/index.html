@@ -443,9 +443,155 @@ body[data-workspace="study"] .actions>#manual{display:none!important}
   .phead span{max-width:140px;text-align:right;line-height:1.4}
   .cardTypeBadge{top:13px!important;right:13px!important}
 }
+
+/* First-open splash: isolated from the main app and shown once per browser session. */
+body.splash-lock{overflow:hidden}
+html.splash-seen #splash-screen{display:none}
+#splash-screen{
+  position:fixed;
+  inset:0;
+  z-index:9999;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+  background:radial-gradient(circle at 50% 42%,#17102c 0,#090711 56%,#050409 100%);
+  perspective:1200px;
+  transition:opacity .7s cubic-bezier(.4,0,.2,1),transform .7s cubic-bezier(.4,0,.2,1);
+}
+#splash-screen.hide{opacity:0;transform:scale(1.06);pointer-events:none}
+.splashGlow{
+  position:absolute;
+  width:clamp(250px,40vw,450px);
+  aspect-ratio:1;
+  border-radius:50%;
+  filter:blur(100px);
+  pointer-events:none;
+}
+.splashGlow.purple{background:#8b5cf633;transform:translate(-24%,-12%)}
+.splashGlow.pink{width:clamp(200px,35vw,380px);background:#ff336626;transform:translate(30%,32%)}
+.splashScene{
+  position:relative;
+  width:clamp(260px,75vw,360px);
+  height:clamp(160px,45vw,220px);
+  margin-bottom:40px;
+  transform-style:preserve-3d;
+  animation:splashFloat 6s ease-in-out infinite alternate;
+}
+@keyframes splashFloat{
+  from{transform:rotateX(10deg) rotateY(-16deg) translateY(-8px)}
+  to{transform:rotateX(-7deg) rotateY(14deg) translateY(10px)}
+}
+.splashGhostCard,.splashCard{position:absolute;inset:0;border-radius:20px}
+.splashGhostCard{
+  border:1px solid #8b5cf638;
+  background:#8b5cf614;
+  transform:translateZ(-35px) scale(.92) rotate(-6deg);
+  filter:blur(2px);
+}
+.splashCard{
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  padding:24px;
+  border:1px solid #ffffff1f;
+  background:#12101ce8;
+  box-shadow:0 24px 55px #000a,inset 0 1px #ffffff10;
+  -webkit-backdrop-filter:blur(16px);
+  backdrop-filter:blur(16px);
+}
+.splashHeader{display:flex;align-items:center;gap:12px}
+.splashLogo{
+  width:38px;
+  height:38px;
+  display:grid;
+  place-items:center;
+  border-radius:10px;
+  background:linear-gradient(135deg,#a855f7,#ec4899);
+  box-shadow:0 0 18px #ec489966;
+  color:#fff;
+  font-size:17px;
+  font-weight:900;
+}
+.splashBrand{font-size:18px;font-weight:800;letter-spacing:.2px}
+.splashQuestion{color:#f3f0f8;font-size:clamp(15px,2.8vw,18px);font-weight:700;line-height:1.45}
+.splashFooter{color:#f06a9b;font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase}
+.splashLoader{position:relative;width:clamp(220px,65vw,320px);min-height:62px;text-align:center}
+.splashTrack{width:100%;height:6px;overflow:hidden;border-radius:99px;background:#ffffff14}
+.splashFill{
+  width:0;
+  height:100%;
+  border-radius:inherit;
+  background:linear-gradient(90deg,#8b5cf6,#ff3366);
+  box-shadow:0 0 14px #ff3366b3;
+  transition:width .05s linear;
+}
+.splashPercent{margin-top:10px;color:#ffffff70;font:700 12px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:1px}
+.splashBegin{
+  display:none;
+  margin:auto;
+  border:0;
+  background:linear-gradient(90deg,#ff5c91,#b66cff);
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+  font-size:clamp(17px,3.5vw,21px);
+  font-weight:850;
+  letter-spacing:.6px;
+  cursor:pointer;
+  animation:splashPulse 1.2s ease-in-out infinite alternate;
+}
+@keyframes splashPulse{
+  from{transform:scale(.97);filter:drop-shadow(0 0 5px #ff408166)}
+  to{transform:scale(1.03);filter:drop-shadow(0 0 18px #a855f7cc)}
+}
+.splashSkip{
+  position:absolute;
+  top:22px;
+  right:24px;
+  min-width:58px;
+  height:34px;
+  border:1px solid #ffffff1f;
+  border-radius:9px;
+  background:#ffffff0a;
+  color:#a9a1b8;
+  font-size:10px;
+  font-weight:750;
+  cursor:pointer;
+}
+.splashSkip:hover{border-color:#ffffff38;color:#fff}
+@media(max-width:480px){
+  .splashScene{margin-bottom:32px}
+  .splashCard{padding:20px}
+  .splashSkip{top:14px;right:14px}
+}
 </style>
+<script nonce="{{ csp_nonce }}">
+try {
+  if (sessionStorage.getItem("minddeck-splash-v1")) document.documentElement.classList.add("splash-seen");
+} catch (_) {}
+</script>
 </head>
 <body data-workspace="generate">
+<div id="splash-screen" role="dialog" aria-modal="true" aria-label="MindDeck is loading">
+<div class="splashGlow purple" aria-hidden="true"></div>
+<div class="splashGlow pink" aria-hidden="true"></div>
+<button class="splashSkip" id="splashSkip" type="button">Skip</button>
+<div class="splashScene" aria-hidden="true">
+<div class="splashGhostCard"></div>
+<div class="splashCard">
+<div class="splashHeader"><div class="splashLogo">M</div><span class="splashBrand">MindDeck</span></div>
+<p class="splashQuestion">What is conceptual skill?</p>
+<span class="splashFooter">AI Memory Engine</span>
+</div>
+</div>
+<div class="splashLoader" role="status" aria-live="polite">
+<div class="splashTrack" id="splashTrack"><div class="splashFill" id="splashFill"></div></div>
+<div class="splashPercent" id="splashPercent">0%</div>
+<button class="splashBegin" id="splashBegin" type="button">Let’s begin ✨</button>
+</div>
+</div>
 <div class="ambientGrid" aria-hidden="true"></div>
 <div class="glow g1">
 </div>
@@ -1150,6 +1296,88 @@ body[data-workspace="study"] .actions>#manual{display:none!important}
 <input type="file" id="jsonFile" accept=".json" hidden>
 <div class="toast" id="toast">
 </div>
+<script nonce="{{ csp_nonce }}">
+(() => {
+  const splash = document.getElementById("splash-screen");
+  if (!splash) return;
+
+  if (document.documentElement.classList.contains("splash-seen")) {
+    splash.remove();
+    return;
+  }
+
+  const fill = document.getElementById("splashFill");
+  const percent = document.getElementById("splashPercent");
+  const track = document.getElementById("splashTrack");
+  const begin = document.getElementById("splashBegin");
+  const skip = document.getElementById("splashSkip");
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let progress = 0;
+  let progressTimer;
+  let exitTimer;
+  let fallbackTimer;
+  let closing = false;
+
+  document.body.classList.add("splash-lock");
+
+  const rememberSplash = () => {
+    try {
+      sessionStorage.setItem("minddeck-splash-v1", "1");
+    } catch (_) {}
+  };
+
+  const onKeydown = (event) => {
+    if (event.key === "Escape") dismissSplash();
+  };
+
+  const dismissSplash = () => {
+    if (closing) return;
+    closing = true;
+    clearInterval(progressTimer);
+    clearTimeout(exitTimer);
+    clearTimeout(fallbackTimer);
+    rememberSplash();
+    document.removeEventListener("keydown", onKeydown);
+    document.body.classList.remove("splash-lock");
+    splash.setAttribute("aria-hidden", "true");
+    splash.classList.add("hide");
+    window.setTimeout(() => {
+      document.documentElement.classList.add("splash-seen");
+      splash.remove();
+    }, reduceMotion ? 30 : 720);
+  };
+
+  const showReady = () => {
+    clearInterval(progressTimer);
+    fill.style.width = "100%";
+    percent.textContent = "100%";
+    window.setTimeout(() => {
+      track.hidden = true;
+      percent.hidden = true;
+      begin.style.display = "block";
+      exitTimer = window.setTimeout(dismissSplash, reduceMotion ? 80 : 800);
+    }, reduceMotion ? 20 : 220);
+  };
+
+  skip.addEventListener("click", dismissSplash);
+  begin.addEventListener("click", dismissSplash);
+  document.addEventListener("keydown", onKeydown);
+
+  if (reduceMotion) {
+    progress = 100;
+    showReady();
+  } else {
+    progressTimer = window.setInterval(() => {
+      progress = Math.min(100, progress + 2);
+      fill.style.width = `${progress}%`;
+      percent.textContent = `${progress}%`;
+      if (progress === 100) showReady();
+    }, 35);
+  }
+
+  fallbackTimer = window.setTimeout(dismissSplash, 6000);
+})();
+</script>
 <script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=13"></script>
 </body>
 </html>
