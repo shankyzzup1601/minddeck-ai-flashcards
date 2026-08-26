@@ -370,6 +370,69 @@ body:before{
   .heroCard{border-radius:14px}
   .widget,.panel{border-radius:12px}
 }
+
+/* Simple student mode: clear hierarchy, solid surfaces, and only essential controls. */
+body[data-workspace="planner"] .heroCard,
+body[data-workspace="planner"] .insightGrid,
+body[data-workspace="planner"] .smartGrid,
+body[data-workspace="planner"] .grid,
+body[data-workspace="planner"] .deck{display:none!important}
+body[data-workspace="planner"] .focusGrid{width:min(100%,980px);margin:0 auto;grid-template-columns:1.35fr .8fr .85fr}
+body[data-workspace="planner"] .actions>#import,
+body[data-workspace="planner"] .actions>#export,
+body[data-workspace="planner"] .actions>#settings,
+body[data-workspace="planner"] .actions>#themeToggle,
+body[data-workspace="planner"] .actions>#clear,
+body[data-workspace="planner"] .actions>#manual{display:none!important}
+body[data-workspace="deck"] .heroCard,
+body[data-workspace="deck"] .focusGrid,
+body[data-workspace="deck"] .insightGrid,
+body[data-workspace="deck"] .smartGrid{display:none!important}
+body[data-workspace="deck"] .deck{width:min(100%,980px);margin:0 auto}
+body[data-workspace="study"] .actions>#import,
+body[data-workspace="study"] .actions>#export,
+body[data-workspace="study"] .actions>#settings,
+body[data-workspace="study"] .actions>#themeToggle,
+body[data-workspace="study"] .actions>#clear,
+body[data-workspace="study"] .actions>#manual{display:none!important}
+.widget:hover,.panel:hover{transform:none;box-shadow:0 8px 0 #050609,0 22px 45px #0006}
+.panel{background:#11151d}
+.phead{align-items:center;background:#0d1016}
+.phead h3{font-size:14px}
+.phead span{font-size:9px}
+.generate{background:var(--a);box-shadow:0 6px 0 #342677,0 16px 32px #0006}
+.generate:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 8px 0 #342677,0 20px 38px #0007}
+.studyAssist{display:flex;justify-content:flex-start;margin:13px 0 0}
+.assistButton{min-width:90px;background:#171b23}
+.face{border-top:3px solid var(--a);background:#151a23}
+.face.back{border-top-color:var(--green);background:#171923}
+.face:before{display:none}
+.cardTypeBadge{
+  position:absolute!important;
+  top:18px!important;
+  right:20px!important;
+  left:auto!important;
+  transform:none!important;
+  box-shadow:none!important;
+}
+.rate{border-top-width:2px;box-shadow:0 4px 0 #06070a}
+.rate.again{border-top-color:var(--red)}
+.rate.hard{border-top-color:#fbbf24}
+.rate.good{border-top-color:#60a5fa}
+.rate.easy{border-top-color:var(--green)}
+.pager span{min-width:115px;text-align:center;color:#c6ccda;font-weight:750}
+@media(max-width:1000px){
+  body[data-workspace="planner"] .focusGrid{grid-template-columns:1fr 1fr}
+  body[data-workspace="planner"] .timerWidget{grid-column:1/-1}
+}
+@media(max-width:650px){
+  body[data-workspace="planner"] .focusGrid{grid-template-columns:1fr}
+  body[data-workspace="planner"] .actions>#account{display:none}
+  body[data-workspace="study"] .actions>#account{display:none}
+  .phead{padding:15px 16px}
+  .phead span{max-width:140px;text-align:right;line-height:1.4}
+  .cardTypeBadge{top:13px!important;right:13px!important}
+}
 </style>
 </head>
 <body data-workspace="generate">
@@ -402,6 +465,10 @@ body:before{
 <button class="nav" id="navDeck" type="button" data-workspace-target="deck">
 <i class="glyph" aria-hidden="true">▣</i>
 <span>My deck</span>
+</button>
+<button class="nav" id="navPlanner" type="button" data-workspace-target="planner">
+<i class="glyph" aria-hidden="true">◷</i>
+<span>Planner</span>
 </button>
 <button class="nav" id="openOral" type="button">
 <i class="glyph" aria-hidden="true">●</i>
@@ -478,7 +545,7 @@ body:before{
 </div>
 </div>
 </section>
-<section class="focusGrid" aria-label="Focus tools">
+<section class="focusGrid" aria-label="Daily planner">
 <article class="widget timerWidget" id="timerWidget">
 <div class="timerVisual">
 <svg class="timerDial" viewBox="0 0 120 120" aria-hidden="true">
@@ -513,7 +580,7 @@ body:before{
 </article>
 <article class="widget goalWidget">
 <div class="widgetTop">
-<div class="widgetKicker">Daily focus goal</div>
+<div class="widgetKicker">Today’s goal</div>
 <div class="widgetIcon" aria-hidden="true">◎</div>
 </div>
 <div class="goalValue"><strong id="todayMinutes">0</strong><span>/ <b id="goalMinutes">25</b> min</span></div>
@@ -531,7 +598,7 @@ body:before{
 </article>
 <article class="widget momentumWidget">
 <div class="widgetTop">
-<div class="widgetKicker">Study momentum</div>
+<div class="widgetKicker">This week</div>
 <div class="widgetIcon" aria-hidden="true">✦</div>
 </div>
 <div class="streakHero"><strong id="streakCount">0</strong><span>day streak</span></div>
@@ -625,7 +692,7 @@ body:before{
 <div class="smartIntro">
 <div>
 <h3>Study actively, not endlessly.</h3>
-<p>Rescue difficult cards, run a focused 30-card sprint, practice image labels, or test recall against the clock.</p>
+<p>Review difficult cards, start a focused 15-card session, or practise one topic at a time.</p>
 </div>
 <span class="smartSignal">SM-2 active</span>
 </div>
@@ -634,7 +701,7 @@ body:before{
 <i aria-hidden="true">⚡</i><strong>Cram &amp; Break Down · <b id="leechCount">0</b></strong><small id="leechLabel">No stubborn cards detected</small>
 </button>
 <button class="smartTool" id="startCramSprint" type="button">
-<i aria-hidden="true">◷</i><strong>30-card sprint</strong><small>Start a 25-minute Pomodoro queue</small>
+<i aria-hidden="true">◷</i><strong>15-card review</strong><small>Start a focused review session</small>
 </button>
 <button class="smartTool" id="startMatch" type="button" disabled>
 <i aria-hidden="true">↔</i><strong>Speed Match</strong><small id="matchReady">Add 2+ cards</small>
@@ -674,7 +741,7 @@ body:before{
 <article class="panel" id="createPanel">
 <div class="phead">
 <h3>Create a study deck</h3>
-<span>30 questions per deck</span>
+<span>3 simple steps · 15 questions</span>
 </div>
 <div class="compose">
 <div class="tabs">
@@ -738,9 +805,9 @@ body:before{
 </label>
 <label for="cardMode">Card style
 <select id="cardMode">
-<option value="mixed">Smart mix · Q&amp;A + cloze</option>
-<option value="standard">Question &amp; answer</option>
-<option value="cloze">Cloze deletion only</option>
+<option value="standard">Simple question &amp; answer</option>
+<option value="mixed">Mix of Q&amp;A + fill in the blank</option>
+<option value="cloze">Fill in the blank only</option>
 <option value="ncert">NCERT line-by-line cloze</option>
 <option value="formula">LaTeX formula &amp; derivation</option>
 <option value="assertion">Assertion &amp; Reason (A/R)</option>
@@ -758,18 +825,18 @@ body:before{
 <label><input class="examTagInput" type="checkbox" value="Formula Only"> Formula Only</label>
 </fieldset>
 <div class="generationProviderNote">
-<span id="generationProviderLabel">Smart offline parser</span>
+<span id="generationProviderLabel">Works offline</span>
 <button id="openGeneratorSettings" type="button">AI settings</button>
 </div>
-<button class="generate" id="generate">✦ Generate 30 questions</button>
+<button class="generate" id="generate">✦ Create 15 questions</button>
 <div class="error" id="error">
 </div>
 </div>
 </article>
 <article class="panel" id="studyPanel">
 <div class="phead">
-<h3>Study session</h3>
-<span>Space to flip · 1–4 to rate</span>
+<h3>Study your cards</h3>
+<span>Press Space to show the answer</span>
 </div>
 <div class="study">
 <div class="studyTop">
@@ -778,10 +845,10 @@ body:before{
 </div>
 <progress class="bar progress" id="progress" max="100" value="0">0%</progress>
 <div class="studyAssist">
-<button class="assistButton" id="hintButton" type="button">✦ Show a hint</button>
-<button class="assistButton" id="ttsButton" type="button">◖ Read answer</button>
-<button class="assistButton" id="logMistake" type="button">! Log mistake</button>
-<span class="assistNote">Hints reveal progressively · audio uses your device voice</span>
+<button class="assistButton" id="hintButton" type="button">✦ Hint</button>
+<button class="assistButton" id="ttsButton" type="button" hidden>◖ Read answer</button>
+<button class="assistButton" id="logMistake" type="button" hidden>! Log mistake</button>
+<span class="assistNote" hidden>Hints reveal progressively</span>
 </div>
 <div class="hintPanel" id="hintPanel" hidden>
 <ol id="hintList"></ol>
@@ -943,7 +1010,7 @@ body:before{
 <label for="provider">Generation provider</label>
 <div class="api settingsApi">
 <select id="provider">
-<option value="offline">Smart offline parser</option>
+<option value="offline">Works offline</option>
 <option value="openai" disabled>Secure OpenAI · locked</option>
 <option value="gemini" disabled>Secure Gemini · locked</option>
 </select>
@@ -1073,6 +1140,6 @@ body:before{
 <input type="file" id="jsonFile" accept=".json" hidden>
 <div class="toast" id="toast">
 </div>
-<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js"></script>
+<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=13"></script>
 </body>
 </html>

@@ -24,7 +24,7 @@ MAX_PROVIDER_RESPONSE_BYTES = 1_000_000
 MAX_SUPABASE_RESPONSE_BYTES = 512_000
 MAX_CLOUD_CARDS = 500
 MAX_IMAGE_BYTES = 4 * 1024 * 1024
-GENERATED_DECK_SIZE = 30
+GENERATED_DECK_SIZE = 15
 AI_SESSION_SECONDS = 15 * 60
 CSRF_SECONDS = 24 * 60 * 60
 AUTH_REFRESH_SECONDS = 30 * 24 * 60 * 60
@@ -516,7 +516,7 @@ def normalize_cloud_deck(value) -> dict:
     updated_at = raw_updated if isinstance(raw_updated, int) and not isinstance(raw_updated, bool) else 0
     updated_at = min(max(updated_at, 0), now_ms + 60_000)
     return {
-        "version": 5,
+        "version": 6,
         "cards": normalized_cards,
         "index": index,
         "reviewed": reviewed,
