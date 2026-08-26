@@ -406,14 +406,16 @@ body[data-workspace="study"] .actions>#manual{display:none!important}
 .assistButton{min-width:90px;background:#171b23}
 .card,.card.flip{transform:none!important}
 .face{
-  transform:rotateY(0deg)!important;
-  transition:transform .55s cubic-bezier(.2,.72,.2,1);
+  transform:none!important;
+  opacity:1;
+  visibility:visible;
+  transition:opacity .28s ease,transform .35s ease,visibility 0s linear;
   border-top:3px solid var(--a);
   background:#151a23;
 }
-.face.back{transform:rotateY(180deg)!important;border-top-color:var(--green);background:#171923}
-.card.flip .face:not(.back){transform:rotateY(-180deg)!important}
-.card.flip .face.back{transform:rotateY(0deg)!important}
+.face.back{transform:scale(.98)!important;opacity:0;visibility:hidden;border-top-color:var(--green);background:#171923}
+.card.flip .face:not(.back){transform:scale(.98)!important;opacity:0;visibility:hidden}
+.card.flip .face.back{transform:none!important;opacity:1;visibility:visible}
 .face:before{display:none}
 .cardTypeBadge{
   position:absolute!important;
