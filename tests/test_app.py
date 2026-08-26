@@ -347,7 +347,7 @@ class MindDeckSecurityTests(unittest.TestCase):
         )
 
         card = normalized["cards"][0]
-        self.assertEqual(normalized["version"], 5)
+        self.assertEqual(normalized["version"], 6)
         self.assertEqual(card["template"], "formula")
         self.assertEqual(card["subject"], "Physics")
         self.assertEqual(card["examTags"], ["JEE Main 2024", "Formula"])
