@@ -688,6 +688,44 @@ body.splash-lock{overflow:hidden}
 .logo.hasBrandIcon{padding:0;overflow:hidden;background:none;transform:none;box-shadow:0 10px 28px #8b5cf64d}
 .logo.hasBrandIcon:after{display:none}
 
+
+/* Interactive 3D loading experience. */
+.mdSplashScene{width:clamp(290px,76vw,430px);height:clamp(195px,46vw,255px);margin-bottom:3rem;animation:mdSplashFloat 5.4s ease-in-out infinite alternate}
+.mdSplashCard{overflow:hidden;padding:clamp(1.25rem,4vw,1.75rem);background:radial-gradient(circle at 84% 12%,#ec48991f,transparent 34%),linear-gradient(145deg,#35204eef,#1c1532f5 58%,#110d21f8);border-color:#ffffff24;box-shadow:0 38px 90px #000b,0 0 55px #a855f72e,inset 0 1px #ffffff2b;transform:translateZ(34px)}
+.mdSplashCardBack{background:linear-gradient(145deg,#6d28d92e,#ec48991c);border-color:#c084fc40;box-shadow:0 25px 55px #0008}
+.mdSplashCardBack.backOne{transform:translate3d(-18px,10px,-42px) scale(.96) rotate(-4deg)}
+.mdSplashCardBack.backTwo{transform:translate3d(19px,-7px,-78px) scale(.91) rotate(6deg);opacity:.68}
+.mdSplashShine{position:absolute;inset:-70% -50%;background:linear-gradient(110deg,transparent 41%,#ffffff13 49%,transparent 57%);transform:translateX(-48%) rotate(8deg);animation:mdSplashSheen 4.6s ease-in-out infinite;pointer-events:none}
+@keyframes mdSplashSheen{0%,28%{transform:translateX(-48%) rotate(8deg)}72%,100%{transform:translateX(48%) rotate(8deg)}}
+.mdSplashHeader{position:relative;z-index:2}
+.mdSplashHeader>div:nth-child(2){display:grid;gap:3px}
+.mdSplashTag{color:#a9a0ba;font-size:7px;font-weight:700;letter-spacing:1.15px;text-transform:uppercase}
+.mdSplashReady{margin-left:auto;display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border:1px solid #34d39938;border-radius:99px;background:#34d3990d;color:#7ee7be;font-size:7px;font-weight:800;letter-spacing:.8px;text-transform:uppercase}
+.mdSplashReady i{width:5px;height:5px;border-radius:50%;background:#4ade80;box-shadow:0 0 12px #4ade80;animation:mdSplashReadyPulse 1.4s ease-in-out infinite}
+@keyframes mdSplashReadyPulse{50%{opacity:.45;transform:scale(.72)}}
+.mdSplashBody{position:relative;z-index:2;display:grid;gap:7px;margin:15px 0;color:#fff}
+.mdSplashBody>span{color:#e879f9;font-size:7px;font-weight:850;letter-spacing:1.8px}
+.mdSplashBody strong{font-size:clamp(1.25rem,4.3vw,1.7rem);line-height:1.08;letter-spacing:-.7px}
+.mdSplashBody p{margin:0;color:#aaa2b6;font-size:clamp(.68rem,2.5vw,.8rem);line-height:1.45}
+.mdSplashFooter{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between}
+.mdSplashSteps{display:flex;gap:5px}.mdSplashSteps i{width:5px;height:5px;border-radius:50%;background:#ffffff2b}.mdSplashSteps i:first-child{width:18px;border-radius:8px;background:linear-gradient(90deg,#a855f7,#ec4899);box-shadow:0 0 10px #ec489966}
+.mdSplashOrbit{position:absolute;left:50%;top:50%;border:1px solid #c084fc24;border-radius:50%;pointer-events:none}
+.mdSplashOrbit.orbitOne{width:135%;height:82%;transform:translate(-50%,-50%) rotateX(68deg) rotateZ(-12deg);animation:mdSplashOrbit 13s linear infinite}
+.mdSplashOrbit.orbitTwo{width:112%;height:68%;transform:translate(-50%,-50%) rotateX(70deg) rotateZ(18deg);animation:mdSplashOrbitReverse 10s linear infinite}
+@keyframes mdSplashOrbit{to{transform:translate(-50%,-50%) rotateX(68deg) rotateZ(348deg)}}
+@keyframes mdSplashOrbitReverse{to{transform:translate(-50%,-50%) rotateX(70deg) rotateZ(-342deg)}}
+.mdSplashSpark{position:absolute;z-index:5;color:#f0abfc;text-shadow:0 0 16px #e879f9;font-size:18px;animation:mdSplashTwinkle 2.2s ease-in-out infinite}
+.mdSplashSpark.sparkOne{left:-8%;top:9%}.mdSplashSpark.sparkTwo{right:-9%;top:33%;animation-delay:-.8s}.mdSplashSpark.sparkThree{right:7%;bottom:-8%;animation-delay:-1.5s}
+@keyframes mdSplashTwinkle{50%{opacity:.25;transform:scale(.65) rotate(25deg)}}
+.mdSplashBegin{border:1px solid #f0abfc4d;border-radius:999px;padding:14px 28px;background:linear-gradient(135deg,#ec4899,#a855f7);-webkit-background-clip:initial;background-clip:initial;-webkit-text-fill-color:#fff;color:#fff;box-shadow:0 14px 38px #a855f74d,0 0 0 5px #a855f70d;cursor:pointer;transition:transform .2s ease,box-shadow .2s ease;animation:mdSplashButtonPulse 1.6s ease-in-out infinite alternate}
+.mdSplashBegin:hover{transform:translateY(-2px) scale(1.03);box-shadow:0 18px 46px #ec489966,0 0 0 7px #a855f714}
+.mdSplashBegin:focus-visible{outline:3px solid #f5d0fe;outline-offset:5px}
+.mdSplashBegin:active{transform:translateY(1px) scale(.98)}
+.mdSplashBegin span{margin-left:6px}
+@keyframes mdSplashButtonPulse{from{box-shadow:0 12px 32px #a855f73d,0 0 0 4px #a855f70b}to{box-shadow:0 18px 48px #ec489966,0 0 0 8px #a855f712}}
+@media(max-width:520px){.mdSplashReady{display:none}.mdSplashScene{margin-bottom:2.25rem}.mdSplashSpark.sparkOne{left:1%}.mdSplashSpark.sparkTwo{right:1%}}
+@media(prefers-reduced-motion:reduce){.mdSplashOrbit,.mdSplashSpark,.mdSplashShine,.mdSplashReady i,.mdSplashBegin{animation:none}}
+
 </style>
 </head>
 <body data-workspace="generate">
@@ -695,17 +733,24 @@ body.splash-lock{overflow:hidden}
 <div class="mdSplashGlow purple" aria-hidden="true"></div>
 <div class="mdSplashGlow pink" aria-hidden="true"></div>
 <div class="mdSplashScene" aria-hidden="true">
-<div class="mdSplashCardBack"></div>
+<div class="mdSplashOrbit orbitOne"></div>
+<div class="mdSplashOrbit orbitTwo"></div>
+<div class="mdSplashSpark sparkOne">✦</div>
+<div class="mdSplashSpark sparkTwo">✧</div>
+<div class="mdSplashSpark sparkThree">✦</div>
+<div class="mdSplashCardBack backTwo"></div>
+<div class="mdSplashCardBack backOne"></div>
 <div class="mdSplashCard">
-<div class="mdSplashHeader"><div class="mdSplashLogo"><img src="/static/minddeck-icon.svg?v=2" alt="" aria-hidden="true"></div><span class="mdSplashBrand">MindDeck</span></div>
-<p class="mdSplashBody">What is conceptual skill?</p>
-<span class="mdSplashFooter">AI Memory Engine</span>
+<div class="mdSplashShine"></div>
+<div class="mdSplashHeader"><div class="mdSplashLogo"><img src="/static/minddeck-icon.svg?v=2" alt="" aria-hidden="true"></div><div><span class="mdSplashBrand">MindDeck</span><small class="mdSplashTag">AI-powered active recall</small></div><span class="mdSplashReady"><i></i>Ready</span></div>
+<div class="mdSplashBody"><span>YOUR SMART STUDY SPACE</span><strong>Learn smarter.<br>Remember longer.</strong><p>Turning every note into lasting knowledge.</p></div>
+<div class="mdSplashFooter"><span>AI MEMORY ENGINE</span><span class="mdSplashSteps"><i></i><i></i><i></i></span></div>
 </div>
 </div>
 <div class="mdSplashLoader" role="status" aria-live="polite">
 <div class="mdSplashTrack" id="track"><div class="mdSplashFill" id="fill"></div></div>
 <div class="mdSplashPercent" id="percent-label">0%</div>
-<div class="mdSplashBegin" id="begin-text">Let's begin ✨</div>
+<button class="mdSplashBegin" id="begin-text" type="button">Let's begin <span aria-hidden="true">✦</span></button>
 </div>
 </div>
 <div class="ambientGrid" aria-hidden="true"></div>
@@ -1423,6 +1468,15 @@ body.splash-lock{overflow:hidden}
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   let progress = reduceMotion ? 100 : 0;
 
+  const enterApp = () => {
+    splashScreen.classList.add("hide");
+    document.body.classList.remove("splash-lock");
+    beginText.disabled = true;
+    window.setTimeout(() => splashScreen.remove(), reduceMotion ? 160 : 720);
+  };
+
+  beginText.addEventListener("click", enterApp);
+
   const finish = () => {
     fill.style.width = "100%";
     percentLabel.textContent = "100%";
@@ -1430,11 +1484,7 @@ body.splash-lock{overflow:hidden}
       track.style.display = "none";
       percentLabel.style.display = "none";
       beginText.style.display = "block";
-      window.setTimeout(() => {
-        splashScreen.classList.add("hide");
-        document.body.classList.remove("splash-lock");
-        window.setTimeout(() => splashScreen.remove(), reduceMotion ? 160 : 720);
-      }, reduceMotion ? 80 : 800);
+      beginText.focus({ preventScroll: true });
     }, reduceMotion ? 20 : 300);
   };
 
