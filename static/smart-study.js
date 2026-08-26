@@ -261,15 +261,27 @@ export function createClozeDrafts(text, limit = 12) {
     .map((sentence) => sentence.trim())
     .filter((sentence) => sentence.length >= 28 && sentence.length <= 360);
   const drafts = [];
-  for (const sentence of sentences) {
-    const candidates = keywords(sentence).sort((left, right) => right.length - left.length);
-    const answer = candidates[0];
-    if (!answer) continue;
-    const pattern = new RegExp(`\\b${answer.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
-    const clozeText = sentence.replace(pattern, (match) => `{{c1::${match}}}`);
-    if (clozeText === sentence) continue;
-    drafts.push({ type: "cloze", clozeText, front: clozeFront(clozeText), back: clozeBack(clozeText) });
-    if (drafts.length >= limit) break;
+  const seen = new Set();
+  const sources = sentences.map((sentence) => ({
+    sentence,
+    candidates: keywords(sentence).sort((left, right) => right.length - left.length),
+  }));
+  const widestSource = Math.max(0, ...sources.map((source) => source.candidates.length));
+
+  // Work breadth-first so every sentence contributes before a second keyword is
+  // hidden. This creates a fuller deck without over-focusing on the first line.
+  for (let rank = 0; rank < widestSource && drafts.length < limit; rank += 1) {
+    for (const source of sources) {
+      const answer = source.candidates[rank];
+      if (!answer) continue;
+      const pattern = new RegExp(`\\b${answer.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+      const clozeText = source.sentence.replace(pattern, (match) => `{{c1::${match}}}`);
+      const normalized = clozeText.toLowerCase();
+      if (clozeText === source.sentence || seen.has(normalized)) continue;
+      seen.add(normalized);
+      drafts.push({ type: "cloze", clozeText, front: clozeFront(clozeText), back: clozeBack(clozeText) });
+      if (drafts.length >= limit) break;
+    }
   }
   return drafts;
 }

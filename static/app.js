@@ -27,6 +27,7 @@ const PDF_MODULE = "/static/vendor/pdf-4.10.38.min.mjs";
 const PDF_WORKER = "/static/vendor/pdf-4.10.38.worker.min.mjs";
 const FOCUS_STORE = "minddeck-focus-timer-v1";
 const THEME_STORE = "minddeck-visual-theme-v1";
+const GENERATED_DECK_SIZE = 30;
 const THEMES = Object.freeze([
   { key: "cosmic", label: "Midnight" },
   { key: "aurora", label: "Terminal" },
@@ -1190,8 +1191,16 @@ function render(touch = false) {
   save(touch);
 }
 
+function clearTopicLabel(sentence) {
+  const clean = String(sentence || "").replace(/\s+/g, " ").replace(/[.!?]+$/, "").trim();
+  const subject = clean.match(
+    /^(.{3,90}?)(?:\s+(?:is|are|means|refers|has|have|can|uses|includes|contains|helps|allows|involves|occurs|provides)\b|\s*[:;,—–-])/i
+  )?.[1];
+  return (subject || clean.split(/\s+/).slice(0, 8).join(" ")).trim();
+}
+
 function parseOffline(text, cardMode = "mixed") {
-  const clozeDrafts = createClozeDrafts(text, ["cloze", "ncert"].includes(cardMode) ? 30 : 10);
+  const clozeDrafts = createClozeDrafts(text, GENERATED_DECK_SIZE);
   if (cardMode === "ncert") {
     return clozeDrafts.map((draft) =>
       newCard(draft.front, draft.back, {
@@ -1228,15 +1237,28 @@ function parseOffline(text, cardMode = "mixed") {
     let match = sentence.match(/^(.{2,70}?)\s+(?:is|are|means|refers to|is defined as)\s+(.{8,300})[.!]?$/i);
     if (match) add(`What is ${match[1]}?`, match[2]);
     else if ((match = sentence.match(/^(.{3,80}?):\s*(.{8,300})$/))) add(`What is ${match[1]}?`, match[2]);
-    else if ((match = sentence.match(/^(.{5,130}?)\s+(?:because|due to|causes|leads to|results in)\s+(.{8,250})/i))) {
-      add(`Explain the relationship involving “${match[1]}”.`, match[2]);
-    } else if (sentence.length > 40) add("What is the key idea in this concept?", sentence);
-    if (output.length >= 30) break;
+    else if ((match = sentence.match(/^(.{5,130}?)\s+(because|due to|causes|leads to|results in)\s+(.{8,250})/i))) {
+      const cause = match[1].trim();
+      const connector = match[2].toLowerCase();
+      add(
+        ["because", "due to"].includes(connector)
+          ? `What explains “${cause}”?`
+          : `What result follows from “${cause}”?`,
+        match[3]
+      );
+    } else if (sentence.length > 40) {
+      add(`What key fact do the notes state about “${clearTopicLabel(sentence)}”?`, sentence);
+    }
+    if (output.length >= GENERATED_DECK_SIZE) break;
   }
-  if (cardMode === "mixed") {
+  if (output.length < GENERATED_DECK_SIZE) {
     for (const draft of clozeDrafts) {
-      if (output.length >= 30) break;
-      output.push(newCard(draft.front, draft.back, draft));
+      if (output.length >= GENERATED_DECK_SIZE) break;
+      if (cardMode === "mixed") {
+        output.push(newCard(draft.front, draft.back, draft));
+      } else {
+        add(`Which key term completes this statement: “${draft.front}”?`, draft.back);
+      }
     }
   }
   const specialModes = {
@@ -1255,6 +1277,30 @@ function parseOffline(text, cardMode = "mixed") {
     });
   }
   return output;
+}
+
+function completeGeneratedDeck(generated, sourceText, cardMode) {
+  const completed = [];
+  const seen = new Set();
+  const addUnique = (card) => {
+    const normalized = normalizeCard(card);
+    if (!normalized) return;
+    const key = `${normalized.front}\n${normalized.back}`.toLowerCase();
+    if (seen.has(key) || completed.length >= GENERATED_DECK_SIZE) return;
+    seen.add(key);
+    completed.push(normalized);
+  };
+
+  generated.forEach(addUnique);
+  if (completed.length < GENERATED_DECK_SIZE && sourceText) {
+    parseOffline(sourceText, cardMode).forEach(addUnique);
+  }
+  if (completed.length < GENERATED_DECK_SIZE) {
+    throw new Error(
+      `MindDeck found ${completed.length} clear questions. Add more detailed notes so it can build all ${GENERATED_DECK_SIZE}.`
+    );
+  }
+  return completed;
 }
 
 async function apiRequest(path, { method = "POST", body = null, refreshAuth = false } = {}) {
@@ -2613,13 +2659,14 @@ $("#generate").addEventListener("click", async () => {
         .filter(Boolean);
     }
     if (!generated.length) throw new Error("No usable concepts found.");
+    generated = completeGeneratedDeck(generated, isPhoto ? "" : text, cardMode);
     cards = applyGenerationMetadata(generated, cardMode);
     studyQueueIds = [];
     index = 0;
     reviewed.clear();
     setWorkspace("study", false);
     render(true);
-    toast(`Created ${cards.length} exam-ready cards`);
+    toast(`Created all ${GENERATED_DECK_SIZE} exam-ready questions`);
   } catch (error) {
     if (error.status === 401) {
       unlockedProvider = null;
@@ -2629,7 +2676,7 @@ $("#generate").addEventListener("click", async () => {
   } finally {
     $("#accessCode").value = "";
     button.disabled = false;
-    button.textContent = "✦ Generate flashcards";
+    button.textContent = `✦ Generate ${GENERATED_DECK_SIZE} questions`;
   }
 });
 
