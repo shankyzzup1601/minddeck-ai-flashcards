@@ -1,12 +1,40 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">MindDeck sparkling open book</title>
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop stop-color="#6366f1"/>
-      <stop offset="1" stop-color="#8b5cf6"/>
+    <linearGradient id="bg" x1="70" y1="42" x2="442" y2="470" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A855F7"/>
+      <stop offset=".52" stop-color="#7C3AED"/>
+      <stop offset="1" stop-color="#EC4899"/>
     </linearGradient>
+    <linearGradient id="pageL" x1="122" y1="180" x2="258" y2="362" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#DDD6FE"/>
+    </linearGradient>
+    <linearGradient id="pageR" x1="390" y1="180" x2="254" y2="362" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#FCE7F3"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#160B2D" flood-opacity=".45"/>
+    </filter>
+    <filter id="glow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="7" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
   </defs>
-  <rect width="512" height="512" rx="128" fill="#0a0d14"/>
-  <rect x="72" y="72" width="368" height="368" rx="104" fill="url(#g)"/>
-  <path d="M256 135 365 256 256 377 147 256Z" fill="#fff" opacity=".95"/>
-  <path d="m256 190 59 66-59 66-59-66Z" fill="#c7d2fe" opacity=".72"/>
+  <rect width="512" height="512" rx="132" fill="#090611"/>
+  <rect x="42" y="42" width="428" height="428" rx="116" fill="url(#bg)"/>
+  <circle cx="256" cy="260" r="164" fill="#FFFFFF" opacity=".07"/>
+  <g filter="url(#shadow)">
+    <path d="M256 209c-35-34-81-51-139-51-10 0-18 8-18 18v178c0 10 8 18 18 18 58 0 104 14 139 43V209Z" fill="url(#pageL)"/>
+    <path d="M256 209c35-34 81-51 139-51 10 0 18 8 18 18v178c0 10-8 18-18 18-58 0-104 14-139 43V209Z" fill="url(#pageR)"/>
+    <path d="M256 209v206" stroke="#A78BFA" stroke-width="10" stroke-linecap="round"/>
+    <path d="M127 202c42 1 78 12 104 34M127 251c42 1 78 12 104 34M385 202c-42 1-78 12-104 34M385 251c-42 1-78 12-104 34" fill="none" stroke="#8B5CF6" stroke-width="9" stroke-linecap="round" opacity=".34"/>
+  </g>
+  <g fill="#FFF" filter="url(#glow)">
+    <path d="m129 105 8 18 18 8-18 8-8 18-8-18-18-8 18-8 8-18Z"/>
+    <path d="m396 104 6 14 14 6-14 6-6 14-6-14-14-6 14-6 6-14Z"/>
+    <path d="m408 302 5 11 11 5-11 5-5 11-5-11-11-5 11-5 5-11Z" opacity=".9"/>
+  </g>
+  <circle cx="174" cy="113" r="6" fill="#FDE68A" filter="url(#glow)"/>
 </svg>
