@@ -1194,7 +1194,7 @@ function render(touch = false) {
 function clearTopicLabel(sentence) {
   const clean = String(sentence || "").replace(/\s+/g, " ").replace(/[.!?]+$/, "").trim();
   const subject = clean.match(
-    /^(.{3,90}?)(?:\s+(?:is|are|means|refers|has|have|can|uses|includes|contains|helps|allows|involves|occurs|provides)\b|\s*[:;,—–-])/i
+    /^(.{3,90}?)(?:\s+(?:is|are|means|refers|has|have|can|uses|includes|contains|helps|allows|involves|occurs|provides|improves|integrates|compares|supports|ensures|requires|reduces|increases|determines|affects|produces|maintains|coordinates|combines|describes|defines)\b|\s*[:;,—–-])/i
   )?.[1];
   return (subject || clean.split(/\s+/).slice(0, 8).join(" ")).trim();
 }
@@ -1257,7 +1257,8 @@ function parseOffline(text, cardMode = "mixed") {
       if (cardMode === "mixed") {
         output.push(newCard(draft.front, draft.back, draft));
       } else {
-        add(`Which key term completes this statement: “${draft.front}”?`, draft.back);
+        const statement = draft.front.replace(/[.!?]+$/, "");
+        add(`Which key term completes this statement: “${statement}”?`, draft.back);
       }
     }
   }
