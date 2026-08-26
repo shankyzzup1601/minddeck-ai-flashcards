@@ -179,6 +179,25 @@ class MindDeckSecurityTests(unittest.TestCase):
         self.assertFalse(unavailable.json["googleEnabled"])
         unavailable_upstream.assert_not_called()
 
+    def test_google_avatar_url_is_restricted_to_googleusercontent(self):
+        trusted = "https://lh3.googleusercontent.com/a/example-photo=s96-c"
+        self.assertEqual(
+            minddeck.google_avatar_url({"user_metadata": {"avatar_url": trusted}}),
+            trusted,
+        )
+        self.assertEqual(
+            minddeck.google_avatar_url(
+                {"user_metadata": {"avatar_url": "https://attacker.example/avatar.png"}}
+            ),
+            "",
+        )
+        self.assertEqual(
+            minddeck.google_avatar_url(
+                {"user_metadata": {"picture": "http://lh3.googleusercontent.com/avatar.png"}}
+            ),
+            "",
+        )
+
     def test_google_start_uses_pkce_and_httponly_transaction_cookie(self):
         with patch.dict(os.environ, self.google_environment(), clear=True), patch.object(
             minddeck, "google_auth_ready", return_value=True

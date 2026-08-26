@@ -1557,12 +1557,33 @@ function updateAccountUI() {
   const signedIn = Boolean(authState.user);
   const googleAvailable = authState.enabled && authState.googleEnabled && !signedIn;
   const account = $("#account");
+  const accountLabel = $("#accountLabel");
+  const accountAvatar = $("#accountAvatar");
+  const accountAvatarImage = $("#accountAvatarImage");
+  const accountAvatarFallback = $("#accountAvatarFallback");
+  const accountEmail = signedIn ? authState.user.email || "My account" : "";
+  const avatarUrl = signedIn ? authState.user.avatarUrl || "" : "";
   account.disabled = !authState.enabled;
-  account.textContent = signedIn
-    ? authState.user.email || "My account"
+  accountLabel.textContent = signedIn
+    ? accountEmail
     : authState.enabled
       ? "Sign in"
       : "Cloud setup needed";
+  account.setAttribute("aria-label", signedIn ? `Account: ${accountEmail}` : accountLabel.textContent);
+  accountAvatar.hidden = !signedIn;
+  if (signedIn) {
+    accountAvatarFallback.textContent = accountEmail.trim().charAt(0).toUpperCase() || "M";
+    accountAvatarImage.onerror = () => {
+      accountAvatarImage.hidden = true;
+      accountAvatarFallback.hidden = false;
+    };
+    accountAvatarImage.hidden = !avatarUrl;
+    accountAvatarFallback.hidden = Boolean(avatarUrl);
+    if (avatarUrl) accountAvatarImage.src = avatarUrl;
+    else accountAvatarImage.removeAttribute("src");
+  } else {
+    accountAvatarImage.removeAttribute("src");
+  }
   $("#authSignedOut").hidden = signedIn;
   $("#authSignedIn").hidden = !signedIn;
   $("#authUser").textContent = signedIn ? authState.user.email || "Signed in" : "";
@@ -1605,7 +1626,15 @@ async function loadAccount() {
         typeof data.user.email === "string" &&
         typeof data.user.accountKey === "string" &&
         /^[a-f0-9]{24}$/.test(data.user.accountKey)
-          ? data.user
+          ? {
+              email: data.user.email,
+              accountKey: data.user.accountKey,
+              avatarUrl:
+                typeof data.user.avatarUrl === "string" &&
+                data.user.avatarUrl.startsWith("https://lh3.googleusercontent.com/")
+                  ? data.user.avatarUrl
+                  : "",
+            }
           : null,
     };
     if (authState.user) activateAccountStore(authState.user.accountKey);
