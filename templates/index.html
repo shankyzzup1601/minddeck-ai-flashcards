@@ -314,7 +314,34 @@ body:before{
 .face.back{background:#191523}
 .face:before{display:none}
 .face:after{border-color:#242a34;box-shadow:none}
-.card:before{background:#050609;box-shadow:0 26px 60px #000c}
+.card:before{display:none;background:#050609;box-shadow:0 26px 60px #000c}
+.card.flip{transform:rotateY(180deg)}
+.face{-webkit-backface-visibility:hidden;backface-visibility:hidden}
+.face:not(.back) .richContent{
+  width:min(760px,88%);
+  max-height:72%;
+  overflow:auto;
+  color:#fff;
+  font-size:clamp(22px,2vw,32px);
+  font-weight:800;
+  line-height:1.38;
+  letter-spacing:-.35px;
+  overflow-wrap:anywhere;
+  text-wrap:balance;
+}
+.face.back .richContent{
+  width:min(780px,90%);
+  max-height:74%;
+  overflow:auto;
+  padding:0 8px;
+  color:#f3f5f8;
+  font-size:clamp(17px,1.35vw,22px);
+  font-weight:650;
+  line-height:1.62;
+  overflow-wrap:anywhere;
+}
+.face>small{color:#b9c2d1;font-weight:850}
+.face.graphFace .richContent{font-size:clamp(16px,1.3vw,20px)}
 .rate{box-shadow:0 5px 0 #06070a}
 .rate:hover{background:#1d222c;box-shadow:0 8px 0 #06070a}
 .pager button,.row button{border-color:#2d3440;background:#171b23;box-shadow:0 4px 0 #050609}
@@ -761,7 +788,7 @@ body:before{
 </div>
 <div class="examCardMeta" id="examCardMeta" aria-label="Exam card metadata" hidden></div>
 <div class="scene" id="scene">
-<div class="card" id="card">
+<div class="card" id="card" role="button" tabindex="0" aria-expanded="false" aria-label="Flashcard question. Click or press Space to reveal the answer.">
 <div class="face">
 <small>Question</small>
 <span class="cardTypeBadge" id="cardTypeBadge">Recall card</span>

@@ -167,6 +167,31 @@ function setupSpatialUi() {
   scene.addEventListener("pointercancel", resetCardDepth);
 }
 
+function setCardFlipped(flipped) {
+  const cardElement = $("#card");
+  const scene = $("#scene");
+  if (!cardElement) return;
+  if (scene) {
+    scene.style.setProperty("--card-rx", "0deg");
+    scene.style.setProperty("--card-ry", "0deg");
+    scene.style.setProperty("--card-glare-x", "50%");
+    scene.style.setProperty("--card-glare-y", "24%");
+  }
+  cardElement.classList.toggle("flip", flipped);
+  cardElement.setAttribute("aria-expanded", String(flipped));
+  cardElement.setAttribute(
+    "aria-label",
+    flipped
+      ? "Flashcard answer shown. Click or press Space to return to the question."
+      : "Flashcard question. Click or press Space to reveal the answer."
+  );
+}
+
+function toggleCardFlip() {
+  if (!cards.length) return;
+  setCardFlipped(!$("#card").classList.contains("flip"));
+}
+
 function subjectMatches(card, workspaceKey) {
   const config = SUBJECT_WORKSPACES[workspaceKey];
   if (!card || !config) return false;
@@ -1153,7 +1178,7 @@ function render(touch = false) {
       ? `${queuePosition + 1} / ${studyQueueIds.length} sprint`
       : `${index + 1} / ${cards.length}`
     : "0 / 0";
-  $("#card").classList.remove("flip");
+  setCardFlipped(false);
   clearStudyAssist();
   renderCurrentCard(card);
   renderStudyWidgets();
@@ -2426,7 +2451,7 @@ $("#provider").addEventListener("change", syncProvider);
 $("#lockAi").addEventListener("click", () => lockAI().catch((error) => {
   $("#error").textContent = error.message;
 }));
-$("#scene").addEventListener("click", () => cards.length && $("#card").classList.toggle("flip"));
+$("#scene").addEventListener("click", toggleCardFlip);
 $("#next").addEventListener("click", next);
 $("#prev").addEventListener("click", previous);
 $$('.rate').forEach((button) => button.addEventListener("click", () => score(Number(button.dataset.score))));
@@ -2872,7 +2897,7 @@ document.addEventListener("keydown", (event) => {
   if ($(".modal.open")) return;
   if (event.code === "Space") {
     event.preventDefault();
-    $("#card").classList.toggle("flip");
+    toggleCardFlip();
   } else if (event.key === "ArrowRight") next();
   else if (event.key === "ArrowLeft") previous();
   else if ("1234".includes(event.key)) score(Number(event.key));
