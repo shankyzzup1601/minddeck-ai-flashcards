@@ -27,7 +27,8 @@ const PDF_MODULE = "/static/vendor/pdf-4.10.38.min.mjs";
 const PDF_WORKER = "/static/vendor/pdf-4.10.38.worker.min.mjs";
 const FOCUS_STORE = "minddeck-focus-timer-v1";
 const THEME_STORE = "minddeck-visual-theme-v1";
-const GENERATED_DECK_SIZE = 30;
+const GENERATED_DECK_SIZE = 15;
+const DECK_SCHEMA_VERSION = 6;
 const THEMES = Object.freeze([
   { key: "cosmic", label: "Midnight" },
   { key: "aurora", label: "Terminal" },
@@ -98,7 +99,7 @@ let studyQueueIds = [];
 let examRevealCount = 0;
 
 function setWorkspace(workspace, scroll = true) {
-  const target = ["generate", "study", "deck"].includes(workspace) ? workspace : "generate";
+  const target = ["generate", "study", "deck", "planner"].includes(workspace) ? workspace : "generate";
   document.body.dataset.workspace = target;
   $$('[data-workspace-target]').forEach((button) => {
     const active = button.dataset.workspaceTarget === target;
@@ -107,9 +108,10 @@ function setWorkspace(workspace, scroll = true) {
     else button.removeAttribute("aria-current");
   });
   const headings = {
-    generate: ["Generate Cards", "Create an exam-ready deck from notes, files, or a photo."],
-    study: ["Distraction-Free Study", "Flip fast, rate honestly, and keep moving."],
-    deck: ["Deck Command Center", "Filter, refine, and plan your next revision sprint."],
+    generate: ["Create Flashcards", "Paste your notes and create 15 clear questions."],
+    study: ["Study", "Flip the card, recall the answer, then choose a rating."],
+    deck: ["My Deck", "View, review, or remove your saved questions."],
+    planner: ["Daily Planner", "Choose a study time, start the timer, and track today’s progress."],
   };
   const [title, subtitle] = headings[target];
   $(".top h1").textContent = title;
@@ -347,9 +349,70 @@ function normalizeCard(value) {
   return card;
 }
 
+function simpleConceptFromQuestion(front) {
+  const clean = String(front || "")
+    .replace(/\s+/g, " ")
+    .replace(/[?.!]+$/, "")
+    .trim();
+  const direct = clean.match(/^(?:what (?:is|are)|define|explain|describe|state)\s+(.+)$/i)?.[1];
+  return (direct || clean).replace(/^(?:the )?meaning of\s+/i, "").trim().slice(0, 140);
+}
+
+function shortDefinition(answer) {
+  const clean = String(answer || "").replace(/\s+/g, " ").trim();
+  if (clean.length <= 150) return clean;
+  const sentence = clean.match(/^.{40,150}?[.!?](?:\s|$)/)?.[0];
+  return (sentence || `${clean.slice(0, 147)}…`).trim();
+}
+
+function upgradeLegacyShortDeck(snapshot) {
+  const savedVersion = Number(snapshot?.version);
+  if ((Number.isFinite(savedVersion) ? savedVersion : 0) >= DECK_SCHEMA_VERSION) return false;
+  if (!cards.length || cards.length >= GENERATED_DECK_SIZE) return false;
+
+  const originals = [...cards];
+  const existingQuestions = new Set(cards.map((card) => card.front.toLowerCase().replace(/\s+/g, " ").trim()));
+  const questionVariants = [
+    (concept, card) => ({
+      front: `Which concept matches this explanation: “${shortDefinition(card.back)}”?`,
+      back: concept,
+    }),
+    (concept, card) => ({ front: `Explain ${concept} in one clear sentence.`, back: card.back }),
+    (concept, card) => ({ front: `What is the textbook meaning of ${concept}?`, back: card.back }),
+    (concept, card) => ({ front: `What is the key point to remember about ${concept}?`, back: card.back }),
+    (concept, card) => ({ front: `How would you explain ${concept} to a classmate?`, back: card.back }),
+    (concept, card) => ({ front: `Write a short note on ${concept}.`, back: card.back }),
+    (concept, card) => ({ front: `State the main idea behind ${concept}.`, back: card.back }),
+  ];
+
+  for (const makeQuestion of questionVariants) {
+    for (const source of originals) {
+      if (cards.length >= GENERATED_DECK_SIZE) break;
+      const concept = simpleConceptFromQuestion(source.front) || "this topic";
+      const draft = makeQuestion(concept, source);
+      const key = draft.front.toLowerCase().replace(/\s+/g, " ").trim();
+      if (existingQuestions.has(key)) continue;
+      existingQuestions.add(key);
+      cards.push(
+        newCard(draft.front, draft.back, {
+          subject: source.subject,
+          examTags: source.examTags,
+          trap: source.trap,
+        })
+      );
+    }
+    if (cards.length >= GENERATED_DECK_SIZE) break;
+  }
+
+  if (cards.length <= originals.length) return false;
+  index = 0;
+  studyQueueIds = [];
+  return true;
+}
+
 function deckSnapshot() {
   return {
-    version: 5,
+    version: DECK_SCHEMA_VERSION,
     cards,
     index,
     reviewed: [...reviewed],
@@ -390,11 +453,13 @@ function applyDeckState(value) {
 }
 
 async function load() {
+  let upgraded = false;
   try {
     const localValue = localStorage.getItem(activeStoreKey);
     const backup = localValue ? null : await loadDeckBackup(activeStoreKey).catch(() => null);
     const stored = localValue ? JSON.parse(localValue) : backup || {};
     if (!applyDeckState(stored)) throw new Error();
+    upgraded = upgradeLegacyShortDeck(stored);
   } catch {
     const backup = await loadDeckBackup(activeStoreKey).catch(() => null);
     if (!backup || !applyDeckState(backup)) {
@@ -403,9 +468,12 @@ async function load() {
       reviewed = new Set();
       studyStats = defaultStudyStats();
       deckUpdatedAt = 0;
+    } else {
+      upgraded = upgradeLegacyShortDeck(backup);
     }
   }
-  render(false);
+  render(upgraded);
+  if (upgraded) toast(`Your saved deck now has ${GENERATED_DECK_SIZE} clear questions`);
 }
 
 function activateAccountStore(accountKey) {
@@ -415,9 +483,12 @@ function activateAccountStore(accountKey) {
   activeStoreKey = nextStore;
   activeAccountKey = accountKey;
   accountStoreFresh = !saved;
+  let upgraded = false;
   if (saved) {
     try {
-      if (!applyDeckState(JSON.parse(saved))) throw new Error();
+      const stored = JSON.parse(saved);
+      if (!applyDeckState(stored)) throw new Error();
+      upgraded = upgradeLegacyShortDeck(stored);
     } catch {
       cards = [];
       index = 0;
@@ -429,7 +500,8 @@ function activateAccountStore(accountKey) {
   } else {
     save(false);
   }
-  render(false);
+  render(upgraded);
+  if (upgraded) toast(`Your saved deck now has ${GENERATED_DECK_SIZE} clear questions`);
 }
 
 async function activateGuestStore() {
@@ -891,7 +963,7 @@ function clearStudyAssist() {
   if ($("#hintPanel")) {
     $("#hintPanel").hidden = true;
     $("#hintList").replaceChildren();
-    $("#hintButton").textContent = "✦ Show a hint";
+    $("#hintButton").textContent = "✦ Hint";
   }
   if ($("#feynmanTranscript")) {
     $("#feynmanTranscript").value = "";
@@ -1166,7 +1238,8 @@ function render(touch = false) {
 
   $("#count").textContent = cards.length;
   $("#due").textContent = due;
-  $("#dueNav").textContent = due;
+  // The sidebar badge is the deck size; the due count remains in the study status pill.
+  $("#dueNav").textContent = cards.length;
   $("#mastery").textContent = `${mastery}%`;
   $("#sideMastery").textContent = `${mastery}% mastered`;
   $("#sideBar").value = mastery;
@@ -1176,9 +1249,9 @@ function render(touch = false) {
   const queuePosition = studyQueueIds.indexOf(card?.id);
   $("#pager").textContent = cards.length
     ? studyQueueIds.length && queuePosition >= 0
-      ? `${queuePosition + 1} / ${studyQueueIds.length} sprint`
-      : `${index + 1} / ${cards.length}`
-    : "0 / 0";
+      ? `Question ${queuePosition + 1} of ${studyQueueIds.length}`
+      : `Question ${index + 1} of ${cards.length}`
+    : "No questions yet";
   setCardFlipped(false);
   clearStudyAssist();
   renderCurrentCard(card);
@@ -1387,10 +1460,10 @@ function syncProvider() {
   $("#accessCode").placeholder = alreadyUnlocked ? "Secure session unlocked" : "Owner access code";
   $("#lockAi").hidden = !unlockedProvider;
   if (!online || alreadyUnlocked) $("#accessCode").value = "";
-  const providerNames = { offline: "Smart offline parser", openai: "Secure OpenAI", gemini: "Secure Gemini" };
+  const providerNames = { offline: "Works offline", openai: "Secure OpenAI", gemini: "Secure Gemini" };
   $("#generationProviderLabel").textContent = alreadyUnlocked
     ? `${providerNames[provider]} · unlocked`
-    : providerNames[provider] || "Smart offline parser";
+    : providerNames[provider] || "Works offline";
   updateSecurityHint();
 }
 
@@ -1598,9 +1671,11 @@ async function reconcileCloudDeck() {
       return;
     }
     if (!applyDeckState(cloud)) throw new Error("The cloud deck was invalid.");
+    const upgraded = upgradeLegacyShortDeck(cloud);
     accountStoreFresh = false;
-    render(false);
-    setSyncStatus("Cloud deck restored", "ok");
+    render(upgraded);
+    setSyncStatus(upgraded ? `${GENERATED_DECK_SIZE}-question deck saved` : "Cloud deck restored", "ok");
+    if (upgraded) toast(`Your saved deck now has ${GENERATED_DECK_SIZE} clear questions`);
   } catch (error) {
     setSyncStatus(error.message || "Cloud sync paused", "error");
   }
@@ -2027,7 +2102,7 @@ function startCramSprint() {
     return;
   }
   const due = cards.filter((card) => Date.parse(card.dueDate) <= Date.now());
-  const sprintCards = (due.length ? due : cards).slice(0, 30);
+  const sprintCards = (due.length ? due : cards).slice(0, GENERATED_DECK_SIZE);
   studyQueueIds = sprintCards.map((card) => card.id);
   index = cards.findIndex((card) => card.id === studyQueueIds[0]);
   selectTimerMode("focus");
@@ -2677,7 +2752,7 @@ $("#generate").addEventListener("click", async () => {
   } finally {
     $("#accessCode").value = "";
     button.disabled = false;
-    button.textContent = `✦ Generate ${GENERATED_DECK_SIZE} questions`;
+    button.textContent = `✦ Create ${GENERATED_DECK_SIZE} questions`;
   }
 });
 
