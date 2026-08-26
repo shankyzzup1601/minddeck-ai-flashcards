@@ -27,6 +27,7 @@ const PDF_MODULE = "/static/vendor/pdf-4.10.38.min.mjs";
 const PDF_WORKER = "/static/vendor/pdf-4.10.38.worker.min.mjs";
 const FOCUS_STORE = "minddeck-focus-timer-v1";
 const THEME_STORE = "minddeck-visual-theme-v1";
+const CLASS_STORE = "minddeck-class-v1";
 const GENERATED_DECK_SIZE = 15;
 const DECK_SCHEMA_VERSION = 6;
 const THEMES = Object.freeze([
@@ -213,6 +214,7 @@ function renderSubjectCounts() {
 }
 
 function selectedGenerationMetadata(cardMode) {
+  const classLevel = $("#classSelect").value;
   const stream = $("#streamSelect").value;
   const subject = $("#subjectSelect").value;
   const chapter = $("#chapterTag").value.trim();
@@ -221,21 +223,32 @@ function selectedGenerationMetadata(cardMode) {
   if (cardMode === "derivation" && !selectedTags.includes("3-Mark Board Derivation")) {
     selectedTags.push("3-Mark Board Derivation");
   }
-  return { stream, subject, chapter, selectedTags };
+  return { classLevel, stream, subject, chapter, selectedTags };
 }
 
 function applyGenerationMetadata(generated, cardMode) {
-  const { stream, subject, chapter, selectedTags } = selectedGenerationMetadata(cardMode);
+  const { classLevel, stream, subject, chapter, selectedTags } = selectedGenerationMetadata(cardMode);
   const requestedTemplate = ["ncert", "formula", "assertion", "reaction", "journal", "derivation"].includes(cardMode)
     ? cardMode
     : "";
   return generated.map((card) => {
     card.subject = card.subject || subject;
-    card.examTags = [...new Set([...(card.examTags || []), stream, chapter, ...selectedTags].filter(Boolean))].slice(0, 6);
+    card.examTags = [...new Set([...(card.examTags || []), classLevel, stream, chapter, ...selectedTags].filter(Boolean))].slice(0, 6);
     if (requestedTemplate && card.template === "basic") card.template = requestedTemplate;
     if (selectedTags.includes("NCERT Exception / Trap")) card.trap = true;
     return card;
   });
+}
+
+function restoreClassLevel() {
+  const classSelect = $("#classSelect");
+  if (!classSelect) return;
+  try {
+    const savedClass = localStorage.getItem(CLASS_STORE);
+    if ([...classSelect.options].some((option) => option.value === savedClass)) classSelect.value = savedClass;
+  } catch {
+    // The selector remains usable if local storage is unavailable.
+  }
 }
 
 function applyTheme(themeKey, announce = false) {
@@ -2599,6 +2612,13 @@ $("#openOral").addEventListener("click", openOralExam);
 $("#oralClose").addEventListener("click", () => closeOralExam(false));
 $("#oralDone").addEventListener("click", () => closeOralExam(true));
 $("#provider").addEventListener("change", syncProvider);
+$("#classSelect").addEventListener("change", (event) => {
+  try {
+    localStorage.setItem(CLASS_STORE, event.target.value);
+  } catch {
+    // The chosen class still applies to the current deck.
+  }
+});
 $("#lockAi").addEventListener("click", () => lockAI().catch((error) => {
   $("#error").textContent = error.message;
 }));
@@ -3057,6 +3077,7 @@ document.addEventListener("keydown", (event) => {
 });
 
 setupSpatialUi();
+restoreClassLevel();
 loadTheme();
 await load();
 importSharedDeckFromHash();
