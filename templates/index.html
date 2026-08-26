@@ -404,8 +404,16 @@ body[data-workspace="study"] .actions>#manual{display:none!important}
 .generate:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 8px 0 #342677,0 20px 38px #0007}
 .studyAssist{display:flex;justify-content:flex-start;margin:13px 0 0}
 .assistButton{min-width:90px;background:#171b23}
-.face{border-top:3px solid var(--a);background:#151a23}
-.face.back{border-top-color:var(--green);background:#171923}
+.card,.card.flip{transform:none!important}
+.face{
+  transform:rotateY(0deg)!important;
+  transition:transform .55s cubic-bezier(.2,.72,.2,1);
+  border-top:3px solid var(--a);
+  background:#151a23;
+}
+.face.back{transform:rotateY(180deg)!important;border-top-color:var(--green);background:#171923}
+.card.flip .face:not(.back){transform:rotateY(-180deg)!important}
+.card.flip .face.back{transform:rotateY(0deg)!important}
 .face:before{display:none}
 .cardTypeBadge{
   position:absolute!important;
