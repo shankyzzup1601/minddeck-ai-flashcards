@@ -359,7 +359,7 @@ class MindDeckSecurityTests(unittest.TestCase):
     def test_signin_uses_httponly_auth_cookies(self):
         tokens = {
             "access_token": "a" * 128,
-            "refresh_token": "r" * 64,
+            "refresh_token": "r" * 12,
             "expires_in": 3600,
         }
         with patch.dict(os.environ, self.auth_environment(), clear=True), patch.object(
@@ -385,7 +385,7 @@ class MindDeckSecurityTests(unittest.TestCase):
     def test_google_callback_exchanges_pkce_server_side_and_sets_auth_cookies(self):
         tokens = {
             "access_token": "a" * 128,
-            "refresh_token": "r" * 64,
+            "refresh_token": "r" * 12,
             "provider_token": "google-provider-token-must-not-leak",
             "expires_in": 3600,
         }
@@ -494,7 +494,7 @@ class MindDeckSecurityTests(unittest.TestCase):
     def test_signin_accepts_an_existing_password_below_new_account_minimum(self):
         tokens = {
             "access_token": "a" * 128,
-            "refresh_token": "r" * 64,
+            "refresh_token": "r" * 12,
             "expires_in": 3600,
         }
         with patch.dict(os.environ, self.auth_environment(), clear=True), patch.object(
@@ -565,7 +565,7 @@ class MindDeckSecurityTests(unittest.TestCase):
     def test_cloud_deck_is_saved_with_user_scoped_token(self):
         tokens = {
             "access_token": "a" * 128,
-            "refresh_token": "r" * 64,
+            "refresh_token": "r" * 12,
             "expires_in": 3600,
         }
         calls = []
