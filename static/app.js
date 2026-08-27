@@ -209,9 +209,7 @@ function renderSubjectCounts() {
     const matching = cards.filter((card) => subjectMatches(card, workspaceKey));
     const due = matching.filter((card) => Date.parse(card.dueDate) <= now).length;
     const label = $(`[data-subject-count="${workspaceKey}"]`);
-    if (label) label.textContent = String(matching.length).padStart(2, "0");
-    const dueLabel = $(`[data-subject-due="${workspaceKey}"]`);
-    if (dueLabel) dueLabel.textContent = String(due);
+    if (label) label.textContent = due ? `${due} due · ${matching.length} cards` : `${matching.length} cards`;
   }
 }
 
@@ -2567,12 +2565,6 @@ $$('.tab').forEach((button) => {
 const authModal = $("#authModal");
 $("#themeToggle").addEventListener("click", cycleTheme);
 $("#account").addEventListener("click", () => {
-  $("#authError").textContent = "";
-  $("#authMessage").textContent = "";
-  setPasswordVisibility(false);
-  authModal.classList.add("open");
-});
-$("#bottomProfile").addEventListener("click", () => {
   $("#authError").textContent = "";
   $("#authMessage").textContent = "";
   setPasswordVisibility(false);
