@@ -1,0 +1,45 @@
+name: Apply mobile premium polish
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'static/mobile-premium-polish.css'
+      - '.github/workflows/apply-mobile-polish.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inject mobile polish stylesheet into existing CSP-nonced style block
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          html_path = Path('templates/index.html')
+          css_path = Path('static/mobile-premium-polish.css')
+          html = html_path.read_text()
+          css = css_path.read_text()
+          start = '/* BEGIN MOBILE PREMIUM POLISH */'
+          end = '/* END MOBILE PREMIUM POLISH */'
+          block = f'\n{start}\n{css}\n{end}\n'
+          if start in html and end in html:
+              a = html.index(start)
+              b = html.index(end, a) + len(end)
+              html = html[:a] + block.strip() + html[b:]
+          else:
+              marker = '</style>'
+              if marker not in html:
+                  raise SystemExit('No style block found')
+              html = html.replace(marker, block + marker, 1)
+          html_path.write_text(html)
+          PY
+      - name: Commit generated template update
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add templates/index.html
+          git commit -m 'Polish MindDeck mobile dashboard UI'
+          git push
