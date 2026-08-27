@@ -783,6 +783,29 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 .rate,.timerPreset,.smartTool,.quickAction{border-color:#ffffff21;background:linear-gradient(145deg,#ffffff10,#ffffff06);box-shadow:0 5px 0 #050611,inset 0 1px #ffffff16}
 @media(max-width:650px){.heroCard{border-radius:21px}.subjectWorkspace,.heroCard .stats{transform:none}.ambientGrid{transform:none;opacity:.13}.glow{opacity:.12}.panel,.widget{box-shadow:0 8px 0 #050611,0 24px 50px #0007}}
 
+
+/* Classic solid dashboard — intentionally no glass or 3D surfaces. */
+.app .side,.app .top,.app .panel,.app .widget,.app .heroCard,.app .heroCard .stat,
+.app .sideStat,.app .dialog,.app .toast,.app .subjectChip,.app .smartTool,.app .quickAction,
+.app .rate,.app .starterDeck,.app .leechRow,.app .face{
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+  transform:none!important;
+  background:#11151d!important;
+  box-shadow:0 6px 0 #050609!important;
+}
+.app .side{background:#090b10!important;box-shadow:none!important}
+.app .top,.app .phead{background:#0d1016!important}
+.app .heroCard{background:#11151d!important;perspective:none!important}
+.app .heroCard:after,.app .heroCard .stat:before,.app .subjectChip:before,
+.app .smartTool:before,.app .quickAction:before,.app .face:before,.app .face:after,
+.app .widget:before,.app .panel:before{display:none!important}
+.app .subjectChip,.app .smartTool,.app .quickAction,.app .heroCard .stat{
+  border-color:#2b313c!important;
+}
+.app .subjectChip:hover,.app .smartTool:hover,.app .quickAction:hover,
+.app .heroCard .stat:hover{transform:translateY(-2px)!important;background:#171b23!important}
+.app .deckSculpture,.app .deckOrbit,.app .deckSlice{transform:none!important;animation:none!important}
 </style>
 </head>
 <body data-workspace="generate">
