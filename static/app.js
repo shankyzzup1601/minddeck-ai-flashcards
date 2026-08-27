@@ -210,6 +210,8 @@ function renderSubjectCounts() {
     const due = matching.filter((card) => Date.parse(card.dueDate) <= now).length;
     const label = $(`[data-subject-count="${workspaceKey}"]`);
     if (label) label.textContent = String(matching.length);
+    const dueLabel = $(`[data-subject-due="${workspaceKey}"]`);
+    if (dueLabel) dueLabel.textContent = String(due);
   }
 }
 
