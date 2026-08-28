@@ -2,12 +2,17 @@ package app.minddeck.mobile;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.Intent;
 import android.graphics.Color;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
+import android.net.Uri;
+import android.net.http.SslError;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.ViewGroup;
+import android.webkit.SslErrorHandler;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -29,6 +34,7 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         getWindow().setStatusBarColor(Color.rgb(9, 10, 15));
         getWindow().setNavigationBarColor(Color.rgb(9, 10, 15));
+        WebView.setWebContentsDebuggingEnabled(false);
 
         root = new FrameLayout(this);
         root.setBackgroundColor(Color.rgb(9, 10, 15));
@@ -45,7 +51,17 @@ public class MainActivity extends Activity {
         settings.setMediaPlaybackRequiresUserGesture(true);
         settings.setLoadWithOverviewMode(false);
         settings.setUseWideViewPort(false);
-        settings.setUserAgentString(settings.getUserAgentString() + " MindDeckAndroid/1.0");
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(false);
+        settings.setAllowFileAccessFromFileURLs(false);
+        settings.setAllowUniversalAccessFromFileURLs(false);
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        settings.setSupportMultipleWindows(false);
+        settings.setJavaScriptCanOpenWindowsAutomatically(false);
+        settings.setGeolocationEnabled(false);
+        settings.setSaveFormData(false);
+        settings.setUserAgentString(settings.getUserAgentString() + " MindDeckAndroid/1.1");
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) settings.setSafeBrowsingEnabled(true);
 
         webView.setWebChromeClient(new WebChromeClient());
         webView.setWebViewClient(new WebViewClient() {
@@ -65,8 +81,18 @@ public class MainActivity extends Activity {
                 if (request.isForMainFrame() && response.getStatusCode() >= 400) showOffline();
             }
 
+            @Override public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+                handler.cancel();
+                showStatus("A secure connection could not be verified. MindDeck stopped the page to protect your data.");
+            }
+
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                view.loadUrl(request.getUrl().toString());
+                Uri target = request.getUrl();
+                if (isTrustedNavigation(target)) {
+                    view.loadUrl(target.toString());
+                } else {
+                    openExternalBrowser(target);
+                }
                 return true;
             }
         });
@@ -74,6 +100,23 @@ public class MainActivity extends Activity {
         root.addView(webView);
         addStatusView();
         if (isOnline()) webView.loadUrl(APP_URL); else showOffline();
+    }
+
+    private boolean isTrustedNavigation(Uri target) {
+        if (!"https".equalsIgnoreCase(target.getScheme())) return false;
+        String host = target.getHost();
+        if (host == null) return false;
+        host = host.toLowerCase();
+        return host.equals("minddeck-ai-flashcards.vercel.app")
+                || host.endsWith(".supabase.co");
+    }
+
+    private void openExternalBrowser(Uri target) {
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, target));
+        } catch (Exception ignored) {
+            showStatus("This link could not be opened safely.");
+        }
     }
 
     private void addStatusView() {
