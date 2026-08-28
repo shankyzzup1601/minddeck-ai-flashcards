@@ -1,4 +1,4 @@
-name: Build MindDeck Apps
+name: Publish MindDeck installers
 
 on:
   workflow_dispatch:
@@ -7,15 +7,9 @@ on:
       - 'android/**'
       - 'desktop/**'
       - '.github/workflows/android-apk.yml'
-  push:
-    branches: [main]
-    paths:
-      - 'android/**'
-      - 'desktop/**'
-      - '.github/workflows/android-apk.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-android:
@@ -34,11 +28,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
-      - name: Assemble debug APK
+      - name: Assemble Android APK
         run: gradle -p android :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: MindDeck-AI-Android-APK
+          name: android-installer
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
@@ -52,11 +46,30 @@ jobs:
       - name: Install desktop dependencies
         working-directory: desktop
         run: npm install --no-package-lock
-      - name: Package Windows app
+      - name: Package Windows installer
         working-directory: desktop
         run: npm run dist:win
       - uses: actions/upload-artifact@v4
         with:
-          name: MindDeck-AI-Windows-App
+          name: windows-installer
           path: desktop/dist/*.exe
           if-no-files-found: error
+
+  publish-installers:
+    needs: [build-android, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+      - name: Publish direct installer downloads
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: minddeck-v1.0.0
+          name: MindDeck AI v1.0.0
+          prerelease: true
+          target_commitish: codex/android-apk-wrapper
+          files: |
+            release/android-installer/app-debug.apk
+            release/windows-installer/MindDeck-AI-Setup-1.0.0.exe
+          overwrite_files: true
