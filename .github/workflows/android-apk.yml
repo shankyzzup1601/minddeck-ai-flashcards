@@ -61,9 +61,21 @@ jobs:
     needs: [build-android, build-windows]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/android-apk-wrapper
       - uses: actions/download-artifact@v4
         with:
           path: release
+      - name: Publish direct Android file
+        run: |
+          mkdir -p downloads
+          cp release/android-installer/MindDeck.apk downloads/MindDeck.apk
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add downloads/MindDeck.apk
+          git diff --cached --quiet || git commit -m "Publish MindDeck Android installer"
+          git push origin HEAD:codex/android-apk-wrapper
       - name: Publish direct installer downloads
         uses: softprops/action-gh-release@v2
         with:
