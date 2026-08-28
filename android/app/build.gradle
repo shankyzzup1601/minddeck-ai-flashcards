@@ -1,0 +1,16 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'app.minddeck.mobile'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'app.minddeck.mobile'
+        minSdk 24
+        targetSdk 35
+        versionCode 1
+        versionName '1.0.0'
+    }
+}
