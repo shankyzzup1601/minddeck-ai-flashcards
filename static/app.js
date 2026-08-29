@@ -641,13 +641,21 @@ function updateMobileAccountUI() {
 
   if (image && fallbackElement) {
     const showImage = Boolean(avatarUrl && !profile.avatar);
-    image.hidden = !showImage;
-    fallbackElement.hidden = showImage;
     fallbackElement.textContent = fallback;
-    image.onerror = () => {
+    const showFallback = () => {
       image.hidden = true;
       fallbackElement.hidden = false;
     };
+    image.onerror = showFallback;
+    image.onload = () => {
+      if (!image.naturalWidth) {
+        showFallback();
+        return;
+      }
+      image.hidden = false;
+      fallbackElement.hidden = true;
+    };
+    showFallback();
     if (showImage) image.src = avatarUrl;
     else image.removeAttribute("src");
   }
@@ -1421,10 +1429,48 @@ function renderCurrentCard(card) {
 function renderDeck() {
   const list = $("#deckList");
   list.replaceChildren();
+  const dueCount = cards.filter((card) => Date.parse(card.dueDate) <= Date.now()).length;
+  const masteredCount = cards.filter((card) => card.repetition >= 3).length;
+  const masteredPercent = cards.length ? Math.round((masteredCount / cards.length) * 100) : 0;
+  setOptionalText("#deckMetricTotal", cards.length);
+  setOptionalText("#deckMetricDue", dueCount);
+  setOptionalText("#deckMetricMastered", `${masteredPercent}%`);
   if (!cards.length) {
     const empty = document.createElement("div");
-    empty.className = "empty";
-    empty.textContent = "No cards yet. Generate a deck or add one manually.";
+    empty.className = "empty deckEmptyState";
+    const art = document.createElement("div");
+    art.className = "deckEmptyArt";
+    art.setAttribute("aria-hidden", "true");
+    ["Q", "A", "✦"].forEach((label) => {
+      const card = document.createElement("span");
+      card.textContent = label;
+      art.append(card);
+    });
+    const eyebrow = document.createElement("small");
+    eyebrow.textContent = "START YOUR FIRST DECK";
+    const title = document.createElement("h3");
+    title.textContent = "Turn one chapter into lasting memory.";
+    const copy = document.createElement("p");
+    copy.textContent = "Paste your notes and MindDeck will build 15 clear questions, or add a card yourself.";
+    const actions = document.createElement("div");
+    actions.className = "deckEmptyActions";
+    const generate = document.createElement("button");
+    generate.type = "button";
+    generate.dataset.deckEmptyAction = "generate";
+    generate.textContent = "✨ Generate cards";
+    const manual = document.createElement("button");
+    manual.type = "button";
+    manual.dataset.deckEmptyAction = "manual";
+    manual.textContent = "＋ Add one card";
+    actions.append(generate, manual);
+    const suggestions = document.createElement("div");
+    suggestions.className = "deckEmptySuggestions";
+    ["Physics", "Chemistry", "Accountancy", "Biology"].forEach((subject) => {
+      const chip = document.createElement("span");
+      chip.textContent = subject;
+      suggestions.append(chip);
+    });
+    empty.append(art, eyebrow, title, copy, actions, suggestions);
     list.append(empty);
     return;
   }
@@ -1806,8 +1852,10 @@ function updateAccountUI() {
   const accountAvatar = $("#accountAvatar");
   const accountAvatarImage = $("#accountAvatarImage");
   const accountAvatarFallback = $("#accountAvatarFallback");
-  const accountEmail = signedIn ? authState.user.email || "My account" : "";
+  const accountGuestIcon = $("#accountGuestIcon");
   const avatarUrl = signedIn ? authState.user.avatarUrl || "" : "";
+  const profile = mobileProfile();
+  const fallback = profile.avatar || friendlyAccountName().trim().charAt(0).toUpperCase() || "M";
   account.disabled = !authState.enabled;
   accountLabel.textContent = signedIn
     ? "My account"
@@ -1816,18 +1864,29 @@ function updateAccountUI() {
       : "Cloud setup needed";
   account.setAttribute("aria-label", signedIn ? "Open account" : accountLabel.textContent);
   accountAvatar.hidden = !signedIn;
+  if (accountGuestIcon) accountGuestIcon.hidden = signedIn;
   if (signedIn) {
-    accountAvatarFallback.textContent = accountEmail.trim().charAt(0).toUpperCase() || "M";
-    accountAvatarImage.onerror = () => {
+    accountAvatarFallback.textContent = fallback;
+    const showFallback = () => {
       accountAvatarImage.hidden = true;
       accountAvatarFallback.hidden = false;
     };
-    accountAvatarImage.hidden = !avatarUrl;
-    accountAvatarFallback.hidden = Boolean(avatarUrl);
-    if (avatarUrl) accountAvatarImage.src = avatarUrl;
+    accountAvatarImage.onerror = showFallback;
+    accountAvatarImage.onload = () => {
+      if (!accountAvatarImage.naturalWidth) {
+        showFallback();
+        return;
+      }
+      accountAvatarImage.hidden = false;
+      accountAvatarFallback.hidden = true;
+    };
+    showFallback();
+    if (avatarUrl && !profile.avatar) accountAvatarImage.src = avatarUrl;
     else accountAvatarImage.removeAttribute("src");
   } else {
     accountAvatarImage.removeAttribute("src");
+    accountAvatarImage.hidden = true;
+    accountAvatarFallback.hidden = false;
   }
   $("#authSignedOut").hidden = signedIn;
   $("#authSignedIn").hidden = !signedIn;
@@ -2910,6 +2969,8 @@ const openPrimaryStudyFlow = () => {
 $("#mobileStartLearning").addEventListener("click", openPrimaryStudyFlow);
 $("#mobileReviewNow").addEventListener("click", openPrimaryStudyFlow);
 $("#mobileSeeDeck").addEventListener("click", () => setWorkspace("deck"));
+$("#deckGenerateAction").addEventListener("click", () => setWorkspace("generate"));
+$("#deckAddAction").addEventListener("click", () => openManualCreator());
 $("#mobilePlannerShortcut").addEventListener("click", () => setWorkspace("planner"));
 $("#mobilePlanOpen").addEventListener("click", () => setWorkspace("planner"));
 $("#mobileFormulaShortcut").addEventListener("click", startFormulaCram);
@@ -3467,6 +3528,15 @@ $("#saveCard").addEventListener("click", async () => {
 });
 
 $("#deckList").addEventListener("click", (event) => {
+  const emptyAction = event.target.closest("[data-deck-empty-action]");
+  if (emptyAction?.dataset.deckEmptyAction === "generate") {
+    setWorkspace("generate");
+    return;
+  }
+  if (emptyAction?.dataset.deckEmptyAction === "manual") {
+    openManualCreator();
+    return;
+  }
   const button = event.target.closest("[data-del]");
   if (!button) return;
   const [removed] = cards.splice(Number(button.dataset.del), 1);
@@ -3554,7 +3624,20 @@ loadAccount()
   })
   .finally(loadTimerState);
 if ("serviceWorker" in navigator) {
+  const shellRefreshKey = "minddeck-shell-v23-refreshed";
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    try {
+      if (sessionStorage.getItem(shellRefreshKey)) return;
+      sessionStorage.setItem(shellRefreshKey, "1");
+    } catch {
+      // Reloading once is still safe when session storage is unavailable.
+    }
+    window.location.reload();
+  });
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/static/sw.js", { scope: "/" }).catch(() => {});
+    navigator.serviceWorker
+      .register("/static/sw.js?v=23", { scope: "/", updateViaCache: "none" })
+      .then((registration) => registration.update())
+      .catch(() => {});
   });
 }

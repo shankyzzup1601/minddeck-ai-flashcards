@@ -909,7 +909,7 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 }
 /* END MOBILE PREMIUM POLISH */
 </style>
-<link rel="stylesheet" href="/static/mobile-reference.css?v=3">
+<link rel="stylesheet" href="/static/mobile-reference.css?v=4">
 </head>
 <body data-workspace="home">
 <div id="splash-screen" role="dialog" aria-modal="true" aria-label="MindDeck is loading">
@@ -993,6 +993,7 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 <span id="themeName">Cosmic</span>
 </button>
 <button class="btn account" id="account" type="button" disabled>
+<span class="accountGuestIcon" id="accountGuestIcon" aria-hidden="true">👤</span>
 <span class="accountAvatar" id="accountAvatar" hidden aria-hidden="true">
 <img id="accountAvatarImage" alt="" referrerpolicy="no-referrer" hidden>
 <span id="accountAvatarFallback">M</span>
@@ -1606,8 +1607,23 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 </article>
 </section>
 <article class="panel deck">
-<div class="phead">
-<h3>Current deck</h3>
+<section class="deckOverview" aria-labelledby="deckOverviewTitle">
+<div class="deckOverviewTop">
+<div><small>YOUR STUDY LIBRARY</small><h2 id="deckOverviewTitle">Everything you want to remember.</h2><p>Build focused decks, review at the right time, and watch your recall grow.</p></div>
+<div class="deckStackArt" aria-hidden="true"><span>Q</span><span>A</span><i>✦</i></div>
+</div>
+<div class="deckOverviewActions">
+<button class="deckPrimaryAction" id="deckGenerateAction" type="button"><span aria-hidden="true">✨</span> Generate a deck</button>
+<button class="deckSecondaryAction" id="deckAddAction" type="button"><span aria-hidden="true">＋</span> Add card</button>
+</div>
+</section>
+<div class="deckMetricStrip" aria-label="Deck summary">
+<div><span aria-hidden="true">📚</span><strong id="deckMetricTotal">0</strong><small>Total cards</small></div>
+<div><span aria-hidden="true">⏳</span><strong id="deckMetricDue">0</strong><small>Due today</small></div>
+<div><span aria-hidden="true">🏆</span><strong id="deckMetricMastered">0%</strong><small>Mastered</small></div>
+</div>
+<div class="phead deckListHeading">
+<div><small>FLASHCARDS</small><h3>Your cards</h3></div>
 <span class="syncState" id="syncState" data-state="idle">Saved on this device</span>
 </div>
 <div id="deckList">
@@ -1915,6 +1931,6 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
   }, 35);
 })();
 </script>
-<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=17"></script>
+<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=18"></script>
 </body>
 </html>
