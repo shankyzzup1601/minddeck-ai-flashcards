@@ -90,8 +90,7 @@ let reviewed = new Set();
 let fileText = "";
 let photoFile = null;
 let photoPreviewUrl = "";
-let aiProviders = { openai: false, gemini: false };
-let unlockedProvider = null;
+let aiProviders = { minddeck: false, openai: false, gemini: false };
 let deckUpdatedAt = 0;
 let authState = { enabled: false, googleEnabled: false, user: null };
 let syncTimer = null;
@@ -1699,64 +1698,63 @@ async function apiRequest(path, { method = "POST", body = null, refreshAuth = fa
 
 const apiPost = (path, body) => apiRequest(path, { body });
 
-async function unlockAI(provider, accessCode) {
-  const data = await apiPost("/api/unlock", { provider, accessCode });
-  unlockedProvider = data.provider;
-  return data;
-}
-
-async function generateWithAI(text, provider, cardMode) {
-  const data = await apiPost("/api/generate", { text, provider, cardMode });
+async function generateWithAI(text, cardMode) {
+  const data = await apiRequest("/api/generate", {
+    body: { text, provider: "minddeck", cardMode },
+    refreshAuth: true,
+  });
   return data.cards;
 }
 
-async function generateFromImage(file, provider, cardMode) {
+async function generateFromImage(file, cardMode) {
   const imageData = await fileToDataUrl(file);
-  const data = await apiPost("/api/vision", { imageData, provider, cardMode });
+  const data = await apiRequest("/api/vision", {
+    body: { imageData, provider: "minddeck", cardMode },
+    refreshAuth: true,
+  });
   return data.cards;
 }
 
-async function generateHintsWithAI(card, provider) {
-  const data = await apiPost("/api/hint", {
-    provider,
-    front: card.front,
-    back: card.back,
+async function generateHintsWithAI(card) {
+  const data = await apiRequest("/api/hint", {
+    body: {
+      provider: "minddeck",
+      front: card.front,
+      back: card.back,
+    },
+    refreshAuth: true,
   });
   return Array.isArray(data.hints) ? data.hints : [];
 }
 
-async function lockAI() {
-  await apiPost("/api/lock", {});
-  unlockedProvider = null;
-  $("#accessCode").value = "";
-  syncProvider();
-  toast("Online AI locked");
-}
-
-function updateSecurityHint() {
-  const ready = aiProviders.openai || aiProviders.gemini;
-  if (unlockedProvider) {
-    $("#securityHint").textContent = "🔐 Online AI unlocked in a secure 15-minute session.";
-  } else if (ready) {
-    $("#securityHint").textContent = "🔒 API key protected on the server. Enter the owner access code to unlock AI.";
-  } else {
-    $("#securityHint").textContent = "🔒 Online AI is fully locked. Offline mode is ready.";
-  }
+function generationButtonLabel() {
+  return aiProviders.minddeck
+    ? `✨ Generate ${GENERATED_DECK_SIZE} with AI`
+    : `✨ Create ${GENERATED_DECK_SIZE} offline`;
 }
 
 function syncProvider() {
-  const provider = $("#provider").value;
-  const online = provider !== "offline";
-  const alreadyUnlocked = online && unlockedProvider === provider;
-  $("#accessCode").disabled = !online || alreadyUnlocked;
-  $("#accessCode").placeholder = alreadyUnlocked ? "Secure session unlocked" : "Owner access code";
-  $("#lockAi").hidden = !unlockedProvider;
-  if (!online || alreadyUnlocked) $("#accessCode").value = "";
-  const providerNames = { offline: "Works offline", openai: "Secure OpenAI", gemini: "Secure Gemini" };
-  $("#generationProviderLabel").textContent = alreadyUnlocked
-    ? `${providerNames[provider]} · unlocked`
-    : providerNames[provider] || "Works offline";
-  updateSecurityHint();
+  const ready = Boolean(aiProviders.minddeck);
+  const signedIn = Boolean(authState.user);
+  $("#provider").value = ready ? "minddeck" : "offline";
+  $("#generationProviderLabel").textContent = ready
+    ? signedIn
+      ? "MindDeck AI · Ready"
+      : "MindDeck AI · Sign in to generate"
+    : "Offline creation · AI reconnecting";
+  $("#aiStatusBadge").textContent = ready ? (signedIn ? "READY" : "SIGN IN") : "OFFLINE";
+  $("#aiStatusBadge").dataset.state = ready ? (signedIn ? "ready" : "signin") : "offline";
+  $("#aiStatusTitle").textContent = ready
+    ? signedIn
+      ? "Your AI workspace is ready"
+      : "Sign in once to start creating"
+    : "Offline creation is still available";
+  $("#securityHint").textContent = ready
+    ? signedIn
+      ? "🔒 Your account connects securely to MindDeck AI. No keys or access codes needed."
+      : "✨ MindDeck AI is built in. Sign in to keep generation private and tied to your account."
+    : "📚 You can still build cards locally while MindDeck AI reconnects.";
+  $("#generate").textContent = generationButtonLabel();
 }
 
 async function loadConfig() {
@@ -1771,16 +1769,8 @@ async function loadConfig() {
     const data = await response.json();
     if (!response.ok) throw new Error();
     aiProviders = data.providers || aiProviders;
-    unlockedProvider = typeof data.unlockedProvider === "string" ? data.unlockedProvider : null;
-    for (const provider of ["openai", "gemini"]) {
-      const option = $(`#provider option[value="${provider}"]`);
-      const ready = Boolean(aiProviders[provider]);
-      option.disabled = !ready;
-      option.textContent = `${provider === "openai" ? "Secure OpenAI" : "Secure Gemini"}${ready ? "" : " · locked"}`;
-    }
   } catch {
-    aiProviders = { openai: false, gemini: false };
-    unlockedProvider = null;
+    aiProviders = { minddeck: false, openai: false, gemini: false };
   }
   syncProvider();
 }
@@ -1788,38 +1778,6 @@ async function loadConfig() {
 function openSettings() {
   syncProvider();
   $("#settingsModal").classList.add("open");
-}
-
-async function unlockSelectedAI() {
-  const provider = $("#provider").value;
-  if (provider === "offline") {
-    toast("Offline generation is already ready");
-    return;
-  }
-  if (unlockedProvider === provider) {
-    toast(`${provider === "openai" ? "OpenAI" : "Gemini"} is already unlocked`);
-    return;
-  }
-  const accessCode = $("#accessCode").value;
-  if (!accessCode) {
-    $("#securityHint").textContent = "Enter the owner access code to unlock this provider.";
-    $("#accessCode").focus();
-    return;
-  }
-  const button = $("#settingsUnlock");
-  button.disabled = true;
-  button.textContent = "Unlocking…";
-  try {
-    await unlockAI(provider, accessCode);
-    $("#accessCode").value = "";
-    syncProvider();
-    toast("Secure AI session unlocked");
-  } catch (error) {
-    $("#securityHint").textContent = error.message || "Could not unlock AI.";
-  } finally {
-    button.disabled = false;
-    button.textContent = "Unlock selected AI";
-  }
 }
 
 function openOralExam() {
@@ -1911,6 +1869,7 @@ function updateAccountUI() {
     markOnboardingComplete();
     window.minddeckDismissSplash?.();
   }
+  syncProvider();
 }
 
 async function fetchAuthConfig() {
@@ -2310,12 +2269,12 @@ async function showNextHint() {
   button.disabled = true;
   try {
     if (!card.hints.length) {
-      if (unlockedProvider) {
+      if (aiProviders.minddeck && authState.user) {
         try {
-          card.hints = (await generateHintsWithAI(card, unlockedProvider)).slice(0, 3);
+          card.hints = (await generateHintsWithAI(card)).slice(0, 3);
         } catch {
           card.hints = buildOfflineHints(card.back);
-          toast("Using private offline hints");
+          toast("Using offline hints for this card");
         }
       } else {
         card.hints = buildOfflineHints(card.back);
@@ -3143,11 +3102,9 @@ $("#settings").addEventListener("click", openSettings);
 $("#openGeneratorSettings").addEventListener("click", openSettings);
 $("#settingsClose").addEventListener("click", () => $("#settingsModal").classList.remove("open"));
 $("#settingsDone").addEventListener("click", () => $("#settingsModal").classList.remove("open"));
-$("#settingsUnlock").addEventListener("click", unlockSelectedAI);
 $("#openOral").addEventListener("click", openOralExam);
 $("#oralClose").addEventListener("click", () => closeOralExam(false));
 $("#oralDone").addEventListener("click", () => closeOralExam(true));
-$("#provider").addEventListener("change", syncProvider);
 $("#classSelect").addEventListener("change", (event) => {
   try {
     localStorage.setItem(CLASS_STORE, event.target.value);
@@ -3156,9 +3113,6 @@ $("#classSelect").addEventListener("change", (event) => {
   }
   updateMobileAccountUI();
 });
-$("#lockAi").addEventListener("click", () => lockAI().catch((error) => {
-  $("#error").textContent = error.message;
-}));
 $("#scene").addEventListener("click", toggleCardFlip);
 $("#next").addEventListener("click", next);
 $("#prev").addEventListener("click", previous);
@@ -3274,7 +3228,6 @@ $("#generate").addEventListener("click", async () => {
   const text = (activePane === "notesPane" ? $("#notes").value : fileText).trim();
   const provider = $("#provider").value;
   const cardMode = $("#cardMode").value;
-  const accessCode = $("#accessCode").value;
   const button = $("#generate");
   $("#error").textContent = "";
 
@@ -3286,37 +3239,30 @@ $("#generate").addEventListener("click", async () => {
     $("#error").textContent = "Add more notes or upload a file first.";
     return;
   }
-  if (provider !== "offline" && !aiProviders[provider]) {
-    $("#error").textContent = "This AI provider is securely locked.";
-    return;
-  }
-  if (provider !== "offline" && unlockedProvider !== provider && !accessCode) {
-    $("#error").textContent = "Open AI settings to unlock this provider, or choose offline mode.";
+  if (provider === "minddeck" && !authState.user) {
+    $("#error").textContent = "Sign in once to generate with MindDeck AI—no key or access code needed.";
+    openAuthFlow("signin");
     return;
   }
 
   button.disabled = true;
   try {
-    if (provider !== "offline" && unlockedProvider !== provider) {
-      button.textContent = "Unlocking secure AI…";
-      await unlockAI(provider, accessCode);
-      $("#accessCode").value = "";
-      syncProvider();
-    }
-    button.textContent = isPhoto ? "Reading image…" : "Generating…";
+    button.textContent = isPhoto
+      ? provider === "minddeck" ? "✨ AI is reading your image…" : "Reading image offline…"
+      : provider === "minddeck" ? "✨ MindDeck AI is creating…" : "Creating offline…";
     let generated;
     if (isPhoto && provider === "offline") {
       const extracted = await extractTextWithBrowserOcr(photoFile);
       if (extracted.length < 20) throw new Error("The browser could not find enough readable text in that image.");
       generated = parseOffline(extracted, cardMode);
     } else if (isPhoto) {
-      generated = (await generateFromImage(photoFile, provider, cardMode))
+      generated = (await generateFromImage(photoFile, cardMode))
         .map((item) => normalizeCard(item))
         .filter(Boolean);
     } else if (provider === "offline") {
       generated = parseOffline(text, cardMode);
     } else {
-      generated = (await generateWithAI(text, provider, cardMode))
+      generated = (await generateWithAI(text, cardMode))
         .map((item) => normalizeCard(item))
         .filter(Boolean);
     }
@@ -3331,14 +3277,13 @@ $("#generate").addEventListener("click", async () => {
     toast(`Created all ${GENERATED_DECK_SIZE} exam-ready questions`);
   } catch (error) {
     if (error.status === 401) {
-      unlockedProvider = null;
-      syncProvider();
+      await loadAccount();
+      openAuthFlow("signin");
     }
     $("#error").textContent = error.message || "Generation failed.";
   } finally {
-    $("#accessCode").value = "";
     button.disabled = false;
-    button.textContent = `✦ Create ${GENERATED_DECK_SIZE} questions`;
+    button.textContent = generationButtonLabel();
   }
 });
 
@@ -3637,7 +3582,7 @@ loadAccount()
   })
   .finally(loadTimerState);
 if ("serviceWorker" in navigator) {
-  const shellRefreshKey = "minddeck-shell-v25-refreshed";
+  const shellRefreshKey = "minddeck-shell-v26-refreshed";
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     try {
       if (sessionStorage.getItem(shellRefreshKey)) return;
@@ -3649,7 +3594,7 @@ if ("serviceWorker" in navigator) {
   });
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("/static/sw.js?v=25", { scope: "/", updateViaCache: "none" })
+      .register("/static/sw.js?v=26", { scope: "/", updateViaCache: "none" })
       .then((registration) => registration.update())
       .catch(() => {});
   });

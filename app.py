@@ -29,6 +29,8 @@ AI_SESSION_SECONDS = 15 * 60
 CSRF_SECONDS = 24 * 60 * 60
 AUTH_REFRESH_SECONDS = 30 * 24 * 60 * 60
 OAUTH_TRANSACTION_SECONDS = 10 * 60
+AI_GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions"
+DEFAULT_AI_GATEWAY_MODEL = "google/gemini-3.6-flash"
 
 _rate_buckets: dict[str, deque[float]] = defaultdict(deque)
 _rate_lock = threading.Lock()
@@ -45,6 +47,30 @@ def configured_model(provider: str) -> str:
     fallback = "gpt-4o-mini" if provider == "openai" else "gemini-2.0-flash"
     candidate = os.environ.get(variable, fallback).strip()
     return candidate if re.fullmatch(r"[A-Za-z0-9._-]{1,100}", candidate) else fallback
+
+
+def ai_gateway_token() -> str:
+    """Return only a plausible server-issued Gateway credential."""
+    candidate = (
+        os.environ.get("AI_GATEWAY_API_KEY", "").strip()
+        or os.environ.get("VERCEL_OIDC_TOKEN", "").strip()
+    )
+    if not 20 <= len(candidate) <= 16_384 or any(ord(character) < 33 for character in candidate):
+        return ""
+    return candidate
+
+
+def ai_gateway_model() -> str:
+    candidate = os.environ.get("AI_GATEWAY_MODEL", DEFAULT_AI_GATEWAY_MODEL).strip().lower()
+    return (
+        candidate
+        if re.fullmatch(r"[a-z0-9][a-z0-9._-]{0,50}/[a-z0-9][a-z0-9._-]{0,100}", candidate)
+        else DEFAULT_AI_GATEWAY_MODEL
+    )
+
+
+def minddeck_ai_ready() -> bool:
+    return bool(ai_gateway_token())
 
 
 def access_code_hash() -> str:
@@ -802,9 +828,11 @@ def home():
 def api_config():
     return jsonify(
         providers={
+            "minddeck": minddeck_ai_ready(),
             "openai": provider_ready("openai"),
             "gemini": provider_ready("gemini"),
         },
+        minddeckAi={"ready": minddeck_ai_ready(), "requiresSignIn": True},
         unlockedProvider=unlocked_provider(),
         sessionSeconds=AI_SESSION_SECONDS,
     )
@@ -1183,7 +1211,8 @@ def post_json(url: str, payload: dict, headers: dict | None = None) -> dict:
     parsed = urlparse(url)
     if not (
         parsed.scheme == "https"
-        and parsed.hostname in {"api.openai.com", "generativelanguage.googleapis.com"}
+        and parsed.hostname
+        in {"api.openai.com", "generativelanguage.googleapis.com", "ai-gateway.vercel.sh"}
         and parsed.username is None
         and parsed.password is None
         and parsed.port in {None, 443}
@@ -1344,6 +1373,8 @@ def card_mode_instruction(card_mode: str) -> str:
 
 
 def text_provider_response(provider: str, prompt: str, max_tokens: int = 8_000) -> str:
+    if provider == "minddeck":
+        raise ValueError("MindDeck AI requests require an account identifier.")
     if provider == "openai":
         data = post_json(
             "https://api.openai.com/v1/chat/completions",
@@ -1372,6 +1403,70 @@ def text_provider_response(provider: str, prompt: str, max_tokens: int = 8_000) 
         {"x-goog-api-key": configured_key("gemini")},
     )
     return data["candidates"][0]["content"]["parts"][0]["text"]
+
+
+def minddeck_ai_response(
+    prompt: str,
+    account_key: str,
+    max_tokens: int = 8_000,
+    image: tuple[str, str] | None = None,
+) -> str:
+    if not minddeck_ai_ready() or not re.fullmatch(r"[a-f0-9]{24}", account_key):
+        raise ValueError("MindDeck AI is not ready.")
+
+    content: str | list[dict] = prompt
+    if image:
+        mime_type, encoded = image
+        content = [
+            {"type": "text", "text": prompt},
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:{mime_type};base64,{encoded}",
+                    "detail": "high",
+                },
+            },
+        ]
+
+    data = post_json(
+        AI_GATEWAY_URL,
+        {
+            "model": ai_gateway_model(),
+            "messages": [{"role": "user", "content": content}],
+            "temperature": 0.2,
+            "max_tokens": max_tokens,
+            "response_format": {"type": "json_object"},
+            "store": False,
+            "providerOptions": {
+                "gateway": {
+                    "user": account_key,
+                    "tags": ["app:minddeck", "feature:study-generation"],
+                }
+            },
+        },
+        {"Authorization": f"Bearer {ai_gateway_token()}"},
+    )
+    content_value = data["choices"][0]["message"]["content"]
+    if not isinstance(content_value, str) or not content_value.strip():
+        raise ValueError("MindDeck AI returned no content.")
+    return content_value
+
+
+def ai_http_error_response(exc: urllib.error.HTTPError, feature: str = "request"):
+    """Turn Gateway/provider failures into useful messages without exposing credentials."""
+    app.logger.warning("AI %s failed with status %s", feature, exc.code)
+    if exc.code == 429:
+        response = jsonify(error="MindDeck AI is busy. Please wait a moment and try again.")
+        response.status_code = 429
+        retry_after = exc.headers.get("Retry-After") if exc.headers else None
+        if retry_after and re.fullmatch(r"[0-9]{1,6}", retry_after):
+            response.headers["Retry-After"] = retry_after
+        return response
+    if exc.code == 402:
+        return jsonify(error="MindDeck AI credits are temporarily unavailable."), 503
+    if exc.code in {401, 403}:
+        return jsonify(error="MindDeck AI is temporarily unavailable."), 503
+    return jsonify(error="MindDeck AI could not complete the request. Please try again."), 502
 
 
 def parse_hints(raw: str) -> list[str]:
@@ -1403,14 +1498,27 @@ def generate():
 
     if "apiKey" in body or "accessCode" in body:
         return jsonify(error="Secrets are not accepted by this endpoint."), 400
-    if provider not in {"openai", "gemini"}:
+    if provider not in {"minddeck", "openai", "gemini"}:
         return jsonify(error="Select a supported AI provider."), 400
     if card_mode not in AI_CARD_MODES:
         return jsonify(error="Select a valid card style."), 400
-    if not provider_ready(provider):
-        return jsonify(error="This AI provider is securely locked by the owner."), 503
-    if unlocked_provider() != provider:
-        return jsonify(error="Unlock AI with the owner access code."), 401
+    user = None
+    if provider == "minddeck":
+        if not minddeck_ai_ready():
+            return jsonify(error="MindDeck AI is temporarily unavailable. Offline creation still works."), 503
+        user = current_cloud_user()
+        if not user:
+            return jsonify(error="Sign in to use MindDeck AI."), 401
+        allowed, retry_after = rate_limit_ok(
+            f"minddeck-generate:{user['account_key']}", 5, 10 * 60
+        )
+        if not allowed:
+            return limited_response(retry_after)
+    else:
+        if not provider_ready(provider):
+            return jsonify(error="This AI provider is securely locked by the owner."), 503
+        if unlocked_provider() != provider:
+            return jsonify(error="Unlock AI with the owner access code."), 401
     if len(notes) < 20:
         return jsonify(error="Please provide more notes."), 400
     if len(notes) > MAX_NOTES_CHARS:
@@ -1428,10 +1536,14 @@ def generate():
     )
 
     try:
-        return jsonify(cards=parse_cards(text_provider_response(provider, prompt)))
+        raw = (
+            minddeck_ai_response(prompt, user["account_key"])
+            if provider == "minddeck" and user
+            else text_provider_response(provider, prompt)
+        )
+        return jsonify(cards=parse_cards(raw))
     except urllib.error.HTTPError as exc:
-        app.logger.warning("AI provider request failed with status %s", exc.code)
-        return jsonify(error="The AI provider rejected the request."), 502
+        return ai_http_error_response(exc, "generation request")
     except (KeyError, ValueError, TypeError, json.JSONDecodeError):
         return jsonify(error="The AI returned an unexpected response. Please try again."), 502
     except Exception:
@@ -1476,12 +1588,25 @@ def generate_from_image():
     card_mode = str(body.get("cardMode", "mixed")).lower().strip()
     if "apiKey" in body or "accessCode" in body:
         return jsonify(error="Secrets are not accepted by this endpoint."), 400
-    if provider not in {"openai", "gemini"} or card_mode not in AI_CARD_MODES:
+    if provider not in {"minddeck", "openai", "gemini"} or card_mode not in AI_CARD_MODES:
         return jsonify(error="Select a supported provider and card style."), 400
-    if not provider_ready(provider):
-        return jsonify(error="This AI provider is securely locked by the owner."), 503
-    if unlocked_provider() != provider:
-        return jsonify(error="Unlock AI with the owner access code."), 401
+    user = None
+    if provider == "minddeck":
+        if not minddeck_ai_ready():
+            return jsonify(error="MindDeck AI is temporarily unavailable. Offline creation still works."), 503
+        user = current_cloud_user()
+        if not user:
+            return jsonify(error="Sign in to use MindDeck AI."), 401
+        allowed, retry_after = rate_limit_ok(
+            f"minddeck-vision:{user['account_key']}", 3, 10 * 60
+        )
+        if not allowed:
+            return limited_response(retry_after)
+    else:
+        if not provider_ready(provider):
+            return jsonify(error="This AI provider is securely locked by the owner."), 503
+        if unlocked_provider() != provider:
+            return jsonify(error="Unlock AI with the owner access code."), 401
     try:
         mime_type, encoded = parse_image_data(body.get("imageData"))
     except ValueError:
@@ -1497,7 +1622,9 @@ def generate_from_image():
         + "Do not include Markdown."
     )
     try:
-        if provider == "openai":
+        if provider == "minddeck" and user:
+            raw = minddeck_ai_response(prompt, user["account_key"], image=(mime_type, encoded))
+        elif provider == "openai":
             data = post_json(
                 "https://api.openai.com/v1/chat/completions",
                 {
@@ -1549,8 +1676,7 @@ def generate_from_image():
             raw = data["candidates"][0]["content"]["parts"][0]["text"]
         return jsonify(cards=parse_cards(raw))
     except urllib.error.HTTPError as exc:
-        app.logger.warning("AI vision request failed with status %s", exc.code)
-        return jsonify(error="The AI provider rejected the image request."), 502
+        return ai_http_error_response(exc, "image request")
     except (KeyError, ValueError, TypeError, json.JSONDecodeError):
         return jsonify(error="The AI could not create cards from that image."), 502
     except Exception:
@@ -1573,12 +1699,25 @@ def generate_hints():
     back = body.get("back", "")
     if "apiKey" in body or "accessCode" in body:
         return jsonify(error="Secrets are not accepted by this endpoint."), 400
-    if provider not in {"openai", "gemini"}:
+    if provider not in {"minddeck", "openai", "gemini"}:
         return jsonify(error="Select a supported AI provider."), 400
-    if not provider_ready(provider):
-        return jsonify(error="This AI provider is securely locked by the owner."), 503
-    if unlocked_provider() != provider:
-        return jsonify(error="Unlock AI with the owner access code."), 401
+    user = None
+    if provider == "minddeck":
+        if not minddeck_ai_ready():
+            return jsonify(error="MindDeck AI is temporarily unavailable."), 503
+        user = current_cloud_user()
+        if not user:
+            return jsonify(error="Sign in to use MindDeck AI."), 401
+        allowed, retry_after = rate_limit_ok(
+            f"minddeck-hint:{user['account_key']}", 20, 10 * 60
+        )
+        if not allowed:
+            return limited_response(retry_after)
+    else:
+        if not provider_ready(provider):
+            return jsonify(error="This AI provider is securely locked by the owner."), 503
+        if unlocked_provider() != provider:
+            return jsonify(error="Unlock AI with the owner access code."), 401
     if not (
         isinstance(front, str)
         and isinstance(back, str)
@@ -1596,10 +1735,14 @@ def generate_hints():
         + back.strip()
     )
     try:
-        return jsonify(hints=parse_hints(text_provider_response(provider, prompt, 800)))
+        raw = (
+            minddeck_ai_response(prompt, user["account_key"], 800)
+            if provider == "minddeck" and user
+            else text_provider_response(provider, prompt, 800)
+        )
+        return jsonify(hints=parse_hints(raw))
     except urllib.error.HTTPError as exc:
-        app.logger.warning("AI hint request failed with status %s", exc.code)
-        return jsonify(error="The AI provider rejected the hint request."), 502
+        return ai_http_error_response(exc, "hint request")
     except (KeyError, ValueError, TypeError, json.JSONDecodeError):
         return jsonify(error="The AI returned unusable hints."), 502
     except Exception:

@@ -57,7 +57,7 @@ test("My Deck has a guided empty state and reliable account fallback", () => {
   assert.match(app, /dataset\.deckEmptyAction/);
   assert.match(app, /accountAvatarImage\.onload/);
   assert.match(app, /updateViaCache: "none"/);
-  assert.match(app, /minddeck-shell-v25-refreshed/);
+  assert.match(app, /minddeck-shell-v26-refreshed/);
 });
 
 test("Science and Commerce shelves include complete subject shortcuts", () => {
@@ -79,12 +79,28 @@ test("Science and Commerce shelves include complete subject shortcuts", () => {
 });
 
 test("mobile UI assets are versioned and available offline", () => {
-  assert.match(html, /mobile-reference\.css\?v=6/);
-  assert.match(html, /app\.js\?v=20/);
-  assert.match(serviceWorker, /minddeck-shell-v25/);
-  assert.match(serviceWorker, /mobile-reference\.css\?v=6/);
-  assert.match(serviceWorker, /app\.js\?v=20/);
+  assert.match(html, /mobile-reference\.css\?v=7/);
+  assert.match(html, /app\.js\?v=21/);
+  assert.match(serviceWorker, /minddeck-shell-v26/);
+  assert.match(serviceWorker, /mobile-reference\.css\?v=7/);
+  assert.match(serviceWorker, /app\.js\?v=21/);
   assert.match(css, /@media \(max-width: 760px\)/);
+});
+
+test("generation presents one built-in MindDeck AI experience", () => {
+  assert.match(html, /id="settingsTitle">MindDeck AI</);
+  assert.match(html, /id="aiStatusBadge"/);
+  assert.match(html, /Notes to cards/);
+  assert.match(html, /Photo understanding/);
+  assert.match(html, /Smart hints/);
+  assert.match(html, /Generate 15 with AI/);
+  assert.doesNotMatch(html, /Owner access code/);
+  assert.doesNotMatch(html, /Unlock selected AI/);
+  assert.doesNotMatch(html, /Secure OpenAI/);
+  assert.doesNotMatch(html, /Secure Gemini/);
+  assert.match(app, /provider: "minddeck"/);
+  assert.match(app, /Sign in once to generate with MindDeck AI/);
+  assert.match(css, /\.aiStatusCard/);
 });
 
 test("document IDs remain unique", () => {

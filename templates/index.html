@@ -921,7 +921,7 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 }
 /* END MOBILE PREMIUM POLISH */
 </style>
-<link rel="stylesheet" href="/static/mobile-reference.css?v=6">
+<link rel="stylesheet" href="/static/mobile-reference.css?v=7">
 </head>
 <body data-workspace="home">
 <div id="splash-screen" role="dialog" aria-modal="true" aria-label="MindDeck is loading">
@@ -1541,10 +1541,10 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 <label><input class="examTagInput" type="checkbox" value="Formula Only"> Formula Only</label>
 </fieldset>
 <div class="generationProviderNote">
-<span id="generationProviderLabel">Works offline</span>
-<button id="openGeneratorSettings" type="button">AI settings</button>
+<span id="generationProviderLabel">MindDeck AI · Connecting…</span>
+<button id="openGeneratorSettings" type="button">About MindDeck AI</button>
 </div>
-<button class="generate" id="generate">✦ Create 15 questions</button>
+<button class="generate" id="generate">✨ Generate 15 with AI</button>
 <div class="error" id="error">
 </div>
 </div>
@@ -1743,24 +1743,30 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 </div>
 </div>
 <div class="modal" id="settingsModal">
-<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+<div class="dialog aiSettingsDialog" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
 <div class="dhead">
-<div><h3 id="settingsTitle">AI &amp; profile settings</h3><p class="authCopy">Provider access stays out of the card creator and is protected by the server.</p></div>
+<div><span class="aiEyebrow">✨ BUILT INTO YOUR STUDY FLOW</span><h3 id="settingsTitle">MindDeck AI</h3><p class="authCopy">Turn your own material into focused study cards—without choosing a provider or entering a key.</p></div>
 <button class="close" id="settingsClose" type="button" aria-label="Close settings">×</button>
 </div>
-<label for="provider">Generation provider</label>
-<div class="api settingsApi">
-<select id="provider">
-<option value="offline">Works offline</option>
-<option value="openai" disabled>Secure OpenAI · locked</option>
-<option value="gemini" disabled>Secure Gemini · locked</option>
-</select>
-<input id="accessCode" type="password" autocomplete="off" placeholder="Owner access code" disabled>
-<button class="lockAi" id="lockAi" type="button" hidden>Lock AI</button>
+<div class="aiStatusCard">
+<div class="aiStatusOrb" aria-hidden="true">🧠</div>
+<div class="aiStatusBody">
+<span class="aiStatusBadge" id="aiStatusBadge" data-state="offline">CONNECTING</span>
+<strong id="aiStatusTitle">Connecting to your AI workspace…</strong>
+<p id="securityHint">✨ MindDeck AI is built in. No API keys or access codes needed.</p>
 </div>
-<p class="hint" id="securityHint">🔒 Online AI is fully locked. Offline mode is ready.</p>
+</div>
+<div class="aiCapabilityGrid" aria-label="MindDeck AI features">
+<article><span aria-hidden="true">📝</span><strong>Notes to cards</strong><small>Creates 15 focused questions from pasted notes and files.</small></article>
+<article><span aria-hidden="true">📸</span><strong>Photo understanding</strong><small>Reads textbook pages, handwriting, and whiteboards.</small></article>
+<article><span aria-hidden="true">💡</span><strong>Smart hints</strong><small>Builds progressive clues while keeping the answer hidden.</small></article>
+</div>
+<div class="aiPrivacyNote"><span aria-hidden="true">🛡️</span><p><strong>Private by design</strong><small>Your account is verified by the server. Provider credentials never enter the app or your browser.</small></p></div>
+<select id="provider" hidden aria-hidden="true" tabindex="-1">
+<option value="minddeck">MindDeck AI</option>
+<option value="offline">Offline creation</option>
+</select>
 <div class="dactions">
-<button class="btn" id="settingsUnlock" type="button">Unlock selected AI</button>
 <button class="btn primary" id="settingsDone" type="button">Done</button>
 </div>
 </div>
@@ -1914,6 +1920,6 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
   signInText.addEventListener("click", () => enterApp("signin"));
 })();
 </script>
-<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=20"></script>
+<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=21"></script>
 </body>
 </html>

@@ -63,6 +63,10 @@ class MindDeckSecurityTests(unittest.TestCase):
             "SUPABASE_PUBLISHABLE_KEY": "publishable-test-key-" + "p" * 32,
         }
 
+    @staticmethod
+    def gateway_environment():
+        return {"VERCEL_OIDC_TOKEN": "oidc-" + ("t" * 64)}
+
     @classmethod
     def google_environment(cls):
         return {
@@ -77,7 +81,11 @@ class MindDeckSecurityTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertNotIn('id="apiKey"', page)
-        self.assertIn('id="accessCode"', page)
+        self.assertNotIn('id="accessCode"', page)
+        self.assertIn('id="aiStatusBadge"', page)
+        self.assertIn("MindDeck AI", page)
+        self.assertNotIn("Owner access code", page)
+        self.assertNotIn("Unlock selected AI", page)
         self.assertIn('id="account"', page)
         self.assertIn('id="timerWidget"', page)
         self.assertIn('id="weekBars"', page)
@@ -145,9 +153,21 @@ class MindDeckSecurityTests(unittest.TestCase):
             response = self.client.get("/api/config", base_url=self.base_url)
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json["providers"], {"openai": False, "gemini": False})
+        self.assertEqual(
+            response.json["providers"],
+            {"minddeck": False, "openai": False, "gemini": False},
+        )
+        self.assertEqual(response.json["minddeckAi"], {"ready": False, "requiresSignIn": True})
         self.assertIsNone(response.json["unlockedProvider"])
         self.assertEqual(response.headers["Cache-Control"], "no-store, private, max-age=0")
+
+    def test_minddeck_ai_reports_ready_with_vercel_identity(self):
+        with patch.dict(os.environ, self.gateway_environment(), clear=True):
+            response = self.client.get("/api/config", base_url=self.base_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json["providers"]["minddeck"])
+        self.assertTrue(response.json["minddeckAi"]["ready"])
 
     def test_cloud_accounts_fail_closed_without_configuration(self):
         with patch.dict(os.environ, {}, clear=True):
@@ -777,6 +797,95 @@ class MindDeckSecurityTests(unittest.TestCase):
         self.assertIn("Secure", session_cookie)
         self.assertIn("SameSite=Strict", session_cookie)
         self.assertLessEqual(allowed.json["expiresIn"], 15 * 60)
+
+    def test_minddeck_ai_requires_a_signed_in_account(self):
+        with patch.dict(os.environ, self.gateway_environment(), clear=True), patch.object(
+            minddeck, "current_cloud_user", return_value=None
+        ), patch.object(minddeck, "post_json") as upstream:
+            _home, csrf = self.home()
+            response = self.post(
+                "/api/generate",
+                {
+                    "provider": "minddeck",
+                    "cardMode": "mixed",
+                    "text": "Photosynthesis converts light energy into stored chemical energy.",
+                },
+                csrf,
+            )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json["error"], "Sign in to use MindDeck AI.")
+        upstream.assert_not_called()
+
+    def test_minddeck_ai_generation_uses_gateway_identity_server_side(self):
+        captured = {}
+
+        def fake_post(url, payload, headers):
+            captured.update(url=url, payload=payload, headers=headers)
+            return {
+                "choices": [
+                    {"message": {"content": '{"cards":[{"front":"Q","back":"A"}]}'}}
+                ]
+            }
+
+        account_key = "abcd" * 6
+        user = {"id": "12345678-1234-1234-1234-123456789abc", "account_key": account_key}
+        environment = {**self.gateway_environment(), "AI_GATEWAY_MODEL": "google/gemini-3.6-flash"}
+        with patch.dict(os.environ, environment, clear=True), patch.object(
+            minddeck, "current_cloud_user", return_value=user
+        ), patch.object(minddeck, "post_json", side_effect=fake_post):
+            _home, csrf = self.home()
+            response = self.post(
+                "/api/generate",
+                {
+                    "provider": "minddeck",
+                    "cardMode": "mixed",
+                    "text": "Photosynthesis converts light energy into stored chemical energy.",
+                },
+                csrf,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["cards"], [{"front": "Q", "back": "A"}])
+        self.assertEqual(captured["url"], minddeck.AI_GATEWAY_URL)
+        self.assertEqual(captured["payload"]["model"], "google/gemini-3.6-flash")
+        self.assertEqual(captured["payload"]["providerOptions"]["gateway"]["user"], account_key)
+        self.assertFalse(captured["payload"]["store"])
+        self.assertEqual(
+            captured["headers"]["Authorization"],
+            "Bearer " + self.gateway_environment()["VERCEL_OIDC_TOKEN"],
+        )
+        self.assertNotIn(self.gateway_environment()["VERCEL_OIDC_TOKEN"], response.get_data(as_text=True))
+
+    def test_minddeck_ai_vision_sends_the_image_to_the_gateway(self):
+        captured = {}
+
+        def fake_post(url, payload, headers):
+            captured.update(url=url, payload=payload, headers=headers)
+            return {
+                "choices": [
+                    {"message": {"content": '{"cards":[{"front":"Image Q","back":"Image A"}]}'}}
+                ]
+            }
+
+        image_bytes = b"\xff\xd8\xff" + (b"\x00" * 97)
+        image_data = "data:image/jpeg;base64," + base64.b64encode(image_bytes).decode("ascii")
+        user = {"id": "12345678-1234-1234-1234-123456789abc", "account_key": "cafe" * 6}
+        with patch.dict(os.environ, self.gateway_environment(), clear=True), patch.object(
+            minddeck, "current_cloud_user", return_value=user
+        ), patch.object(minddeck, "post_json", side_effect=fake_post):
+            _home, csrf = self.home()
+            response = self.post(
+                "/api/vision",
+                {"provider": "minddeck", "cardMode": "mixed", "imageData": image_data},
+                csrf,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["cards"], [{"front": "Image Q", "back": "Image A"}])
+        content = captured["payload"]["messages"][0]["content"]
+        self.assertEqual(content[1]["type"], "image_url")
+        self.assertTrue(content[1]["image_url"]["url"].startswith("data:image/jpeg;base64,"))
 
     def test_generation_requires_valid_session_and_keeps_key_server_side(self):
         captured = {}

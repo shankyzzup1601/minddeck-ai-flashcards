@@ -13,6 +13,91 @@
   --md-gradient: linear-gradient(105deg, var(--md-orange), #ff3d45 52%, var(--md-pink));
 }
 
+/* Built-in AI status sheet */
+.aiSettingsDialog {
+  position: relative;
+  width: min(600px, 100%);
+  overflow: hidden;
+  border-color: #42344d !important;
+  background:
+    radial-gradient(circle at 100% 0, #5b163f66, transparent 40%),
+    radial-gradient(circle at 0 100%, #182b4c55, transparent 36%),
+    linear-gradient(145deg, #17131f, #0d0d14 72%) !important;
+}
+.aiSettingsDialog::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: var(--md-gradient);
+}
+.aiSettingsDialog .dhead { align-items: flex-start; gap: 18px; }
+.aiSettingsDialog .dhead > div { min-width: 0; }
+.aiSettingsDialog .dhead h3 { margin-top: 7px; font-size: 24px; letter-spacing: -.7px; }
+.aiSettingsDialog .authCopy { max-width: 480px; margin: 8px 0 0; color: #948b9d; font-size: 10px; line-height: 1.55; }
+.aiEyebrow { color: #f06c9d; font-size: 7px; font-weight: 900; letter-spacing: 1.5px; }
+.aiStatusCard {
+  display: grid;
+  grid-template-columns: 54px 1fr;
+  align-items: center;
+  gap: 13px;
+  margin-top: 20px;
+  padding: 15px;
+  border: 1px solid #ffffff17;
+  border-radius: 16px;
+  background: linear-gradient(120deg, #ffffff0d, #ffffff05);
+  box-shadow: inset 0 1px #ffffff0b;
+}
+.aiStatusOrb {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  place-items: center;
+  border: 1px solid #ff5b9145;
+  border-radius: 17px;
+  background: radial-gradient(circle at 32% 22%, #713256, #251129 72%);
+  box-shadow: 0 14px 30px #e51c6c24, inset 0 1px #ffffff18;
+  font-size: 24px;
+}
+.aiStatusBody { min-width: 0; }
+.aiStatusBody strong { display: block; margin-top: 7px; font-size: 13px; }
+.aiStatusBody p { margin: 5px 0 0; color: #91899a; font-size: 8px; line-height: 1.5; }
+.aiStatusBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 19px;
+  padding: 0 8px;
+  border: 1px solid #746c7d;
+  border-radius: 99px;
+  color: #b5adba;
+  background: #ffffff08;
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+.aiStatusBadge[data-state="ready"] { border-color: #31d99b55; color: #55e9b1; background: #1bc58c14; }
+.aiStatusBadge[data-state="signin"] { border-color: #ffb34355; color: #ffc45f; background: #ffab2314; }
+.aiCapabilityGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-top: 11px; }
+.aiCapabilityGrid article {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #ffffff12;
+  border-radius: 13px;
+  background: #ffffff06;
+}
+.aiCapabilityGrid article > span { display: grid; width: 31px; height: 31px; place-items: center; border-radius: 9px; background: #ffffff09; font-size: 15px; }
+.aiCapabilityGrid strong, .aiCapabilityGrid small { display: block; }
+.aiCapabilityGrid strong { margin-top: 10px; font-size: 9px; }
+.aiCapabilityGrid small { margin-top: 4px; color: #817a89; font-size: 7px; line-height: 1.45; }
+.aiPrivacyNote { display: flex; align-items: center; gap: 10px; margin-top: 11px; padding: 11px 12px; border: 1px solid #4d3e283d; border-radius: 12px; background: #ffb2290a; }
+.aiPrivacyNote > span { font-size: 17px; }
+.aiPrivacyNote p { margin: 0; }
+.aiPrivacyNote strong, .aiPrivacyNote small { display: block; }
+.aiPrivacyNote strong { color: #e8dfd0; font-size: 8px; }
+.aiPrivacyNote small { margin-top: 3px; color: #8d8274; font-size: 7px; line-height: 1.45; }
+.aiSettingsDialog .dactions { margin-top: 14px; }
+.aiSettingsDialog #settingsDone { min-width: 110px; justify-content: center; }
+
 .mobileReferenceView,
 .mobileFullPage { display: none; }
 
@@ -608,4 +693,20 @@
 @media (prefers-reduced-motion: reduce) {
   .launchMark, #splash-screen::before { animation: none; }
   .mobileReferenceView, .mobileFullPage { animation-duration: .01ms !important; }
+}
+
+@media (max-width: 760px) {
+  #settingsModal { z-index: 490; padding: 12px !important; }
+  #settingsModal .aiSettingsDialog { max-height: calc(100dvh - 24px); padding: 19px !important; border-radius: 20px !important; }
+  .aiSettingsDialog .dhead h3 { font-size: 22px; }
+  .aiSettingsDialog .authCopy { font-size: 9px; }
+  .aiStatusCard { grid-template-columns: 48px 1fr; padding: 13px; }
+  .aiStatusOrb { width: 48px; height: 48px; border-radius: 15px; font-size: 21px; }
+  .aiCapabilityGrid { grid-template-columns: 1fr; gap: 7px; }
+  .aiCapabilityGrid article { display: grid; grid-template-columns: 34px 1fr; column-gap: 9px; padding: 10px; }
+  .aiCapabilityGrid article > span { grid-row: 1 / 3; align-self: center; }
+  .aiCapabilityGrid strong { margin-top: 1px; }
+  .aiCapabilityGrid small { margin-top: 2px; }
+  .aiSettingsDialog .dactions { display: block; }
+  .aiSettingsDialog #settingsDone { width: 100%; height: 43px; }
 }

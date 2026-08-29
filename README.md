@@ -1,18 +1,18 @@
 # MindDeck AI Flashcards — Flask
 
-A production-ready Flask build of MindDeck with a responsive glass dashboard, adaptive SM-2 scheduling, leech rescue decks, Feynman voice comparison, exam-engineered cards, cloze and image-occlusion cards, photo OCR, progressive hints, safe Markdown/LaTeX/code formatting, device TTS, a 12-week review heatmap, Pomodoro deck slicing, Formula Cram, a 48-hour Mistake Notebook, Speed Match, unlisted deck links, curated starter decks, secure OpenAI/Gemini generation, email or Google accounts with cloud sync, and offline-first local persistence.
+A production-ready Flask build of MindDeck with built-in MindDeck AI, a responsive glass dashboard, adaptive SM-2 scheduling, leech rescue decks, Feynman voice comparison, exam-engineered cards, cloze and image-occlusion cards, photo understanding, progressive hints, safe Markdown/LaTeX/code formatting, device TTS, a 12-week review heatmap, Pomodoro deck slicing, Formula Cram, a 48-hour Mistake Notebook, Speed Match, unlisted deck links, curated starter decks, email or Google accounts with cloud sync, and offline-first local persistence.
 
 ## Smart Study features
 
 - Four-tier confidence grading feeds the SM-2 schedule; four consecutive `Again` ratings automatically tag a leech for the dedicated Cram & Break Down deck.
 - Feynman Mode records up to 15 seconds locally, accepts an editable transcript, and compares its key concepts with the model answer. Recordings are never uploaded or synced.
-- Text, extracted PDF text, and photos can generate normal, cloze, or mixed decks. Photo OCR uses browser OCR when supported or the explicitly unlocked server-side AI provider.
+- Text, extracted PDF text, and photos can generate normal, cloze, or mixed decks. Signed-in users get built-in MindDeck AI; browser OCR remains available as an offline fallback.
 - NCERT line-by-line generation targets exact keywords, scientist names, exceptions, and common traps. The manual Exam Card Engine also creates reaction-mechanism carousels, formula/unit/dimension matches, journal-entry dual cards, graph flips, Assertion–Reasoning trainers, and progressive derivations.
 - PYQ labels, subject metadata, and Exception & Trap badges stay attached to each card through local save, JSON import/export, unlisted deck links, and signed-in cloud sync.
 - Formula Cram filters formulas, constants, units, dimensions, and economic identities into a rapid swipe queue for last-day revision.
 - An `Again` rating automatically adds the card to the high-priority Mistake Notebook and guarantees a due time no later than 48 hours; errors can also be logged or resolved manually.
 - Image-occlusion assets stay in IndexedDB on the device that created them. Card metadata may sync, but the private image file does not.
-- Progressive hints work offline and upgrade to locked AI hints when an AI session is already unlocked.
+- Progressive hints work offline and automatically upgrade to MindDeck AI hints for signed-in users.
 - Review activity, 30-card focus queues, Speed Match, unlisted no-upload share links, and offline starter packs are built in. Share links are not encrypted; anyone with the URL can import the deck.
 - A service worker plus IndexedDB shadow backup keeps the study shell and the latest local deck resilient when connectivity drops.
 
@@ -55,9 +55,18 @@ For local development, allow `http://127.0.0.1:5000/api/auth/google/callback` in
 
 Do not configure or expose a Supabase secret/service-role key. MindDeck deliberately uses the signed-in user's token so database Row Level Security remains authoritative. Existing local cards are uploaded automatically when the user signs in and the cloud has no newer deck.
 
-## Secure AI setup
+## Built-in MindDeck AI setup
 
-Provider API keys are read only from server environment variables and are never accepted from browser requests, rendered into HTML, or committed to GitHub.
+Production deployments use Vercel AI Gateway with the deployment's automatically injected OIDC identity. Students never choose a provider, paste an API key, or enter an owner access code. MindDeck verifies the signed-in account on the server, applies per-account rate limits, and sends only a privacy-safe account hash to the Gateway for attribution.
+
+- Enable AI Gateway for the Vercel project. `VERCEL_OIDC_TOKEN` is injected automatically into deployments.
+- `AI_GATEWAY_MODEL` optionally overrides the default `google/gemini-3.6-flash` model.
+- For local development outside Vercel, set `AI_GATEWAY_API_KEY` in the local environment. Never expose it in browser code.
+- Signed-in accounts are required for hosted AI generation. Offline flashcard generation and hints remain available without an AI connection.
+
+### Legacy direct-provider setup
+
+The server still supports the earlier direct OpenAI/Gemini endpoints for backwards compatibility and tests, but those provider controls are intentionally absent from the student UI. Provider API keys are read only from server environment variables and are never accepted from browser requests, rendered into HTML, or committed to GitHub.
 
 Run `python scripts/generate_secrets.py`, then place its outputs in your hosting provider's encrypted environment settings. The plaintext access code is never stored:
 
@@ -68,11 +77,12 @@ Run `python scripts/generate_secrets.py`, then place its outputs in your hosting
 - `GEMINI_API_KEY`: optional; enables Secure Gemini.
 - `OPENAI_MODEL` or `GEMINI_MODEL`: optional model overrides.
 
-Never place secret values in this repository or in a client-side `.env` file. After changing production environment variables, redeploy the project. Offline flashcard generation remains available when online AI is locked.
+Never place secret values in this repository or in a client-side `.env` file. After changing production environment variables, redeploy the project.
 
 ## Production safeguards
 
-- API keys remain server-only and the server fails closed if any required secret is absent.
+- AI credentials remain server-only; built-in AI fails closed if Vercel identity is absent.
+- Built-in AI requires an authenticated account and has per-account generation, vision, and hint limits.
 - Access codes are verified against a salted scrypt hash, never plaintext.
 - Successful unlocks create a signed, `HttpOnly`, `Secure`, `SameSite=Strict` session that expires after 15 minutes.
 - Double-submit CSRF tokens, same-origin checks, and JSON-only mutating requests.
@@ -84,7 +94,7 @@ Never place secret values in this repository or in a client-side `.env` file. Af
 - Account passwords and Google identity checks are handled by Supabase Auth; auth tokens stay in hardened server-issued cookies. The Google PKCE verifier is signed, browser-bound, expires after 10 minutes, and is deleted on both successful and failed callbacks.
 - Cloud decks are validated on both client and server and isolated per user with forced Postgres Row Level Security.
 - Sync uses last-write-wins timestamps, retains an offline IndexedDB copy, and syncs only normalized deck progress and study statistics. Original notes, PDF files, voice recordings, and image-occlusion files are never placed in cloud deck storage.
-- Photo content is sent only after the user explicitly selects a securely unlocked AI provider; MIME type, magic bytes, and size are validated first.
+- Photo content is sent only after the signed-in user explicitly requests AI generation; MIME type, magic bytes, and size are validated first.
 - Generic upstream errors that do not reveal secrets.
 - Weekly dependency monitoring and a security test workflow on every pull request.
 
