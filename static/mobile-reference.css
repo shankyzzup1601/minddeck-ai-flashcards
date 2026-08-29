@@ -140,6 +140,57 @@ body[data-workspace="planner"] .plannerWorkspace { display: block; }
 .plannerTaskActions .plannerFocus { color: #ffb0c0; border-color: #6a2a3b; background: #30131c; }
 #plannerNavCount:empty { display: none !important; }
 
+/* One-time study profile shown after account sign-in. */
+.studyProfileSetup { z-index: 240; padding: 18px; background: radial-gradient(circle at 50% 0, #67204555, transparent 46%), #050308eb; backdrop-filter: blur(18px); }
+.studyProfileDialog { width: min(570px, 100%); max-height: min(820px, calc(100dvh - 36px)); overflow-y: auto; border-color: #583047; border-radius: 25px; background: radial-gradient(circle at 100% 0, #ff315f21, transparent 32%), linear-gradient(155deg, #18121d, #0c0b11 72%); box-shadow: 0 30px 90px #000b, inset 0 1px #ffffff14; scrollbar-width: none; }
+.studyProfileDialog::-webkit-scrollbar { display: none; }
+.studyProfileBrand { display: flex; align-items: center; gap: 8px; color: #ff8155; font-size: 7px; font-weight: 900; letter-spacing: 1.4px; }
+.studyProfileBrand img { width: 28px; height: 28px; border-radius: 9px; }
+.studyProfileIntro { margin-top: 17px; }
+.studyProfileIntro > small { color: #ff6c54; font-size: 7px; font-weight: 900; letter-spacing: 1.35px; }
+.studyProfileIntro h2 { margin: 7px 0 6px; font-size: 24px; letter-spacing: -.8px; }
+.studyProfileIntro p { margin: 0; color: #948b99; font-size: 9px; line-height: 1.6; }
+.studyProfileName { display: block; margin-top: 18px; }
+.studyProfileName > span, .studyProfileChoices legend { display: block; margin: 0 0 7px 2px; color: #918894; font-size: 7px; font-weight: 850; letter-spacing: .85px; text-transform: uppercase; }
+.studyProfileName input { width: 100%; height: 45px; border: 1px solid #39313d; border-radius: 11px; outline: 0; padding: 0 12px; color: #fff; background: #09090e; font-size: 10px; }
+.studyProfileName input:focus { border-color: #ff5478; box-shadow: 0 0 0 3px #ff315f1c; }
+.studyProfileChoices { min-width: 0; margin: 17px 0 0; padding: 0; border: 0; }
+.studyProfileClassGrid, .studyProfileStreamGrid { display: grid; gap: 8px; }
+.studyProfileClassGrid { grid-template-columns: 1fr 1fr; }
+.studyProfileStreamGrid { grid-template-columns: repeat(3, 1fr); }
+.studyProfileChoices label { position: relative; min-width: 0; cursor: pointer; }
+.studyProfileChoices input { position: absolute; opacity: 0; pointer-events: none; }
+.studyProfileChoices label > span { display: grid; min-height: 61px; align-content: center; padding: 10px 11px; border: 1px solid #342e38; border-radius: 13px; color: #aaa1ae; background: linear-gradient(145deg, #151219, #0d0c11); box-shadow: inset 0 1px #ffffff08; transition: border-color .18s ease, background .18s ease, transform .18s ease; }
+.studyProfileChoices label > span b, .studyProfileChoices label > span small { display: block; }
+.studyProfileChoices label > span b { color: #f5f1f7; font-size: 11px; }
+.studyProfileChoices label > span small { margin-top: 4px; color: #79717d; font-size: 7px; line-height: 1.35; }
+.studyProfileChoices input:checked + span { border-color: #ff5b79; background: radial-gradient(circle at 100% 0, #ff315f25, transparent 48%), #25121c; box-shadow: 0 0 0 2px #ff315f17, inset 0 1px #ffffff16; transform: translateY(-1px); }
+.studyProfileChoices input:focus-visible + span { outline: 2px solid #ff8298; outline-offset: 2px; }
+.studyProfileError { min-height: 15px; margin: 10px 0 0; color: #ff9eac; font-size: 8px; }
+.studyProfileActions { display: flex; gap: 8px; margin-top: 5px; }
+.studyProfileActions .mobileGradientButton { flex: 1; min-height: 45px; border: 0; }
+.studyProfileActions #studyProfileCancel { min-width: 85px; border: 1px solid #3c343f; border-radius: 11px; color: #aaa2ad; background: #151219; font-size: 9px; font-weight: 800; }
+.studyProfileFoot { margin: 11px 0 0; color: #6f6873; font-size: 7px; text-align: center; }
+.mobileEditStudyProfile { width: calc(100% - 28px); min-height: 42px; margin: 0 14px 14px; border: 0; }
+
+html[data-study-stream="pcm"] [data-subject-filter="biology"],
+html[data-study-stream="pcm"] [data-subject-filter="accountancy"],
+html[data-study-stream="pcm"] [data-subject-filter="business-studies"],
+html[data-study-stream="pcm"] [data-subject-filter="economics"],
+html[data-study-stream="pcm"] [data-subject-filter="entrepreneurship"],
+html[data-study-stream="pcb"] [data-subject-filter="mathematics"],
+html[data-study-stream="pcb"] [data-subject-filter="accountancy"],
+html[data-study-stream="pcb"] [data-subject-filter="business-studies"],
+html[data-study-stream="pcb"] [data-subject-filter="economics"],
+html[data-study-stream="pcb"] [data-subject-filter="entrepreneurship"],
+html[data-study-stream="commerce"] [data-subject-filter="physics"],
+html[data-study-stream="commerce"] [data-subject-filter="physical-chemistry"],
+html[data-study-stream="commerce"] [data-subject-filter="mathematics"],
+html[data-study-stream="commerce"] [data-subject-filter="biology"] { display: none !important; }
+html[data-study-stream="pcm"] .commerceShelf,
+html[data-study-stream="pcb"] .commerceShelf,
+html[data-study-stream="commerce"] .scienceShelf { display: none !important; }
+
 .mobileReferenceView,
 .mobileFullPage { display: none; }
 
@@ -394,6 +445,11 @@ body[data-workspace="planner"] .plannerWorkspace { display: block; }
   .actions > #account .accountAvatar img:not([hidden]) { display: block !important; }
   .accountGuestIcon { width: 27px; height: 27px; border-radius: 50%; color: #fff; background: linear-gradient(145deg, #ff7044, #d7187b); box-shadow: inset 0 1px #ffffff45, 0 0 16px #f0267252; }
   .accountAvatar { width: 29px !important; height: 29px !important; flex-basis: 29px !important; background: linear-gradient(145deg, #ff7044, #d7187b) !important; box-shadow: none !important; font-size: 11px !important; }
+  .studyProfileSetup { place-items: end center; padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom)); }
+  .studyProfileDialog { width: 100%; max-height: calc(100dvh - max(20px, env(safe-area-inset-top)) - max(20px, env(safe-area-inset-bottom))); padding: 20px 17px 17px; border-radius: 23px; }
+  .studyProfileIntro h2 { font-size: 21px; }
+  .studyProfileStreamGrid { grid-template-columns: 1fr; }
+  .studyProfileChoices label > span { min-height: 54px; }
 
   body[data-workspace="planner"] .plannerWorkspace { width: 100%; margin: 10px 0 0; }
   .plannerPanel { border-radius: 17px; }

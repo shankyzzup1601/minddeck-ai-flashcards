@@ -61,7 +61,7 @@ test("My Deck has a guided empty state and reliable account fallback", () => {
   assert.match(app, /dataset\.deckEmptyAction/);
   assert.match(app, /accountAvatarImage\.onload/);
   assert.match(app, /updateViaCache: "none"/);
-  assert.match(app, /minddeck-shell-v30-refreshed/);
+  assert.match(app, /minddeck-shell-v31-refreshed/);
 });
 
 test("Science and Commerce shelves include complete subject shortcuts", () => {
@@ -83,11 +83,11 @@ test("Science and Commerce shelves include complete subject shortcuts", () => {
 });
 
 test("mobile UI assets are versioned and available offline", () => {
-  assert.match(html, /mobile-reference\.css\?v=10/);
-  assert.match(html, /app\.js\?v=25/);
-  assert.match(serviceWorker, /minddeck-shell-v30/);
-  assert.match(serviceWorker, /mobile-reference\.css\?v=10/);
-  assert.match(serviceWorker, /app\.js\?v=25/);
+  assert.match(html, /mobile-reference\.css\?v=11/);
+  assert.match(html, /app\.js\?v=26/);
+  assert.match(serviceWorker, /minddeck-shell-v31/);
+  assert.match(serviceWorker, /mobile-reference\.css\?v=11/);
+  assert.match(serviceWorker, /app\.js\?v=26/);
   assert.match(css, /@media \(max-width: 760px\)/);
 });
 
@@ -111,7 +111,7 @@ test("timer and planner are complete working study tools", () => {
   assert.match(app, /data-planner-toggle/);
   assert.match(app, /data-planner-focus/);
   assert.match(app, /data-planner-delete/);
-  assert.match(app, /\.register\("\/static\/sw\.js\?v=30"/);
+  assert.match(app, /\.register\("\/static\/sw\.js\?v=31"/);
   assert.match(css, /body\[data-workspace="planner"\] \.plannerWorkspace \{ display: block; \}/);
 });
 
@@ -124,6 +124,31 @@ test("mobile account control always shows an icon or Google profile photo", () =
   assert.match(app, /const showImage = Boolean\(avatarUrl\)/);
   assert.match(app, /if \(avatarUrl\) accountAvatarImage\.src = avatarUrl/);
   assert.doesNotMatch(app, /avatarUrl && !profile\.avatar/);
+});
+
+test("signed-in learners choose class and stream once and see only relevant subjects", () => {
+  for (const id of [
+    "studyProfileModal",
+    "studyProfileForm",
+    "studyProfileName",
+    "studyProfileCancel",
+    "mobileStreamPill",
+    "mobileProfileStreamValue",
+    "mobileProfileSubjectsValue",
+  ]) assert.match(html, new RegExp(`id="${id}"`));
+  for (const value of ["Class 11", "Class 12", "PCM", "PCB", "Commerce"]) {
+    assert.match(html, new RegExp(`value="${value}"`));
+  }
+  assert.match(app, /const PROFILE_SETUP_STORE = "minddeck-study-profile-complete-v1"/);
+  assert.match(app, /function openStudyProfileSetup/);
+  assert.match(app, /if \(authState\.user\) openStudyProfileSetup\(false\)/);
+  assert.match(app, /PCM:[\s\S]*Physics[\s\S]*Chemistry[\s\S]*Mathematics/);
+  assert.match(app, /PCB:[\s\S]*Physics[\s\S]*Chemistry[\s\S]*Biology/);
+  assert.match(app, /Commerce:[\s\S]*Accountancy[\s\S]*Business Studies[\s\S]*Economics[\s\S]*Entrepreneurship/);
+  assert.match(app, /button\.hidden = !allowed\.has\(button\.dataset\.subjectFilter\)/);
+  assert.match(app, /replaceStudyOptions\(\$\("#plannerSubject"\), config\.subjects, true\)/);
+  assert.match(css, /html\[data-study-stream="commerce"\] \[data-subject-filter="physics"\]/);
+  assert.doesNotMatch(html, /id="mobileProfileEmailValue"/);
 });
 
 test("generation presents one built-in MindDeck AI experience", () => {

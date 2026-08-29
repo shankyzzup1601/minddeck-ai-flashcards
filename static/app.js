@@ -28,7 +28,9 @@ const PDF_WORKER = "/static/vendor/pdf-4.10.38.worker.min.mjs";
 const FOCUS_STORE = "minddeck-focus-timer-v1";
 const THEME_STORE = "minddeck-visual-theme-v1";
 const CLASS_STORE = "minddeck-class-v1";
+const STREAM_STORE = "minddeck-stream-v1";
 const PROFILE_STORE = "minddeck-mobile-profile-v1";
+const PROFILE_SETUP_STORE = "minddeck-study-profile-complete-v1";
 const MOBILE_SETTINGS_STORE = "minddeck-mobile-settings-v1";
 const ONBOARDING_STORE = "minddeck:onboarding-complete-v1";
 const GENERATED_DECK_SIZE = 15;
@@ -55,6 +57,36 @@ const PLANNER_SUBJECTS = new Set([
   "Economics",
   "Entrepreneurship",
 ]);
+const STUDY_STREAMS = Object.freeze({
+  PCM: Object.freeze({
+    label: "PCM",
+    selectValue: "Science · PCM",
+    subjects: Object.freeze([
+      Object.freeze({ key: "physics", label: "Physics" }),
+      Object.freeze({ key: "physical-chemistry", label: "Chemistry" }),
+      Object.freeze({ key: "mathematics", label: "Mathematics" }),
+    ]),
+  }),
+  PCB: Object.freeze({
+    label: "PCB",
+    selectValue: "Science · PCB",
+    subjects: Object.freeze([
+      Object.freeze({ key: "physics", label: "Physics" }),
+      Object.freeze({ key: "physical-chemistry", label: "Chemistry" }),
+      Object.freeze({ key: "biology", label: "Biology" }),
+    ]),
+  }),
+  Commerce: Object.freeze({
+    label: "Commerce",
+    selectValue: "Commerce",
+    subjects: Object.freeze([
+      Object.freeze({ key: "accountancy", label: "Accountancy" }),
+      Object.freeze({ key: "business-studies", label: "Business Studies" }),
+      Object.freeze({ key: "economics", label: "Economics" }),
+      Object.freeze({ key: "entrepreneurship", label: "Entrepreneurship" }),
+    ]),
+  }),
+});
 const TEMPLATE_LABELS = Object.freeze({
   basic: "Recall",
   ncert: "NCERT Cloze",
@@ -290,6 +322,11 @@ function restoreClassLevel() {
   } catch {
     // The selector remains usable if local storage is unavailable.
   }
+}
+
+function restoreStudyPreferences() {
+  restoreClassLevel();
+  applyStudyStream(selectedStudyStream());
 }
 
 function applyTheme(themeKey, announce = false) {
@@ -644,6 +681,129 @@ function saveMobileProfile(nextProfile) {
   updateMobileAccountUI();
 }
 
+function normalizeStudyStream(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (text === "pcb" || text.includes("pcb")) return "PCB";
+  if (text === "commerce") return "Commerce";
+  return "PCM";
+}
+
+function selectedStudyStream() {
+  try {
+    const stored = localStorage.getItem(STREAM_STORE);
+    if (stored) return normalizeStudyStream(stored);
+  } catch {
+    // Fall back to the active generation selector.
+  }
+  return normalizeStudyStream($("#streamSelect")?.value || "PCM");
+}
+
+function streamSubjects(stream = selectedStudyStream()) {
+  return STUDY_STREAMS[normalizeStudyStream(stream)].subjects;
+}
+
+function replaceStudyOptions(select, subjects, includeGeneral = false) {
+  if (!select) return;
+  const previous = select.value;
+  select.replaceChildren();
+  const labels = includeGeneral ? ["General", ...subjects.map((subject) => subject.label)] : subjects.map((subject) => subject.label);
+  labels.forEach((label) => {
+    const option = document.createElement("option");
+    option.value = label;
+    option.textContent = label;
+    select.append(option);
+  });
+  select.value = labels.includes(previous) ? previous : labels[0];
+}
+
+function applyStudyStream(nextStream, persist = false) {
+  const stream = normalizeStudyStream(nextStream);
+  const config = STUDY_STREAMS[stream];
+  const allowed = new Set(config.subjects.map((subject) => subject.key));
+  document.documentElement.dataset.studyStream = stream.toLowerCase();
+  document.body.dataset.studyStream = stream.toLowerCase();
+
+  if (persist) {
+    try {
+      localStorage.setItem(STREAM_STORE, stream);
+    } catch {
+      // The active page still reflects the chosen stream.
+    }
+  }
+
+  const streamSelect = $("#streamSelect");
+  if (streamSelect) streamSelect.value = config.selectValue;
+  $$('[data-subject-filter]').forEach((button) => {
+    button.hidden = !allowed.has(button.dataset.subjectFilter);
+  });
+
+  const scienceShelf = $("#scienceStreamShelf");
+  const commerceShelf = $("#commerceStreamShelf");
+  if (scienceShelf) scienceShelf.hidden = stream === "Commerce";
+  if (commerceShelf) commerceShelf.hidden = stream !== "Commerce";
+  setOptionalText("#scienceStreamTitle", config.label);
+  setOptionalText(
+    "#scienceStreamCopy",
+    stream === "PCB" ? "Physics, Chemistry & Biology" : "Physics, Chemistry & Mathematics"
+  );
+  setOptionalText("#scienceSubjectCount", `${config.subjects.length} subjects`);
+  setOptionalText("#commerceSubjectCount", `${config.subjects.length} subjects`);
+  setOptionalText("#mobileStreamPill", config.label);
+  setOptionalText("#mobileProfileStreamValue", config.label);
+  setOptionalText("#mobileProfileSubjectsValue", config.subjects.map((subject) => subject.label).join(" · "));
+
+  replaceStudyOptions($("#subjectSelect"), config.subjects);
+  replaceStudyOptions($("#plannerSubject"), config.subjects, true);
+  renderSubjectCounts();
+  renderStarterDecks();
+  return stream;
+}
+
+function studyProfileStorageKey() {
+  return `${PROFILE_SETUP_STORE}:${authState.user?.accountKey || "guest"}`;
+}
+
+function studyProfileIsComplete() {
+  try {
+    return localStorage.getItem(studyProfileStorageKey()) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function saveStudyProfile({ name, classLevel, stream }) {
+  const normalizedClass = classLevel === "Class 11" ? "Class 11" : "Class 12";
+  const normalizedStream = normalizeStudyStream(stream);
+  saveMobileProfile({ ...mobileProfile(), name });
+  const classSelect = $("#classSelect");
+  if (classSelect) classSelect.value = normalizedClass;
+  try {
+    localStorage.setItem(CLASS_STORE, normalizedClass);
+    localStorage.setItem(STREAM_STORE, normalizedStream);
+    localStorage.setItem(studyProfileStorageKey(), "1");
+  } catch {
+    // The selected profile remains active for this tab.
+  }
+  applyStudyStream(normalizedStream);
+  updateMobileAccountUI();
+  syncMobileDashboard();
+}
+
+function openStudyProfileSetup(editing = false) {
+  const modal = $("#studyProfileModal");
+  if (!modal || (!editing && (!authState.user || studyProfileIsComplete()))) return;
+  const stream = selectedStudyStream();
+  $("#studyProfileName").value = mobileProfile().name || friendlyAccountName();
+  const classChoice = $(`input[name="studyProfileClass"][value="${selectedClassLevel()}"]`);
+  const streamChoice = $(`input[name="studyProfileStream"][value="${stream}"]`);
+  if (classChoice) classChoice.checked = true;
+  if (streamChoice) streamChoice.checked = true;
+  $("#studyProfileCancel").hidden = !editing;
+  modal.dataset.required = String(!editing);
+  modal.classList.add("open");
+  window.setTimeout(() => $("#studyProfileName").focus(), 50);
+}
+
 function friendlyAccountName() {
   const profile = mobileProfile();
   if (profile.name) return profile.name;
@@ -675,7 +835,8 @@ function updateMobileAccountUI() {
   const profile = mobileProfile();
   const name = friendlyAccountName();
   const classLevel = selectedClassLevel();
-  const email = authState.user?.email || "Saved on this device";
+  const stream = selectedStudyStream();
+  const subjects = streamSubjects(stream).map((subject) => subject.label).join(" · ");
   const avatarUrl = authState.user?.avatarUrl || "";
   const fallback = profile.avatar || name.trim().charAt(0).toUpperCase() || "M";
   const image = $("#mobileAvatarImage");
@@ -683,16 +844,18 @@ function updateMobileAccountUI() {
 
   setOptionalText("#mobileUserName", name);
   setOptionalText("#mobileClassPill", classLevel);
+  setOptionalText("#mobileStreamPill", STUDY_STREAMS[stream].label);
   setOptionalText("#mobileOverallClass", classLevel);
   setOptionalText("#mobileSettingsName", name);
-  setOptionalText("#mobileSettingsMeta", `${classLevel} · ${authState.user ? "Cloud sync on" : "Free plan"}`);
+  setOptionalText("#mobileSettingsMeta", `${classLevel} · ${STUDY_STREAMS[stream].label}`);
   setOptionalText("#mobileSettingsAvatar", fallback);
   setOptionalText("#mobileProfileHeroAvatar", fallback);
   setOptionalText("#mobileProfileName", name);
   setOptionalText("#mobileProfileNameValue", name);
-  setOptionalText("#mobileProfileEmailValue", email);
-  setOptionalText("#mobileProfileClass", classLevel);
+  setOptionalText("#mobileProfileClass", `${classLevel} · ${STUDY_STREAMS[stream].label}`);
   setOptionalText("#mobileProfileClassValue", classLevel);
+  setOptionalText("#mobileProfileStreamValue", STUDY_STREAMS[stream].label);
+  setOptionalText("#mobileProfileSubjectsValue", subjects);
   setOptionalText("#mobileProfileGoalValue", `${studyStats.dailyGoalMinutes || 25} min / day`);
   const mobileSignOut = $("#mobileSignOutOpen");
   if (mobileSignOut) {
@@ -2069,7 +2232,7 @@ function updateAccountUI() {
   }
   $("#authSignedOut").hidden = signedIn;
   $("#authSignedIn").hidden = !signedIn;
-  $("#authUser").textContent = signedIn ? authState.user.email || "Signed in" : "";
+  $("#authUser").textContent = signedIn ? friendlyAccountName() : "";
   $("#googleSignIn").hidden = !googleAvailable;
   $("#oauthSecurity").hidden = !googleAvailable;
   $("#emailAuthDivider").hidden = !googleAvailable;
@@ -2129,6 +2292,7 @@ async function loadAccount() {
     if (authState.user) activateAccountStore(authState.user.accountKey);
     updateAccountUI();
     if (authState.user) await reconcileCloudDeck();
+    if (authState.user) openStudyProfileSetup(false);
   } catch {
     authState = { enabled: false, googleEnabled: false, user: null };
     updateAccountUI();
@@ -3007,7 +3171,15 @@ function startMatchGame() {
 function renderStarterDecks() {
   const list = $("#starterDecks");
   list.replaceChildren();
-  STARTER_DECKS.forEach((deck) => {
+  const visibleDecks = selectedStudyStream() === "Commerce" ? STARTER_DECKS : [];
+  if (!visibleDecks.length) {
+    const empty = document.createElement("div");
+    empty.className = "modalEmpty";
+    empty.textContent = "Create a focused deck from your own class notes for this stream.";
+    list.append(empty);
+    return;
+  }
+  visibleDecks.forEach((deck) => {
     const card = document.createElement("article");
     card.className = "starterDeck";
     const copy = document.createElement("div");
@@ -3120,6 +3292,7 @@ $("#signOut").addEventListener("click", async () => {
     await activateGuestStore();
     updateAccountUI();
     authModal.classList.remove("open");
+    $("#studyProfileModal").classList.remove("open");
     $$(".mobileFullPage").forEach((page) => { page.hidden = true; });
     document.body.classList.remove("mobile-page-open");
     setWorkspace("home", false);
@@ -3237,17 +3410,7 @@ const openMobileSettings = () => {
   showMobilePage("#mobileSettingsView");
 };
 $("#mobileSettingsOpen").addEventListener("click", openMobileSettings);
-$("#mobileClassPill").addEventListener("click", () => {
-  const nextClass = selectedClassLevel() === "Class 11" ? "Class 12" : "Class 11";
-  $("#classSelect").value = nextClass;
-  try {
-    localStorage.setItem(CLASS_STORE, nextClass);
-  } catch {
-    // The selection remains active for this tab.
-  }
-  updateMobileAccountUI();
-  toast(`${nextClass} study plan selected`);
-});
+$("#mobileClassPill").addEventListener("click", () => openStudyProfileSetup(true));
 $("#mobileAccountOpen").addEventListener("click", () => {
   if (authState.user) openMobileSettings();
   else openAuthFlow("signin");
@@ -3255,6 +3418,7 @@ $("#mobileAccountOpen").addEventListener("click", () => {
 $("#mobileSettingsClose").addEventListener("click", () => hideMobilePage("#mobileSettingsView"));
 $("#mobileProfileOpen").addEventListener("click", () => showMobilePage("#mobileProfileView"));
 $("#mobileProfileDetailsOpen").addEventListener("click", () => showMobilePage("#mobileProfileView"));
+$("#mobileEditStudyProfile").addEventListener("click", () => openStudyProfileSetup(true));
 $("#mobileNotificationsOpen").addEventListener("click", () => showMobilePage("#mobileNotificationsView"));
 $("#mobileAvatarOpen").addEventListener("click", () => showMobilePage("#mobileAvatarView"));
 $("#mobileShareOpen").addEventListener("click", () => showMobilePage("#mobileShareView"));
@@ -3374,6 +3538,35 @@ $("#classSelect").addEventListener("change", (event) => {
     // The chosen class still applies to the current deck.
   }
   updateMobileAccountUI();
+});
+$("#streamSelect").addEventListener("change", (event) => {
+  const stream = applyStudyStream(event.target.value, true);
+  updateMobileAccountUI();
+  toast(`${STUDY_STREAMS[stream].label} study plan selected`);
+});
+$("#studyProfileForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const name = $("#studyProfileName").value.trim();
+  const classLevel = $('input[name="studyProfileClass"]:checked')?.value || "";
+  const stream = $('input[name="studyProfileStream"]:checked')?.value || "";
+  const error = $("#studyProfileError");
+  if (name.length < 2) {
+    error.textContent = "Enter your name to continue.";
+    $("#studyProfileName").focus();
+    return;
+  }
+  if (!classLevel || !stream) {
+    error.textContent = "Choose your class and stream.";
+    return;
+  }
+  error.textContent = "";
+  saveStudyProfile({ name, classLevel, stream });
+  $("#studyProfileModal").classList.remove("open");
+  toast(`${classLevel} · ${STUDY_STREAMS[normalizeStudyStream(stream)].label} dashboard ready`);
+});
+$("#studyProfileCancel").addEventListener("click", () => {
+  $("#studyProfileModal").classList.remove("open");
+  $("#studyProfileError").textContent = "";
 });
 $("#scene").addEventListener("click", toggleCardFlip);
 $("#next").addEventListener("click", next);
@@ -3830,7 +4023,7 @@ document.addEventListener("keydown", (event) => {
 });
 
 setupSpatialUi();
-restoreClassLevel();
+restoreStudyPreferences();
 loadTheme();
 await load();
 importSharedDeckFromHash();
@@ -3844,7 +4037,7 @@ loadAccount()
   })
   .finally(loadTimerState);
 if ("serviceWorker" in navigator) {
-  const shellRefreshKey = "minddeck-shell-v30-refreshed";
+  const shellRefreshKey = "minddeck-shell-v31-refreshed";
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     try {
       if (sessionStorage.getItem(shellRefreshKey)) return;
@@ -3856,7 +4049,7 @@ if ("serviceWorker" in navigator) {
   });
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("/static/sw.js?v=30", { scope: "/", updateViaCache: "none" })
+      .register("/static/sw.js?v=31", { scope: "/", updateViaCache: "none" })
       .then((registration) => registration.update())
       .catch(() => {});
   });

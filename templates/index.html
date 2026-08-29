@@ -17,6 +17,10 @@ try {
   } else if (localStorage.getItem(onboardingKey) === "1") {
     document.documentElement.classList.add("splash-seen");
   }
+  const savedStream = localStorage.getItem("minddeck-stream-v1");
+  if (["PCM", "PCB", "Commerce"].includes(savedStream)) {
+    document.documentElement.dataset.studyStream = savedStream.toLowerCase();
+  }
 } catch {
   // A valid account cookie still lets the server skip onboarding.
 }
@@ -921,7 +925,7 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 }
 /* END MOBILE PREMIUM POLISH */
 </style>
-<link rel="stylesheet" href="/static/mobile-reference.css?v=10">
+<link rel="stylesheet" href="/static/mobile-reference.css?v=11">
 </head>
 <body data-workspace="home">
 <div id="splash-screen" role="dialog" aria-modal="true" aria-label="MindDeck is loading">
@@ -1037,7 +1041,7 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 <div class="mobileGreeting">
 <small id="mobileGreetingText">Good to see you,</small>
 <strong id="mobileUserName">MindDeck learner</strong>
-<span><button id="mobileClassPill" type="button" aria-label="Switch class">Class 12</button><i>FREE</i></span>
+<span><button id="mobileClassPill" type="button" aria-label="Edit class and stream">Class 12</button><i id="mobileStreamPill">PCM</i></span>
 </div>
 <button class="mobileIconButton" id="mobileSettingsOpen" type="button" aria-label="Open settings">⚙</button>
 </header>
@@ -1071,8 +1075,8 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 <section class="mobileSection mobileSubjectsSection">
 <div class="mobileSectionHeading"><div><small>YOUR PLAYGROUND</small><h2>Explore subjects</h2></div><button id="mobileSeeDeck" type="button">My deck</button></div>
 
-<div class="mobileStreamShelf scienceShelf">
-<div class="mobileStreamHeading"><span><i aria-hidden="true">⌁</i><span><strong>Science</strong><small>Build concepts &amp; solve faster</small></span></span><b>4 subjects</b></div>
+<div class="mobileStreamShelf scienceShelf" id="scienceStreamShelf">
+<div class="mobileStreamHeading"><span><i aria-hidden="true">⌁</i><span><strong id="scienceStreamTitle">PCM</strong><small id="scienceStreamCopy">Physics, Chemistry &amp; Mathematics</small></span></span><b id="scienceSubjectCount">3 subjects</b></div>
 <div class="mobileSubjectRail" aria-label="Science subjects">
 <button class="mobileSubject physics" type="button" data-subject-filter="physics"><i aria-hidden="true">⚛</i><strong>Physics</strong><span><b data-mobile-subject-count="physics">0</b> cards</span></button>
 <button class="mobileSubject chemistry" type="button" data-subject-filter="physical-chemistry"><i aria-hidden="true">⚗</i><strong>Chemistry</strong><span><b data-mobile-subject-count="physical-chemistry">0</b> cards</span></button>
@@ -1081,8 +1085,8 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 </div>
 </div>
 
-<div class="mobileStreamShelf commerceShelf">
-<div class="mobileStreamHeading"><span><i aria-hidden="true">₹</i><span><strong>Commerce</strong><small>Understand business &amp; markets</small></span></span><b>4 subjects</b></div>
+<div class="mobileStreamShelf commerceShelf" id="commerceStreamShelf" hidden>
+<div class="mobileStreamHeading"><span><i aria-hidden="true">₹</i><span><strong>Commerce</strong><small>Understand business &amp; markets</small></span></span><b id="commerceSubjectCount">4 subjects</b></div>
 <div class="mobileSubjectRail" aria-label="Commerce subjects">
 <button class="mobileSubject accounts" type="button" data-subject-filter="accountancy"><i aria-hidden="true">Σ</i><strong>Accountancy</strong><span><b data-mobile-subject-count="accountancy">0</b> cards</span></button>
 <button class="mobileSubject business" type="button" data-subject-filter="business-studies"><i aria-hidden="true">B</i><strong>Business Studies</strong><span><b data-mobile-subject-count="business-studies">0</b> cards</span></button>
@@ -1186,8 +1190,9 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 <section class="mobileFullPage" id="mobileProfileView" hidden aria-label="Profile details">
 <header class="mobilePageHeader"><button class="mobileSubpageBack" type="button" data-mobile-close="mobileProfileView">←</button><h1>Profile details</h1><span></span></header>
 <div class="mobileProfileHero"><span id="mobileProfileHeroAvatar">M</span><strong id="mobileProfileName">MindDeck learner</strong><small id="mobileProfileClass">Class 12</small></div>
-<div class="mobileProfileBlock"><small>PERSONAL INFO</small><div><span>Name</span><strong id="mobileProfileNameValue">MindDeck learner</strong></div><div><span>Email</span><strong id="mobileProfileEmailValue">Saved on this device</strong></div></div>
-<div class="mobileProfileBlock"><small>ACADEMICS</small><div><span>Grade / class</span><strong id="mobileProfileClassValue">Class 12</strong></div><div><span>Subjects</span><strong>Physics · Chemistry · Biology · Accountancy</strong></div></div>
+<div class="mobileProfileBlock"><small>PERSONAL INFO</small><div><span>Name</span><strong id="mobileProfileNameValue">MindDeck learner</strong></div><div><span>Account</span><strong>Google account connected</strong></div></div>
+<div class="mobileProfileBlock"><small>ACADEMICS</small><div><span>Grade / class</span><strong id="mobileProfileClassValue">Class 12</strong></div><div><span>Stream</span><strong id="mobileProfileStreamValue">PCM</strong></div><div><span>Subjects</span><strong id="mobileProfileSubjectsValue">Physics · Chemistry · Mathematics</strong></div></div>
+<button class="mobileGradientButton mobileEditStudyProfile" id="mobileEditStudyProfile" type="button">Edit class &amp; stream</button>
 <div class="mobileProfileBlock"><small>LEARNING STYLE</small><div><span>Revision system</span><strong>SM-2 adaptive recall</strong></div><div><span>Daily goal</span><strong id="mobileProfileGoalValue">25 min / day</strong></div></div>
 </section>
 
@@ -1769,6 +1774,25 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 </div>
 </div>
 </div>
+<div class="modal studyProfileSetup" id="studyProfileModal" data-required="true">
+<form class="dialog studyProfileDialog" id="studyProfileForm" role="dialog" aria-modal="true" aria-labelledby="studyProfileTitle">
+<div class="studyProfileBrand"><img src="/static/minddeck-icon.svg?v=2" alt="" aria-hidden="true"><span>PERSONALISE MINDDECK</span></div>
+<div class="studyProfileIntro"><small>ONE QUICK STEP</small><h2 id="studyProfileTitle">Build your study dashboard.</h2><p>Choose your class and stream. MindDeck will show only the subjects you actually study.</p></div>
+<label class="studyProfileName" for="studyProfileName"><span>Your name</span><input id="studyProfileName" type="text" autocomplete="name" maxlength="80" required placeholder="e.g. Aadhya Sharma"></label>
+<fieldset class="studyProfileChoices"><legend>Choose your class</legend><div class="studyProfileClassGrid">
+<label><input type="radio" name="studyProfileClass" value="Class 11" required><span><b>11</b><small>Class 11</small></span></label>
+<label><input type="radio" name="studyProfileClass" value="Class 12" required checked><span><b>12</b><small>Class 12</small></span></label>
+</div></fieldset>
+<fieldset class="studyProfileChoices"><legend>Choose your stream</legend><div class="studyProfileStreamGrid">
+<label><input type="radio" name="studyProfileStream" value="PCM" required checked><span><b>PCM</b><small>Physics · Chemistry · Maths</small></span></label>
+<label><input type="radio" name="studyProfileStream" value="PCB" required><span><b>PCB</b><small>Physics · Chemistry · Biology</small></span></label>
+<label><input type="radio" name="studyProfileStream" value="Commerce" required><span><b>Commerce</b><small>Accounts · Business · Economics</small></span></label>
+</div></fieldset>
+<p class="studyProfileError" id="studyProfileError" role="alert"></p>
+<div class="studyProfileActions"><button id="studyProfileCancel" type="button" hidden>Cancel</button><button class="mobileGradientButton" type="submit">Build my dashboard →</button></div>
+<p class="studyProfileFoot">You can change these choices later from Profile.</p>
+</form>
+</div>
 <div class="modal" id="settingsModal">
 <div class="dialog aiSettingsDialog" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
 <div class="dhead">
@@ -1947,6 +1971,6 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
   signInText.addEventListener("click", () => enterApp("signin"));
 })();
 </script>
-<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=25"></script>
+<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=26"></script>
 </body>
 </html>
