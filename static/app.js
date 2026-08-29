@@ -59,8 +59,28 @@ const SUBJECT_WORKSPACES = Object.freeze({
     subject: "Chemistry",
     aliases: ["chemistry", "physical chemistry", "organic chemistry", "inorganic chemistry", "thermodynamics", "electrochemistry", "chemical kinetics"],
   },
-  accountancy: { label: "Accountancy", subject: "Accountancy", aliases: ["accountancy", "accounts"] },
+  mathematics: {
+    label: "Mathematics",
+    subject: "Mathematics",
+    aliases: ["mathematics", "maths", "calculus", "algebra", "trigonometry", "probability", "statistics"],
+  },
   biology: { label: "Biology", subject: "Biology", aliases: ["biology", "botany", "zoology"] },
+  accountancy: { label: "Accountancy", subject: "Accountancy", aliases: ["accountancy", "accounts"] },
+  "business-studies": {
+    label: "Business Studies",
+    subject: "Business Studies",
+    aliases: ["business studies", "business study", "business organisation", "marketing management"],
+  },
+  economics: {
+    label: "Economics",
+    subject: "Economics",
+    aliases: ["economics", "microeconomics", "macroeconomics", "national income", "demand", "supply"],
+  },
+  entrepreneurship: {
+    label: "Entrepreneurship",
+    subject: "Entrepreneurship",
+    aliases: ["entrepreneurship", "entrepreneur", "enterprise development", "startup planning"],
+  },
 });
 
 let cards = [];

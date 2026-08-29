@@ -909,7 +909,7 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 }
 /* END MOBILE PREMIUM POLISH */
 </style>
-<link rel="stylesheet" href="/static/mobile-reference.css?v=1">
+<link rel="stylesheet" href="/static/mobile-reference.css?v=2">
 </head>
 <body data-workspace="home">
 <div id="splash-screen" role="dialog" aria-modal="true" aria-label="MindDeck is loading">
@@ -1049,13 +1049,27 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 <button id="mobileReviewNow" type="button">Review</button>
 </article>
 
-<section class="mobileSection">
-<div class="mobileSectionHeading"><div><small>YOUR PLAYGROUND</small><h2>Choose a subject</h2></div><button id="mobileSeeDeck" type="button">See all</button></div>
-<div class="mobileSubjectRail">
+<section class="mobileSection mobileSubjectsSection">
+<div class="mobileSectionHeading"><div><small>YOUR PLAYGROUND</small><h2>Explore subjects</h2></div><button id="mobileSeeDeck" type="button">My deck</button></div>
+
+<div class="mobileStreamShelf scienceShelf">
+<div class="mobileStreamHeading"><span><i aria-hidden="true">⌁</i><span><strong>Science</strong><small>Build concepts &amp; solve faster</small></span></span><b>4 subjects</b></div>
+<div class="mobileSubjectRail" aria-label="Science subjects">
 <button class="mobileSubject physics" type="button" data-subject-filter="physics"><i aria-hidden="true">⚛</i><strong>Physics</strong><span><b data-mobile-subject-count="physics">0</b> cards</span></button>
 <button class="mobileSubject chemistry" type="button" data-subject-filter="physical-chemistry"><i aria-hidden="true">⚗</i><strong>Chemistry</strong><span><b data-mobile-subject-count="physical-chemistry">0</b> cards</span></button>
+<button class="mobileSubject mathematics" type="button" data-subject-filter="mathematics"><i aria-hidden="true">π</i><strong>Mathematics</strong><span><b data-mobile-subject-count="mathematics">0</b> cards</span></button>
 <button class="mobileSubject biology" type="button" data-subject-filter="biology"><i aria-hidden="true">⌬</i><strong>Biology</strong><span><b data-mobile-subject-count="biology">0</b> cards</span></button>
+</div>
+</div>
+
+<div class="mobileStreamShelf commerceShelf">
+<div class="mobileStreamHeading"><span><i aria-hidden="true">₹</i><span><strong>Commerce</strong><small>Understand business &amp; markets</small></span></span><b>4 subjects</b></div>
+<div class="mobileSubjectRail" aria-label="Commerce subjects">
 <button class="mobileSubject accounts" type="button" data-subject-filter="accountancy"><i aria-hidden="true">Σ</i><strong>Accountancy</strong><span><b data-mobile-subject-count="accountancy">0</b> cards</span></button>
+<button class="mobileSubject business" type="button" data-subject-filter="business-studies"><i aria-hidden="true">B</i><strong>Business Studies</strong><span><b data-mobile-subject-count="business-studies">0</b> cards</span></button>
+<button class="mobileSubject economics" type="button" data-subject-filter="economics"><i aria-hidden="true">₹</i><strong>Economics</strong><span><b data-mobile-subject-count="economics">0</b> cards</span></button>
+<button class="mobileSubject entrepreneurship" type="button" data-subject-filter="entrepreneurship"><i aria-hidden="true">↗</i><strong>Entrepreneurship</strong><span><b data-mobile-subject-count="entrepreneurship">0</b> cards</span></button>
+</div>
 </div>
 </section>
 
@@ -1107,8 +1121,12 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 <div class="mobileMasteryList">
 <div><span><i class="physicsDot"></i>Physics</span><progress data-mobile-subject-progress="physics" max="100" value="0"></progress><b data-mobile-subject-percent="physics">0%</b></div>
 <div><span><i class="chemistryDot"></i>Chemistry</span><progress data-mobile-subject-progress="physical-chemistry" max="100" value="0"></progress><b data-mobile-subject-percent="physical-chemistry">0%</b></div>
+<div><span><i class="mathematicsDot"></i>Mathematics</span><progress data-mobile-subject-progress="mathematics" max="100" value="0"></progress><b data-mobile-subject-percent="mathematics">0%</b></div>
 <div><span><i class="biologyDot"></i>Biology</span><progress data-mobile-subject-progress="biology" max="100" value="0"></progress><b data-mobile-subject-percent="biology">0%</b></div>
 <div><span><i class="accountsDot"></i>Accountancy</span><progress data-mobile-subject-progress="accountancy" max="100" value="0"></progress><b data-mobile-subject-percent="accountancy">0%</b></div>
+<div><span><i class="businessDot"></i>Business Studies</span><progress data-mobile-subject-progress="business-studies" max="100" value="0"></progress><b data-mobile-subject-percent="business-studies">0%</b></div>
+<div><span><i class="economicsDot"></i>Economics</span><progress data-mobile-subject-progress="economics" max="100" value="0"></progress><b data-mobile-subject-percent="economics">0%</b></div>
+<div><span><i class="entrepreneurshipDot"></i>Entrepreneurship</span><progress data-mobile-subject-progress="entrepreneurship" max="100" value="0"></progress><b data-mobile-subject-percent="entrepreneurship">0%</b></div>
 </div>
 </div>
 <div class="mobileProgressPanel" data-progress-panel="plan">
@@ -1204,8 +1222,12 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 <div class="subjectSwitcher" aria-label="Subject revision shortcuts">
 <button class="subjectChip" type="button" data-subject-filter="physics"><strong>Physics</strong><span data-subject-count="physics">0 cards</span></button>
 <button class="subjectChip" type="button" data-subject-filter="physical-chemistry"><strong>Chemistry</strong><span data-subject-count="physical-chemistry">0 cards</span></button>
-<button class="subjectChip" type="button" data-subject-filter="accountancy"><strong>Accountancy</strong><span data-subject-count="accountancy">0 cards</span></button>
+<button class="subjectChip" type="button" data-subject-filter="mathematics"><strong>Mathematics</strong><span data-subject-count="mathematics">0 cards</span></button>
 <button class="subjectChip" type="button" data-subject-filter="biology"><strong>Biology</strong><span data-subject-count="biology">0 cards</span></button>
+<button class="subjectChip" type="button" data-subject-filter="accountancy"><strong>Accountancy</strong><span data-subject-count="accountancy">0 cards</span></button>
+<button class="subjectChip" type="button" data-subject-filter="business-studies"><strong>Business Studies</strong><span data-subject-count="business-studies">0 cards</span></button>
+<button class="subjectChip" type="button" data-subject-filter="economics"><strong>Economics</strong><span data-subject-count="economics">0 cards</span></button>
+<button class="subjectChip" type="button" data-subject-filter="entrepreneurship"><strong>Entrepreneurship</strong><span data-subject-count="entrepreneurship">0 cards</span></button>
 </div>
 </div>
 <div class="stats">
@@ -1482,6 +1504,7 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 <option value="Accountancy">Accountancy</option>
 <option value="Business Studies">Business Studies</option>
 <option value="Economics">Economics</option>
+<option value="Entrepreneurship">Entrepreneurship</option>
 </select>
 </label>
 <label for="chapterTag">Chapter
@@ -1892,6 +1915,6 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
   }, 35);
 })();
 </script>
-<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=16"></script>
+<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=17"></script>
 </body>
 </html>

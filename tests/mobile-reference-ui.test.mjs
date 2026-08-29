@@ -31,12 +31,30 @@ test("mobile shell includes the five reference destinations", () => {
   assert.match(html, /<body data-workspace="home">/);
 });
 
+test("Science and Commerce shelves include complete subject shortcuts", () => {
+  assert.match(html, /aria-label="Science subjects"/);
+  assert.match(html, /aria-label="Commerce subjects"/);
+  for (const subject of [
+    "physics",
+    "physical-chemistry",
+    "mathematics",
+    "biology",
+    "accountancy",
+    "business-studies",
+    "economics",
+    "entrepreneurship",
+  ]) {
+    assert.match(html, new RegExp(`data-subject-filter="${subject}"`));
+    assert.ok(app.includes(subject), `${subject} should be wired in app.js`);
+  }
+});
+
 test("mobile UI assets are versioned and available offline", () => {
-  assert.match(html, /mobile-reference\.css\?v=1/);
-  assert.match(html, /app\.js\?v=16/);
-  assert.match(serviceWorker, /minddeck-shell-v20/);
-  assert.match(serviceWorker, /mobile-reference\.css\?v=1/);
-  assert.match(serviceWorker, /app\.js\?v=16/);
+  assert.match(html, /mobile-reference\.css\?v=2/);
+  assert.match(html, /app\.js\?v=17/);
+  assert.match(serviceWorker, /minddeck-shell-v21/);
+  assert.match(serviceWorker, /mobile-reference\.css\?v=2/);
+  assert.match(serviceWorker, /app\.js\?v=17/);
   assert.match(css, /@media \(max-width: 760px\)/);
 });
 
