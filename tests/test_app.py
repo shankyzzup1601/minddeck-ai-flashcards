@@ -541,6 +541,49 @@ class MindDeckSecurityTests(unittest.TestCase):
         self.assertNotIn(tokens["provider_token"], response_text)
         self.assertNotIn(tokens["provider_token"], callback.headers["Location"])
 
+    def test_google_popup_callback_survives_android_browser_handoff(self):
+        tokens = {
+            "access_token": "a" * 128,
+            "refresh_token": "r" * 12,
+            "expires_in": 3600,
+        }
+        with patch.dict(os.environ, self.google_environment(), clear=True), patch.object(
+            minddeck, "google_auth_ready", return_value=True
+        ):
+            _home, csrf = self.home()
+            started = self.post("/api/auth/google/start", {"popup": True}, csrf)
+
+        redirect_to = parse_qs(urlparse(started.json["authorizationUrl"]).query)[
+            "redirect_to"
+        ][0]
+        self.assertEqual(
+            redirect_to,
+            f"{self.base_url}/api/auth/google/callback?flow=popup",
+        )
+
+        with patch.dict(os.environ, self.google_environment(), clear=True), patch.object(
+            minddeck, "supabase_json", return_value=tokens
+        ) as upstream:
+            callback = self.client.get(
+                "/api/auth/google/callback?flow=popup&code=12345678-1234-1234-1234-123456789abc",
+                base_url=self.base_url,
+                headers={
+                    "User-Agent": "Chrome Android OAuth Handoff",
+                    "X-Forwarded-Proto": "https",
+                },
+            )
+
+        self.assertEqual(callback.status_code, 200)
+        body = callback.get_data(as_text=True)
+        self.assertIn('BroadcastChannel("minddeck-google-auth-v1")', body)
+        self.assertIn('const result = "ok"', body)
+        self.assertIn("window.close()", body)
+        self.assertIn("Return to MindDeck", body)
+        self.assertEqual(upstream.call_args.args[1], "/auth/v1/token?grant_type=pkce")
+        cookies = "\n".join(callback.headers.getlist("Set-Cookie"))
+        self.assertIn("__Host-minddeck_access=", cookies)
+        self.assertIn("__Host-minddeck_refresh=", cookies)
+
     def test_google_callback_rejects_missing_tampered_and_expired_transactions(self):
         callback_path = "/api/auth/google/callback?code=12345678-1234-1234-1234-123456789abc"
         with patch.dict(os.environ, self.google_environment(), clear=True), patch.object(

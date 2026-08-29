@@ -2571,11 +2571,83 @@ async function submitAccount(path) {
 
 async function startGoogleSignIn() {
   const button = $("#googleSignIn");
+  let authWindow = null;
+  try {
+    authWindow = window.open(
+      "about:blank",
+      "minddeck-google-signin",
+      "popup=yes,width=520,height=760"
+    );
+  } catch {
+    // A same-tab redirect remains available when a browser blocks popups.
+  }
+  let settled = false;
+  let timeout = 0;
+  let channel = null;
+  let leftApp = false;
   $("#authError").textContent = "";
   $("#authMessage").textContent = "";
   button.disabled = true;
+
+  const cleanup = () => {
+    if (timeout) window.clearTimeout(timeout);
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
+    try {
+      channel?.close();
+    } catch {
+      // The result has already been handled.
+    }
+  };
+
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === "hidden") {
+      leftApp = true;
+      return;
+    }
+    if (!leftApp || settled) return;
+    window.setTimeout(() => {
+      if (!settled) finishPopupSignIn("error");
+    }, 1_800);
+  };
+
+  const finishPopupSignIn = async (result) => {
+    if (settled) return;
+    settled = true;
+    cleanup();
+    try {
+      authWindow?.close();
+    } catch {
+      // Chrome may already have closed the temporary authentication window.
+    }
+    button.disabled = false;
+    if (result !== "ok") {
+      $("#authError").textContent = "Google Sign-In was cancelled or could not be completed.";
+      return;
+    }
+    await loadAccount();
+    if (!authState.user) {
+      $("#authError").textContent = "Google Sign-In finished, but the account could not be loaded.";
+      return;
+    }
+    $("#authModal").classList.remove("open");
+    setWorkspace("home", false);
+    syncMobileDashboard();
+    toast("Signed in with Google · cloud memory restored");
+  };
+
+  if (authWindow && "BroadcastChannel" in window) {
+    channel = new BroadcastChannel("minddeck-google-auth-v1");
+    channel.addEventListener("message", (event) => {
+      if (event.data?.type !== "minddeck-google-auth") return;
+      finishPopupSignIn(event.data.result === "ok" ? "ok" : "error");
+    });
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    timeout = window.setTimeout(() => finishPopupSignIn("error"), 5 * 60 * 1000);
+  }
+
   try {
-    const data = await apiPost("/api/auth/google/start", {});
+    const popupFlow = Boolean(authWindow && channel);
+    const data = await apiPost("/api/auth/google/start", { popup: popupFlow });
     const authorizationUrl = new URL(data.authorizationUrl);
     const safeSupabaseUrl =
       authorizationUrl.protocol === "https:" &&
@@ -2583,8 +2655,16 @@ async function startGoogleSignIn() {
       authorizationUrl.pathname === "/auth/v1/authorize" &&
       authorizationUrl.searchParams.get("provider") === "google";
     if (!safeSupabaseUrl) throw new Error("The Google sign-in address was invalid.");
-    window.location.assign(authorizationUrl.href);
+    if (popupFlow) authWindow.location.replace(authorizationUrl.href);
+    else window.location.assign(authorizationUrl.href);
   } catch (error) {
+    settled = true;
+    cleanup();
+    try {
+      authWindow?.close();
+    } catch {
+      // The temporary window may already be gone.
+    }
     $("#authError").textContent = error.message || "Google Sign-In could not start.";
     button.disabled = false;
   }
@@ -4221,11 +4301,12 @@ loadAccount()
   .then(() => {
     if (authResult === "ok" && authState.user) toast("Signed in with Google · cloud memory restored");
     else if (authResult === "ok") toast("Google Sign-In finished, but the account could not be loaded");
+    else if (authResult === "error" && authState.user) toast("You’re already signed in · cloud memory restored");
     else if (authResult === "error") toast("Google Sign-In was cancelled or could not be completed");
   })
   .finally(loadTimerState);
 if ("serviceWorker" in navigator) {
-  const shellRefreshKey = "minddeck-shell-v32-refreshed";
+  const shellRefreshKey = "minddeck-shell-v33-refreshed";
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     try {
       if (sessionStorage.getItem(shellRefreshKey)) return;
@@ -4237,7 +4318,7 @@ if ("serviceWorker" in navigator) {
   });
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("/static/sw.js?v=32", { scope: "/", updateViaCache: "none" })
+      .register("/static/sw.js?v=33", { scope: "/", updateViaCache: "none" })
       .then((registration) => registration.update())
       .catch(() => {});
   });

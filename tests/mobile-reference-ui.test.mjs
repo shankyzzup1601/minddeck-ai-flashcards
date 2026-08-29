@@ -61,7 +61,7 @@ test("My Deck has a guided empty state and reliable account fallback", () => {
   assert.match(app, /dataset\.deckEmptyAction/);
   assert.match(app, /accountAvatarImage\.onload/);
   assert.match(app, /updateViaCache: "none"/);
-  assert.match(app, /minddeck-shell-v32-refreshed/);
+  assert.match(app, /minddeck-shell-v33-refreshed/);
 });
 
 test("Science and Commerce shelves include complete subject shortcuts", () => {
@@ -84,10 +84,10 @@ test("Science and Commerce shelves include complete subject shortcuts", () => {
 
 test("mobile UI assets are versioned and available offline", () => {
   assert.match(html, /mobile-reference\.css\?v=12/);
-  assert.match(html, /app\.js\?v=27/);
-  assert.match(serviceWorker, /minddeck-shell-v32/);
+  assert.match(html, /app\.js\?v=28/);
+  assert.match(serviceWorker, /minddeck-shell-v33/);
   assert.match(serviceWorker, /mobile-reference\.css\?v=12/);
-  assert.match(serviceWorker, /app\.js\?v=27/);
+  assert.match(serviceWorker, /app\.js\?v=28/);
   assert.match(serviceWorker, /cbse-syllabus\.js\?v=1/);
   assert.match(css, /@media \(max-width: 760px\)/);
 });
@@ -112,7 +112,7 @@ test("timer and planner are complete working study tools", () => {
   assert.match(app, /data-planner-toggle/);
   assert.match(app, /data-planner-focus/);
   assert.match(app, /data-planner-delete/);
-  assert.match(app, /\.register\("\/static\/sw\.js\?v=32"/);
+  assert.match(app, /\.register\("\/static\/sw\.js\?v=33"/);
   assert.match(css, /body\[data-workspace="planner"\] \.plannerWorkspace \{ display: block; \}/);
 });
 
@@ -170,6 +170,14 @@ test("generation presents one built-in MindDeck AI experience", () => {
   assert.match(app, /Sign in once to generate with MindDeck AI/);
   assert.match(css, /\.aiStatusCard/);
   assert.match(css, /#settingsModal \.aiSettingsDialog \{[^}]*overflow-y: auto;/s);
+});
+
+test("Google sign-in returns from Chrome to the installed app", () => {
+  assert.match(app, /window\.open\([\s\S]*minddeck-google-signin/);
+  assert.match(app, /new BroadcastChannel\("minddeck-google-auth-v1"\)/);
+  assert.match(app, /apiPost\("\/api\/auth\/google\/start", \{ popup: popupFlow \}\)/);
+  assert.match(app, /authWindow\.location\.replace\(authorizationUrl\.href\)/);
+  assert.match(app, /authResult === "error" && authState\.user/);
 });
 
 test("generation starts with ready syllabus and keeps notes and PDFs as an extra path", () => {

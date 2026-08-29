@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Returning to MindDeck</title>
+  <link rel="icon" href="/static/minddeck-icon.svg?v=2" type="image/svg+xml">
+  <style nonce="{{ csp_nonce }}">
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body { min-height: 100dvh; margin: 0; display: grid; place-items: center; padding: 24px; color: #f8f3ff; background: radial-gradient(circle at 50% 18%, #70245b66, transparent 34%), #08050d; }
+    main { width: min(390px, 100%); text-align: center; }
+    img { width: 74px; height: 74px; border-radius: 21px; box-shadow: 0 20px 48px #000a, 0 0 34px #a855f744; }
+    h1 { margin: 22px 0 8px; font-size: 24px; letter-spacing: -.6px; }
+    p { margin: 0; color: #a79eae; font-size: 14px; line-height: 1.55; }
+    a { display: none; margin-top: 24px; min-height: 48px; align-items: center; justify-content: center; border-radius: 14px; color: white; font-weight: 800; text-decoration: none; background: linear-gradient(105deg, #ff693f, #f0007b); box-shadow: 0 14px 34px #ef0d7644; }
+    .show-fallback a { display: flex; }
+  </style>
+</head>
+<body>
+  <main>
+    <img src="/static/minddeck-icon.svg?v=2" alt="MindDeck book logo">
+    <h1>{{ "Signed in" if oauth_result == "ok" else "Sign-in didn’t finish" }}</h1>
+    <p>{{ "Returning you to the MindDeck app…" if oauth_result == "ok" else "Return to MindDeck and try Google sign-in again." }}</p>
+    <a href="/">Return to MindDeck</a>
+  </main>
+  <script nonce="{{ csp_nonce }}">
+    (() => {
+      const result = "{{ oauth_result }}";
+      try {
+        const channel = new BroadcastChannel("minddeck-google-auth-v1");
+        channel.postMessage({ type: "minddeck-google-auth", result });
+        window.setTimeout(() => channel.close(), 500);
+      } catch {}
+      window.setTimeout(() => window.close(), 120);
+      window.setTimeout(() => document.documentElement.classList.add("show-fallback"), 900);
+    })();
+  </script>
+</body>
+</html>

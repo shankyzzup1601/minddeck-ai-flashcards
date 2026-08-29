@@ -729,10 +729,10 @@ def base64url_decode(value: str) -> bytes:
     return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
 
 
-def sign_oauth_transaction(verifier: str, origin: str) -> str:
+def sign_oauth_transaction(verifier: str, origin: str, flow: str = "redirect") -> str:
     payload = {
         "exp": int(time.time()) + OAUTH_TRANSACTION_SECONDS,
-        "fp": session_fingerprint(),
+        "flow": "popup" if flow == "popup" else "redirect",
         "nonce": secrets.token_urlsafe(18),
         "origin": origin,
         "v": 1,
@@ -774,7 +774,7 @@ def verify_oauth_transaction(token: str, origin: str) -> dict | None:
     expires = payload.get("exp")
     verifier = payload.get("verifier")
     nonce = payload.get("nonce")
-    fingerprint = payload.get("fp")
+    flow = payload.get("flow", "redirect")
     stored_origin = payload.get("origin")
     now = int(time.time())
     if not (
@@ -784,8 +784,7 @@ def verify_oauth_transaction(token: str, origin: str) -> dict | None:
         and re.fullmatch(r"[A-Za-z0-9_-]{43,128}", verifier)
         and isinstance(nonce, str)
         and re.fullmatch(r"[A-Za-z0-9_-]{16,80}", nonce)
-        and isinstance(fingerprint, str)
-        and hmac.compare_digest(fingerprint, session_fingerprint())
+        and flow in {"redirect", "popup"}
         and isinstance(stored_origin, str)
         and hmac.compare_digest(stored_origin, origin)
     ):
@@ -815,7 +814,18 @@ def clear_oauth_cookie(response):
     )
 
 
-def oauth_result_redirect(result: str):
+def oauth_result_response(result: str, *, popup: bool = False):
+    if popup:
+        g.csp_nonce = secrets.token_urlsafe(18)
+        response = make_response(
+            render_template(
+                "oauth_complete.html",
+                csp_nonce=g.csp_nonce,
+                oauth_result="ok" if result == "ok" else "error",
+            )
+        )
+        clear_oauth_cookie(response)
+        return response
     destination = "/?auth=google-ok" if result == "ok" else "/?auth=google-error"
     response = redirect(destination, code=303)
     clear_oauth_cookie(response)
@@ -945,9 +955,14 @@ def auth_google_start():
     if not origin or not settings:
         return jsonify(error="Google Sign-In is unavailable on this address."), 400
 
+    body = request.get_json(silent=True)
+    popup_flow = isinstance(body, dict) and body.get("popup") is True
+
     verifier = secrets.token_urlsafe(64)
     challenge = base64url_encode(hashlib.sha256(verifier.encode("ascii")).digest())
     callback_url = f"{origin}/api/auth/google/callback"
+    if popup_flow:
+        callback_url += "?flow=popup"
     query = urlencode(
         {
             "provider": "google",
@@ -958,25 +973,34 @@ def auth_google_start():
     )
     authorization_url = f"{settings[0]}/auth/v1/authorize?{query}"
     response = jsonify(authorizationUrl=authorization_url)
-    set_oauth_cookie(response, sign_oauth_transaction(verifier, origin))
+    set_oauth_cookie(
+        response,
+        sign_oauth_transaction(verifier, origin, "popup" if popup_flow else "redirect"),
+    )
     return response
 
 
 @app.get("/api/auth/google/callback")
 def auth_google_callback():
     origin = request_app_origin()
+    popup_flow = request.args.get("flow") == "popup"
     transaction = verify_oauth_transaction(
         request.cookies.get(oauth_cookie_name(), ""), origin or ""
     )
-    if not origin or not transaction or request.args.get("error"):
-        return oauth_result_redirect("error")
+    if (
+        not origin
+        or not transaction
+        or transaction.get("flow", "redirect") != ("popup" if popup_flow else "redirect")
+        or request.args.get("error")
+    ):
+        return oauth_result_response("error", popup=popup_flow)
 
     code = request.args.get("code", "")
     if not isinstance(code, str) or not re.fullmatch(r"[A-Za-z0-9._~-]{8,2048}", code):
-        return oauth_result_redirect("error")
+        return oauth_result_response("error", popup=popup_flow)
     allowed, _retry_after = rate_limit_ok("auth-google-callback", 20, 15 * 60)
     if not allowed:
-        return oauth_result_redirect("error")
+        return oauth_result_response("error", popup=popup_flow)
 
     try:
         tokens = supabase_json(
@@ -984,12 +1008,12 @@ def auth_google_callback():
             "/auth/v1/token?grant_type=pkce",
             {"auth_code": code, "code_verifier": transaction["verifier"]},
         )
-        response = oauth_result_redirect("ok")
+        response = oauth_result_response("ok", popup=popup_flow)
         set_auth_cookies(response, tokens)
         return response
     except (SupabaseError, RuntimeError, ValueError, urllib.error.URLError):
         app.logger.warning("Google OAuth callback could not complete")
-        return oauth_result_redirect("error")
+        return oauth_result_response("error", popup=popup_flow)
 
 
 def valid_auth_fields(body, *, minimum_password_length: int) -> tuple[str, str] | None:
