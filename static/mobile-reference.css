@@ -697,7 +697,17 @@
 
 @media (max-width: 760px) {
   #settingsModal { z-index: 490; padding: 12px !important; }
-  #settingsModal .aiSettingsDialog { max-height: calc(100dvh - 24px); padding: 19px !important; border-radius: 20px !important; }
+  #settingsModal .aiSettingsDialog {
+    max-height: calc(100dvh - 24px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 19px !important;
+    border-radius: 20px !important;
+  }
+  #settingsModal .aiSettingsDialog::-webkit-scrollbar { display: none; }
   .aiSettingsDialog .dhead h3 { font-size: 22px; }
   .aiSettingsDialog .authCopy { font-size: 9px; }
   .aiStatusCard { grid-template-columns: 48px 1fr; padding: 13px; }

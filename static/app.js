@@ -3599,7 +3599,7 @@ loadAccount()
   })
   .finally(loadTimerState);
 if ("serviceWorker" in navigator) {
-  const shellRefreshKey = "minddeck-shell-v27-refreshed";
+  const shellRefreshKey = "minddeck-shell-v28-refreshed";
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     try {
       if (sessionStorage.getItem(shellRefreshKey)) return;

@@ -59,7 +59,7 @@ test("My Deck has a guided empty state and reliable account fallback", () => {
   assert.match(app, /dataset\.deckEmptyAction/);
   assert.match(app, /accountAvatarImage\.onload/);
   assert.match(app, /updateViaCache: "none"/);
-  assert.match(app, /minddeck-shell-v27-refreshed/);
+  assert.match(app, /minddeck-shell-v28-refreshed/);
 });
 
 test("Science and Commerce shelves include complete subject shortcuts", () => {
@@ -81,11 +81,11 @@ test("Science and Commerce shelves include complete subject shortcuts", () => {
 });
 
 test("mobile UI assets are versioned and available offline", () => {
-  assert.match(html, /mobile-reference\.css\?v=7/);
-  assert.match(html, /app\.js\?v=22/);
-  assert.match(serviceWorker, /minddeck-shell-v27/);
-  assert.match(serviceWorker, /mobile-reference\.css\?v=7/);
-  assert.match(serviceWorker, /app\.js\?v=22/);
+  assert.match(html, /mobile-reference\.css\?v=8/);
+  assert.match(html, /app\.js\?v=23/);
+  assert.match(serviceWorker, /minddeck-shell-v28/);
+  assert.match(serviceWorker, /mobile-reference\.css\?v=8/);
+  assert.match(serviceWorker, /app\.js\?v=23/);
   assert.match(css, /@media \(max-width: 760px\)/);
 });
 
@@ -105,6 +105,7 @@ test("generation presents one built-in MindDeck AI experience", () => {
   assert.match(app, /mode: "generate"/);
   assert.match(app, /Sign in once to generate with MindDeck AI/);
   assert.match(css, /\.aiStatusCard/);
+  assert.match(css, /#settingsModal \.aiSettingsDialog \{[^}]*overflow-y: auto;/s);
 });
 
 test("the Vercel AI bridge keeps identity and credentials server-side", () => {
