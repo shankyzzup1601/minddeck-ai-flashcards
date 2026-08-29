@@ -139,7 +139,12 @@
 }
 
 @media (max-width: 760px) {
-  html, body { min-height: 100%; background: var(--md-ink) !important; }
+  html, body {
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-x: clip;
+    background: var(--md-ink) !important;
+  }
   body {
     --mobile-nav-h: 92px;
     padding: 0 0 calc(var(--mobile-nav-h) + env(safe-area-inset-bottom)) !important;
@@ -156,15 +161,20 @@
   .app { display: block !important; min-height: 100dvh; }
   .main { width: 100%; max-width: none; margin: 0; padding: 0 13px 30px !important; }
 
-  .side {
+  body .app > .side {
     position: fixed !important;
     z-index: 140 !important;
-    inset: auto auto max(10px, env(safe-area-inset-bottom)) 50% !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: max(10px, env(safe-area-inset-bottom)) !important;
+    left: 50% !important;
     width: min(calc(100% - 20px), 430px) !important;
+    max-width: 430px !important;
     height: 72px !important;
+    margin: 0 !important;
     overflow: visible !important;
     padding: 8px 10px !important;
-    transform: translateX(-50%) !important;
+    transform: translate3d(-50%, 0, 0) !important;
     border: 1px solid #382a3b !important;
     border-radius: 24px !important;
     background:
@@ -237,7 +247,7 @@
   .nav:focus-visible { outline: 2px solid #ff6d88 !important; outline-offset: 2px; }
 
   @media (max-width: 350px) {
-    .side { width: calc(100% - 14px) !important; padding-inline: 6px !important; }
+    body .app > .side { width: calc(100% - 14px) !important; padding-inline: 6px !important; }
     .side nav { gap: 1px; }
     .navHome .glyph { width: 47px !important; height: 47px; }
     .nav > span { font-size: 7px; }

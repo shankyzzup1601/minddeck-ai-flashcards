@@ -33,6 +33,8 @@ test("mobile shell includes the five reference destinations", () => {
   assert.match(css, /\.navHome \.glyph \{[^}]*border-radius: 50%/s);
   assert.match(css, /width: min\(calc\(100% - 20px\), 430px\)/);
   assert.match(css, /#navDeck \.glyph::before \{ content: "📚"/);
+  assert.match(css, /body \.app > \.side \{[^}]*left: 50% !important;[^}]*transform: translate3d\(-50%, 0, 0\) !important;/s);
+  assert.match(css, /overflow-x: clip/);
 });
 
 test("My Deck has a guided empty state and reliable account fallback", () => {
@@ -48,7 +50,7 @@ test("My Deck has a guided empty state and reliable account fallback", () => {
   assert.match(app, /dataset\.deckEmptyAction/);
   assert.match(app, /accountAvatarImage\.onload/);
   assert.match(app, /updateViaCache: "none"/);
-  assert.match(app, /minddeck-shell-v23-refreshed/);
+  assert.match(app, /minddeck-shell-v24-refreshed/);
 });
 
 test("Science and Commerce shelves include complete subject shortcuts", () => {
@@ -70,11 +72,11 @@ test("Science and Commerce shelves include complete subject shortcuts", () => {
 });
 
 test("mobile UI assets are versioned and available offline", () => {
-  assert.match(html, /mobile-reference\.css\?v=4/);
-  assert.match(html, /app\.js\?v=18/);
-  assert.match(serviceWorker, /minddeck-shell-v23/);
-  assert.match(serviceWorker, /mobile-reference\.css\?v=4/);
-  assert.match(serviceWorker, /app\.js\?v=18/);
+  assert.match(html, /mobile-reference\.css\?v=5/);
+  assert.match(html, /app\.js\?v=19/);
+  assert.match(serviceWorker, /minddeck-shell-v24/);
+  assert.match(serviceWorker, /mobile-reference\.css\?v=5/);
+  assert.match(serviceWorker, /app\.js\?v=19/);
   assert.match(css, /@media \(max-width: 760px\)/);
 });
 
