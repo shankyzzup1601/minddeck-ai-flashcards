@@ -31,6 +31,7 @@ jobs:
         run: python -m compileall -q app.py tests scripts
       - name: Check browser JavaScript syntax
         run: |
+          node --check api/minddeck-ai.mjs
           node --check static/app.js
           node --check static/smart-study.js
           node --check static/sw.js

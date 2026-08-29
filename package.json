@@ -1,0 +1,11 @@
+{
+  "name": "minddeck-ai-flashcards",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "@vercel/oidc": "3.2.0"
+  }
+}

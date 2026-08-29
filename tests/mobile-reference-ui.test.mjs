@@ -3,11 +3,13 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const root = new URL("../", import.meta.url);
-const [html, app, css, serviceWorker] = await Promise.all([
+const [html, app, css, serviceWorker, aiBridge, packageJson] = await Promise.all([
   readFile(new URL("templates/index.html", root), "utf8"),
   readFile(new URL("static/app.js", root), "utf8"),
   readFile(new URL("static/mobile-reference.css", root), "utf8"),
   readFile(new URL("static/sw.js", root), "utf8"),
+  readFile(new URL("api/minddeck-ai.mjs", root), "utf8"),
+  readFile(new URL("package.json", root), "utf8"),
 ]);
 
 test("mobile launch starts with account choices", () => {
@@ -57,7 +59,7 @@ test("My Deck has a guided empty state and reliable account fallback", () => {
   assert.match(app, /dataset\.deckEmptyAction/);
   assert.match(app, /accountAvatarImage\.onload/);
   assert.match(app, /updateViaCache: "none"/);
-  assert.match(app, /minddeck-shell-v26-refreshed/);
+  assert.match(app, /minddeck-shell-v27-refreshed/);
 });
 
 test("Science and Commerce shelves include complete subject shortcuts", () => {
@@ -80,10 +82,10 @@ test("Science and Commerce shelves include complete subject shortcuts", () => {
 
 test("mobile UI assets are versioned and available offline", () => {
   assert.match(html, /mobile-reference\.css\?v=7/);
-  assert.match(html, /app\.js\?v=21/);
-  assert.match(serviceWorker, /minddeck-shell-v26/);
+  assert.match(html, /app\.js\?v=22/);
+  assert.match(serviceWorker, /minddeck-shell-v27/);
   assert.match(serviceWorker, /mobile-reference\.css\?v=7/);
-  assert.match(serviceWorker, /app\.js\?v=21/);
+  assert.match(serviceWorker, /app\.js\?v=22/);
   assert.match(css, /@media \(max-width: 760px\)/);
 });
 
@@ -99,8 +101,23 @@ test("generation presents one built-in MindDeck AI experience", () => {
   assert.doesNotMatch(html, /Secure OpenAI/);
   assert.doesNotMatch(html, /Secure Gemini/);
   assert.match(app, /provider: "minddeck"/);
+  assert.match(app, /\/api\/minddeck-ai/);
+  assert.match(app, /mode: "generate"/);
   assert.match(app, /Sign in once to generate with MindDeck AI/);
   assert.match(css, /\.aiStatusCard/);
+});
+
+test("the Vercel AI bridge keeps identity and credentials server-side", () => {
+  assert.match(aiBridge, /getVercelOidcToken/);
+  assert.match(aiBridge, /\/auth\/v1\/user/);
+  assert.match(aiBridge, /__Host-minddeck_access/);
+  assert.match(aiBridge, /__Host-minddeck_csrf/);
+  assert.match(aiBridge, /timingSafeEqual/);
+  assert.match(aiBridge, /providerOptions/);
+  assert.match(aiBridge, /store: false/);
+  assert.match(aiBridge, /MAX_IMAGE_BYTES/);
+  assert.doesNotMatch(aiBridge, /Bearer [A-Za-z0-9_-]{20,}/);
+  assert.equal(JSON.parse(packageJson).dependencies["@vercel/oidc"], "3.2.0");
 });
 
 test("document IDs remain unique", () => {

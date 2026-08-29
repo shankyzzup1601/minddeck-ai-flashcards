@@ -91,6 +91,7 @@ let fileText = "";
 let photoFile = null;
 let photoPreviewUrl = "";
 let aiProviders = { minddeck: false, openai: false, gemini: false };
+let aiRuntime = "flask";
 let deckUpdatedAt = 0;
 let authState = { enabled: false, googleEnabled: false, user: null };
 let syncTimer = null;
@@ -1699,8 +1700,11 @@ async function apiRequest(path, { method = "POST", body = null, refreshAuth = fa
 const apiPost = (path, body) => apiRequest(path, { body });
 
 async function generateWithAI(text, cardMode) {
-  const data = await apiRequest("/api/generate", {
-    body: { text, provider: "minddeck", cardMode },
+  const bridge = aiRuntime === "bridge";
+  const data = await apiRequest(bridge ? "/api/minddeck-ai" : "/api/generate", {
+    body: bridge
+      ? { mode: "generate", text, cardMode }
+      : { text, provider: "minddeck", cardMode },
     refreshAuth: true,
   });
   return data.cards;
@@ -1708,20 +1712,22 @@ async function generateWithAI(text, cardMode) {
 
 async function generateFromImage(file, cardMode) {
   const imageData = await fileToDataUrl(file);
-  const data = await apiRequest("/api/vision", {
-    body: { imageData, provider: "minddeck", cardMode },
+  const bridge = aiRuntime === "bridge";
+  const data = await apiRequest(bridge ? "/api/minddeck-ai" : "/api/vision", {
+    body: bridge
+      ? { mode: "vision", imageData, cardMode }
+      : { imageData, provider: "minddeck", cardMode },
     refreshAuth: true,
   });
   return data.cards;
 }
 
 async function generateHintsWithAI(card) {
-  const data = await apiRequest("/api/hint", {
-    body: {
-      provider: "minddeck",
-      front: card.front,
-      back: card.back,
-    },
+  const bridge = aiRuntime === "bridge";
+  const data = await apiRequest(bridge ? "/api/minddeck-ai" : "/api/hint", {
+    body: bridge
+      ? { mode: "hint", front: card.front, back: card.back }
+      : { provider: "minddeck", front: card.front, back: card.back },
     refreshAuth: true,
   });
   return Array.isArray(data.hints) ? data.hints : [];
@@ -1758,8 +1764,8 @@ function syncProvider() {
 }
 
 async function loadConfig() {
-  try {
-    const response = await fetch("/api/config", {
+  const getConfig = async (path) => {
+    const response = await fetch(path, {
       cache: "no-store",
       credentials: "same-origin",
       redirect: "error",
@@ -1768,9 +1774,20 @@ async function loadConfig() {
     });
     const data = await response.json();
     if (!response.ok) throw new Error();
-    aiProviders = data.providers || aiProviders;
-  } catch {
-    aiProviders = { minddeck: false, openai: false, gemini: false };
+    return data;
+  };
+  const [flaskResult, bridgeResult] = await Promise.allSettled([
+    getConfig("/api/config"),
+    getConfig("/api/minddeck-ai"),
+  ]);
+  const flaskConfig = flaskResult.status === "fulfilled" ? flaskResult.value : null;
+  const bridgeConfig = bridgeResult.status === "fulfilled" ? bridgeResult.value : null;
+  aiProviders = flaskConfig?.providers || { minddeck: false, openai: false, gemini: false };
+  if (bridgeConfig?.ready === true) {
+    aiProviders.minddeck = true;
+    aiRuntime = "bridge";
+  } else {
+    aiRuntime = "flask";
   }
   syncProvider();
 }
@@ -3582,7 +3599,7 @@ loadAccount()
   })
   .finally(loadTimerState);
 if ("serviceWorker" in navigator) {
-  const shellRefreshKey = "minddeck-shell-v26-refreshed";
+  const shellRefreshKey = "minddeck-shell-v27-refreshed";
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     try {
       if (sessionStorage.getItem(shellRefreshKey)) return;
@@ -3594,7 +3611,7 @@ if ("serviceWorker" in navigator) {
   });
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("/static/sw.js?v=26", { scope: "/", updateViaCache: "none" })
+      .register("/static/sw.js?v=27", { scope: "/", updateViaCache: "none" })
       .then((registration) => registration.update())
       .catch(() => {});
   });

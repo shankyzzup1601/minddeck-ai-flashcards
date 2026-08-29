@@ -57,7 +57,7 @@ Do not configure or expose a Supabase secret/service-role key. MindDeck delibera
 
 ## Built-in MindDeck AI setup
 
-Production deployments use Vercel AI Gateway with the deployment's automatically injected OIDC identity. Students never choose a provider, paste an API key, or enter an owner access code. MindDeck verifies the signed-in account on the server, applies per-account rate limits, and sends only a privacy-safe account hash to the Gateway for attribution.
+Production deployments use Vercel AI Gateway with the deployment's automatically injected OIDC identity. A small Node function at `api/minddeck-ai.mjs` obtains that identity from Vercel's request context while Flask continues serving the app, auth, sync, and offline fallback. Students never choose a provider, paste an API key, or enter an owner access code. MindDeck verifies the signed-in account on the server, applies per-account rate limits, and sends only a privacy-safe account hash to the Gateway for attribution.
 
 - Enable AI Gateway for the Vercel project. `VERCEL_OIDC_TOKEN` is injected automatically into deployments.
 - `AI_GATEWAY_MODEL` optionally overrides the default `google/gemini-3.6-flash` model.
