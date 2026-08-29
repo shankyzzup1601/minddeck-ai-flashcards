@@ -6,6 +6,6 @@
     "node": ">=24"
   },
   "dependencies": {
-    "@vercel/oidc": "3.2.0"
+    "@vercel/oidc": "3.8.5"
   }
 }
