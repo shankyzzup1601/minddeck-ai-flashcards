@@ -28,6 +28,8 @@ const PDF_WORKER = "/static/vendor/pdf-4.10.38.worker.min.mjs";
 const FOCUS_STORE = "minddeck-focus-timer-v1";
 const THEME_STORE = "minddeck-visual-theme-v1";
 const CLASS_STORE = "minddeck-class-v1";
+const PROFILE_STORE = "minddeck-mobile-profile-v1";
+const MOBILE_SETTINGS_STORE = "minddeck-mobile-settings-v1";
 const GENERATED_DECK_SIZE = 15;
 const DECK_SCHEMA_VERSION = 6;
 const THEMES = Object.freeze([
@@ -100,7 +102,9 @@ let studyQueueIds = [];
 let examRevealCount = 0;
 
 function setWorkspace(workspace, scroll = true) {
-  const target = ["generate", "study", "deck", "planner"].includes(workspace) ? workspace : "generate";
+  const target = ["home", "generate", "study", "deck", "planner", "overall"].includes(workspace)
+    ? workspace
+    : "home";
   document.body.dataset.workspace = target;
   $$('[data-workspace-target]').forEach((button) => {
     const active = button.dataset.workspaceTarget === target;
@@ -109,10 +113,12 @@ function setWorkspace(workspace, scroll = true) {
     else button.removeAttribute("aria-current");
   });
   const headings = {
+    home: ["MindDeck Home", "Your complete study plan for today."],
     generate: ["Create Flashcards", "Paste your notes and create 15 clear questions."],
     study: ["Study", "Flip the card, recall the answer, then choose a rating."],
     deck: ["My Deck", "View, review, or remove your saved questions."],
     planner: ["Daily Planner", "Choose a study time, start the timer, and track today’s progress."],
+    overall: ["Overall Progress", "Track mastery, study rhythm, and memory readiness."],
   };
   const [title, subtitle] = headings[target];
   $(".top h1").textContent = title;
@@ -531,6 +537,210 @@ function toast(message) {
   window.setTimeout(() => element.classList.remove("show"), 2000);
 }
 
+function mobileProfile() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PROFILE_STORE) || "{}");
+    return parsed && typeof parsed === "object"
+      ? {
+          name: typeof parsed.name === "string" ? parsed.name.slice(0, 80) : "",
+          avatar: typeof parsed.avatar === "string" ? parsed.avatar.slice(0, 8) : "",
+        }
+      : { name: "", avatar: "" };
+  } catch {
+    return { name: "", avatar: "" };
+  }
+}
+
+function saveMobileProfile(nextProfile) {
+  const normalized = {
+    name: String(nextProfile.name || "").trim().slice(0, 80),
+    avatar: String(nextProfile.avatar || "").trim().slice(0, 8),
+  };
+  try {
+    localStorage.setItem(PROFILE_STORE, JSON.stringify(normalized));
+  } catch {
+    // The profile still applies to this tab when local storage is unavailable.
+  }
+  updateMobileAccountUI();
+}
+
+function friendlyAccountName() {
+  const profile = mobileProfile();
+  if (profile.name) return profile.name;
+  const email = authState.user?.email || "";
+  if (!email) return "MindDeck learner";
+  const localPart = email.split("@")[0].replace(/[._-]+/g, " ").trim();
+  return localPart
+    ? localPart.replace(/\b\w/g, (character) => character.toUpperCase()).slice(0, 80)
+    : "MindDeck learner";
+}
+
+function selectedClassLevel() {
+  const select = $("#classSelect");
+  if (select?.value) return select.value;
+  try {
+    return localStorage.getItem(CLASS_STORE) || "Class 12";
+  } catch {
+    return "Class 12";
+  }
+}
+
+function setOptionalText(selector, value) {
+  const element = $(selector);
+  if (element) element.textContent = String(value);
+}
+
+function updateMobileAccountUI() {
+  if (!$("#mobileHomeView")) return;
+  const profile = mobileProfile();
+  const name = friendlyAccountName();
+  const classLevel = selectedClassLevel();
+  const email = authState.user?.email || "Saved on this device";
+  const avatarUrl = authState.user?.avatarUrl || "";
+  const fallback = profile.avatar || name.trim().charAt(0).toUpperCase() || "M";
+  const image = $("#mobileAvatarImage");
+  const fallbackElement = $("#mobileAvatarFallback");
+
+  setOptionalText("#mobileUserName", name);
+  setOptionalText("#mobileClassPill", classLevel);
+  setOptionalText("#mobileOverallClass", classLevel);
+  setOptionalText("#mobileSettingsName", name);
+  setOptionalText("#mobileSettingsMeta", `${classLevel} · ${authState.user ? "Cloud sync on" : "Free plan"}`);
+  setOptionalText("#mobileSettingsAvatar", fallback);
+  setOptionalText("#mobileProfileHeroAvatar", fallback);
+  setOptionalText("#mobileProfileName", name);
+  setOptionalText("#mobileProfileNameValue", name);
+  setOptionalText("#mobileProfileEmailValue", email);
+  setOptionalText("#mobileProfileClass", classLevel);
+  setOptionalText("#mobileProfileClassValue", classLevel);
+  setOptionalText("#mobileProfileGoalValue", `${studyStats.dailyGoalMinutes || 25} min / day`);
+  const mobileSignOut = $("#mobileSignOutOpen");
+  if (mobileSignOut) {
+    mobileSignOut.textContent = authState.user ? "↪ Sign out" : "Sign in to sync";
+  }
+
+  if (image && fallbackElement) {
+    const showImage = Boolean(avatarUrl && !profile.avatar);
+    image.hidden = !showImage;
+    fallbackElement.hidden = showImage;
+    fallbackElement.textContent = fallback;
+    image.onerror = () => {
+      image.hidden = true;
+      fallbackElement.hidden = false;
+    };
+    if (showImage) image.src = avatarUrl;
+    else image.removeAttribute("src");
+  }
+}
+
+function renderMobileWeekChart() {
+  const chart = $("#mobileWeekChart");
+  if (!chart) return;
+  chart.replaceChildren();
+  const goalSeconds = Math.max(60, (studyStats.dailyGoalMinutes || 25) * 60);
+  for (let offset = 6; offset >= 0; offset -= 1) {
+    const dateKey = dateKeyDaysAgo(offset);
+    const seconds = focusSecondsFor(dateKey);
+    const level = seconds ? Math.max(8, Math.min(100, Math.round((seconds / goalSeconds) * 100))) : 5;
+    const day = document.createElement("div");
+    const bar = document.createElement("i");
+    const label = document.createElement("small");
+    bar.style.height = `${level}%`;
+    bar.title = `${Math.floor(seconds / 60)} focused minutes`;
+    label.textContent = new Intl.DateTimeFormat(undefined, { weekday: "narrow" }).format(
+      new Date(`${dateKey}T12:00:00`)
+    );
+    day.append(bar, label);
+    chart.append(day);
+  }
+}
+
+function syncMobileDashboard() {
+  if (!$("#mobileHomeView")) return;
+  const now = Date.now();
+  const due = cards.filter((card) => Date.parse(card.dueDate) <= now).length;
+  const mastery = cards.length
+    ? Math.round((cards.filter((card) => card.repetition >= 3).length / cards.length) * 100)
+    : 0;
+  const streak = currentStudyStreak();
+  const insights = calculateLearningInsights();
+  const todayFocused = focusSecondsFor(localDateKey()) > 0;
+
+  setOptionalText("#mobileDueCount", due);
+  setOptionalText("#mobileStreakCount", streak);
+  setOptionalText("#mobileGoalDue", `${Math.max(0, cards.length - due)}/${cards.length}`);
+  setOptionalText("#mobileGoalDeck", `${Math.min(cards.length, GENERATED_DECK_SIZE)}/${GENERATED_DECK_SIZE}`);
+  setOptionalText("#mobileGoalFocus", `${todayFocused ? 1 : 0}/1`);
+  setOptionalText("#mobileOverallMastery", `${mastery}%`);
+  setOptionalText("#mobileOverallReviews", cards.length);
+  setOptionalText("#mobileOverallStreak", streak);
+  setOptionalText("#mobileReadinessScore", insights.memoryScore);
+  setOptionalText("#mobileProfileGoalValue", `${studyStats.dailyGoalMinutes || 25} min / day`);
+
+  const readinessRing = $("#mobileReadinessRing");
+  if (readinessRing) readinessRing.style.setProperty("--readiness", `${insights.memoryScore}%`);
+  setOptionalText(
+    "#mobileReadinessLabel",
+    insights.memoryScore >= 70
+      ? "Strong recall"
+      : insights.memoryScore >= 35
+        ? "Building strength"
+        : cards.length
+          ? "Taking root"
+          : "Ready to begin"
+  );
+  setOptionalText(
+    "#mobileReadinessCopy",
+    cards.length
+      ? "Keep reviewing honestly to strengthen long-term memory."
+      : "Create a deck to start measuring long-term recall."
+  );
+
+  if (!cards.length) {
+    setOptionalText("#mobileSessionTitle", "Begin your first chapter");
+    setOptionalText("#mobileSessionCopy", "Pick a subject and start learning.");
+    setOptionalText("#mobileReviewTitle", "Your next review is being prepared");
+    setOptionalText("#mobileReviewCopy", "Create cards and MindDeck will schedule them with SM-2.");
+  } else if (due) {
+    setOptionalText("#mobileSessionTitle", `Review ${due} due ${due === 1 ? "card" : "cards"}`);
+    setOptionalText("#mobileSessionCopy", "A short review now will protect your recall streak.");
+    setOptionalText("#mobileReviewTitle", `${due} ${due === 1 ? "card is" : "cards are"} ready now`);
+    setOptionalText("#mobileReviewCopy", "Rate each answer honestly so the next review stays accurate.");
+  } else {
+    setOptionalText("#mobileSessionTitle", "Continue your study deck");
+    setOptionalText("#mobileSessionCopy", `${cards.length} cards are ready whenever you are.`);
+    setOptionalText("#mobileReviewTitle", "You're caught up for now");
+    setOptionalText("#mobileReviewCopy", "MindDeck will bring cards back when memory needs a refresh.");
+  }
+
+  for (const [workspaceKey] of Object.entries(SUBJECT_WORKSPACES)) {
+    const matching = cards.filter((card) => subjectMatches(card, workspaceKey));
+    const mastered = matching.filter((card) => card.repetition >= 3).length;
+    const percent = matching.length ? Math.round((mastered / matching.length) * 100) : 0;
+    setOptionalText(`[data-mobile-subject-count="${workspaceKey}"]`, matching.length);
+    setOptionalText(`[data-mobile-subject-percent="${workspaceKey}"]`, `${percent}%`);
+    const progress = $(`[data-mobile-subject-progress="${workspaceKey}"]`);
+    if (progress) progress.value = percent;
+  }
+  renderMobileWeekChart();
+  updateMobileAccountUI();
+}
+
+function showMobilePage(selector) {
+  const page = $(selector);
+  if (!page) return;
+  page.hidden = false;
+  page.scrollTop = 0;
+  document.body.classList.add("mobile-page-open");
+}
+
+function hideMobilePage(selector) {
+  const page = $(selector);
+  if (!page) return;
+  page.hidden = true;
+  if (!$(".mobileFullPage:not([hidden])")) document.body.classList.remove("mobile-page-open");
+}
+
 function localDateKey(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -664,6 +874,7 @@ function renderStudyWidgets() {
     ? `${streak} consistent ${streak === 1 ? "day" : "days"}. Keep the chain alive.`
     : "Complete a focus session to light up your week.";
   renderWeekBars();
+  syncMobileDashboard();
 }
 
 function localDayEnd(offset = 0) {
@@ -1274,6 +1485,7 @@ function render(touch = false) {
   renderSubjectCounts();
   renderDeck();
   $("#oralQuestion").textContent = card?.front || "Add or select a card to begin an oral exam.";
+  syncMobileDashboard();
   save(touch);
 }
 
@@ -1578,11 +1790,11 @@ function updateAccountUI() {
   const avatarUrl = signedIn ? authState.user.avatarUrl || "" : "";
   account.disabled = !authState.enabled;
   accountLabel.textContent = signedIn
-    ? accountEmail
+    ? "My account"
     : authState.enabled
       ? "Sign in"
       : "Cloud setup needed";
-  account.setAttribute("aria-label", signedIn ? `Account: ${accountEmail}` : accountLabel.textContent);
+  account.setAttribute("aria-label", signedIn ? "Open account" : accountLabel.textContent);
   accountAvatar.hidden = !signedIn;
   if (signedIn) {
     accountAvatarFallback.textContent = accountEmail.trim().charAt(0).toUpperCase() || "M";
@@ -1605,6 +1817,8 @@ function updateAccountUI() {
   $("#emailAuthDivider").hidden = !googleAvailable;
   if (!authState.enabled) setSyncStatus("Saved on this device · cloud setup pending");
   else if (!signedIn) setSyncStatus("Saved on this device · sign in to sync");
+  updateMobileAccountUI();
+  if (signedIn) window.minddeckDismissSplash?.();
 }
 
 async function fetchAuthConfig() {
@@ -1732,12 +1946,44 @@ function setPasswordVisibility(visible) {
   toggle.setAttribute("aria-pressed", String(visible));
 }
 
+function setAuthMode(mode) {
+  const authDialog = $("#authDialog");
+  const signup = mode === "signup";
+  if (!authDialog) return;
+  authDialog.dataset.authMode = signup ? "signup" : "signin";
+  $("#authTitle").textContent = signup ? "Create your account" : "Welcome back";
+  $("#authCopy").textContent = signup
+    ? "Start your study streak today. MindDeck will build a revision plan around your cards."
+    : "Sign in and pick up your study plan where you left off.";
+  $("#authModePrompt").textContent = signup ? "Already have an account?" : "New to MindDeck?";
+  $("#authModeToggle").textContent = signup ? "Log in" : "Create an account";
+  $("#authPassword").autocomplete = signup ? "new-password" : "current-password";
+  $("#authPassword").placeholder = signup ? "Create a strong password" : "Enter your password";
+  $("#authPasswordHelp").textContent = signup
+    ? "Use at least 12 characters."
+    : "Use the password you created for this account.";
+  $("#emailAuthDivider span").textContent = signup ? "or create with email" : "or use email";
+}
+
+function openAuthFlow(mode = "signin") {
+  $("#authError").textContent = "";
+  $("#authMessage").textContent = "";
+  setAuthMode(mode);
+  $("#authModal").classList.add("open");
+  setPasswordVisibility(false);
+  window.setTimeout(() => {
+    const target = mode === "signup" ? $("#authFullName") : $("#authEmail");
+    target?.focus({ preventScroll: true });
+  }, 50);
+}
+
 async function submitAccount(path) {
   const emailInput = $("#authEmail");
   const passwordInput = $("#authPassword");
   const email = emailInput.value.trim();
   const password = passwordInput.value;
   const creatingAccount = path.endsWith("signup");
+  const fullName = $("#authFullName")?.value.trim() || "";
   const buttons = [$("#signIn"), $("#signUp")];
   $("#authError").textContent = "";
   $("#authMessage").textContent = "";
@@ -1757,16 +2003,26 @@ async function submitAccount(path) {
     passwordInput.focus();
     return;
   }
+  if (creatingAccount && (fullName.length < 2 || fullName.length > 80)) {
+    $("#authError").textContent = "Enter your full name.";
+    $("#authFullName").focus();
+    return;
+  }
   buttons.forEach((button) => {
     button.disabled = true;
   });
   try {
     const data = await apiPost(path, { email, password });
     passwordInput.value = "";
+    if (creatingAccount) saveMobileProfile({ ...mobileProfile(), name: fullName });
     $("#authMessage").textContent = data.message || "Signed in successfully.";
     if (path.endsWith("signin") || data.signedIn) {
       await loadAccount();
-      if (authState.user) $("#authModal").classList.remove("open");
+      if (authState.user) {
+        $("#authModal").classList.remove("open");
+        setWorkspace("home", false);
+        syncMobileDashboard();
+      }
     }
   } catch (error) {
     passwordInput.value = "";
@@ -2565,10 +2821,11 @@ $$('.tab').forEach((button) => {
 const authModal = $("#authModal");
 $("#themeToggle").addEventListener("click", cycleTheme);
 $("#account").addEventListener("click", () => {
-  $("#authError").textContent = "";
-  $("#authMessage").textContent = "";
-  setPasswordVisibility(false);
-  authModal.classList.add("open");
+  if (window.matchMedia("(max-width: 760px)").matches && authState.user) {
+    showMobilePage("#mobileSettingsView");
+    return;
+  }
+  openAuthFlow("signin");
 });
 $("#togglePassword").addEventListener("click", () => {
   setPasswordVisibility($("#authPassword").type === "password");
@@ -2576,11 +2833,21 @@ $("#togglePassword").addEventListener("click", () => {
 $("#authSignedOut").addEventListener("keydown", (event) => {
   if (event.key === "Enter" && event.target.matches("input")) {
     event.preventDefault();
-    submitAccount("/api/auth/signin");
+    submitAccount($("#authDialog").dataset.authMode === "signup" ? "/api/auth/signup" : "/api/auth/signin");
   }
 });
 $("#authClose").addEventListener("click", () => authModal.classList.remove("open"));
-$("#authCancel").addEventListener("click", () => authModal.classList.remove("open"));
+$("#authCancel").addEventListener("click", () => {
+  authModal.classList.remove("open");
+  setWorkspace("home", false);
+});
+$("#authModeToggle").addEventListener("click", () => {
+  setAuthMode($("#authDialog").dataset.authMode === "signup" ? "signin" : "signup");
+});
+window.addEventListener("minddeck:first-run", (event) => openAuthFlow(event.detail?.mode || "signup"));
+if (["signup", "signin"].includes(window.__minddeckAuthMode)) {
+  openAuthFlow(window.__minddeckAuthMode);
+}
 $("#googleSignIn").addEventListener("click", startGoogleSignIn);
 $("#signIn").addEventListener("click", () => submitAccount("/api/auth/signin"));
 $("#signUp").addEventListener("click", () => submitAccount("/api/auth/signup"));
@@ -2591,6 +2858,9 @@ $("#signOut").addEventListener("click", async () => {
     await activateGuestStore();
     updateAccountUI();
     authModal.classList.remove("open");
+    $$(".mobileFullPage").forEach((page) => { page.hidden = true; });
+    document.body.classList.remove("mobile-page-open");
+    setWorkspace("home", false);
     toast("Signed out · your local deck is still here");
   } catch (error) {
     toast(error.message || "Could not sign out");
@@ -2603,6 +2873,178 @@ $$("[data-workspace-target]").forEach((button) =>
 $$("[data-subject-filter]").forEach((button) =>
   button.addEventListener("click", () => startSubjectReview(button.dataset.subjectFilter))
 );
+
+const openPrimaryStudyFlow = () => {
+  if (!cards.length) {
+    setWorkspace("generate");
+    toast("Create your first deck to begin");
+    return;
+  }
+  const dueIndex = cards.findIndex((card) => Date.parse(card.dueDate) <= Date.now());
+  index = dueIndex >= 0 ? dueIndex : Math.min(index, cards.length - 1);
+  studyQueueIds = [];
+  setWorkspace("study");
+  render(false);
+};
+
+$("#mobileStartLearning").addEventListener("click", openPrimaryStudyFlow);
+$("#mobileReviewNow").addEventListener("click", openPrimaryStudyFlow);
+$("#mobileSeeDeck").addEventListener("click", () => setWorkspace("deck"));
+$("#mobilePlannerShortcut").addEventListener("click", () => setWorkspace("planner"));
+$("#mobilePlanOpen").addEventListener("click", () => setWorkspace("planner"));
+$("#mobileFormulaShortcut").addEventListener("click", startFormulaCram);
+$("#mobileOpenOral").addEventListener("click", openOralExam);
+$("#mobileProgressShortcut").addEventListener("click", () => setWorkspace("overall"));
+$("#mobileCreateShortcut").addEventListener("click", () => setWorkspace("generate"));
+$("#mobileOverallBack").addEventListener("click", () => setWorkspace("home"));
+$("#mobileDeckSearchForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const query = $("#mobileDeckSearch").value.trim().toLowerCase();
+  if (!query) return;
+  const foundIndex = cards.findIndex((card) =>
+    [card.front, card.back, card.subject, card.chapter].some((value) =>
+      String(value || "").toLowerCase().includes(query)
+    )
+  );
+  if (foundIndex < 0) {
+    toast(cards.length ? "No matching card found" : "Create a deck before searching");
+    return;
+  }
+  index = foundIndex;
+  studyQueueIds = [];
+  $("#mobileDeckSearch").value = "";
+  setWorkspace("study");
+  render(false);
+});
+
+const openMobileSettings = () => {
+  syncMobileDashboard();
+  showMobilePage("#mobileSettingsView");
+};
+$("#mobileSettingsOpen").addEventListener("click", openMobileSettings);
+$("#mobileClassPill").addEventListener("click", () => {
+  const nextClass = selectedClassLevel() === "Class 11" ? "Class 12" : "Class 11";
+  $("#classSelect").value = nextClass;
+  try {
+    localStorage.setItem(CLASS_STORE, nextClass);
+  } catch {
+    // The selection remains active for this tab.
+  }
+  updateMobileAccountUI();
+  toast(`${nextClass} study plan selected`);
+});
+$("#mobileAccountOpen").addEventListener("click", () => {
+  if (authState.user) openMobileSettings();
+  else openAuthFlow("signin");
+});
+$("#mobileSettingsClose").addEventListener("click", () => hideMobilePage("#mobileSettingsView"));
+$("#mobileProfileOpen").addEventListener("click", () => showMobilePage("#mobileProfileView"));
+$("#mobileProfileDetailsOpen").addEventListener("click", () => showMobilePage("#mobileProfileView"));
+$("#mobileNotificationsOpen").addEventListener("click", () => showMobilePage("#mobileNotificationsView"));
+$("#mobileAvatarOpen").addEventListener("click", () => showMobilePage("#mobileAvatarView"));
+$("#mobileShareOpen").addEventListener("click", () => showMobilePage("#mobileShareView"));
+$$('[data-mobile-close]').forEach((button) =>
+  button.addEventListener("click", () => hideMobilePage(`#${button.dataset.mobileClose}`))
+);
+
+let pendingMobileAvatar = mobileProfile().avatar || "📚";
+const selectMobileAvatar = (value) => {
+  pendingMobileAvatar = value;
+  setOptionalText("#mobileAvatarPreview", value);
+  $$('[data-mobile-avatar]').forEach((button) => {
+    const selected = button.dataset.mobileAvatar === value;
+    button.classList.toggle("selected", selected);
+    button.setAttribute("aria-selected", String(selected));
+  });
+};
+$$('[data-mobile-avatar]').forEach((button) =>
+  button.addEventListener("click", () => selectMobileAvatar(button.dataset.mobileAvatar))
+);
+selectMobileAvatar(pendingMobileAvatar);
+$("#mobileAvatarSave").addEventListener("click", () => {
+  saveMobileProfile({ ...mobileProfile(), avatar: pendingMobileAvatar });
+  hideMobilePage("#mobileAvatarView");
+  toast("Avatar updated");
+});
+
+let storedMobileSettings = {};
+try {
+  storedMobileSettings = JSON.parse(localStorage.getItem(MOBILE_SETTINGS_STORE) || "{}");
+} catch {
+  storedMobileSettings = {};
+}
+$$('[data-mobile-setting]').forEach((input) => {
+  if (typeof storedMobileSettings[input.dataset.mobileSetting] === "boolean") {
+    input.checked = storedMobileSettings[input.dataset.mobileSetting];
+  }
+  input.addEventListener("change", () => {
+    storedMobileSettings[input.dataset.mobileSetting] = input.checked;
+    try {
+      localStorage.setItem(MOBILE_SETTINGS_STORE, JSON.stringify(storedMobileSettings));
+    } catch {
+      // The toggle remains active for the current tab.
+    }
+  });
+});
+
+$("#mobileCopyReferral").addEventListener("click", async () => {
+  const code = $("#mobileReferralCode").textContent;
+  try {
+    await navigator.clipboard.writeText(code);
+    toast("Invite code copied");
+  } catch {
+    window.prompt("Copy your MindDeck invite code", code);
+  }
+});
+$("#mobileShareReferral").addEventListener("click", async () => {
+  const shareData = {
+    title: "MindDeck AI Flashcards",
+    text: "Study with me on MindDeck — turn notes into smart flashcards and review with SM-2.",
+    url: window.location.origin,
+  };
+  try {
+    if (navigator.share) await navigator.share(shareData);
+    else {
+      await navigator.clipboard.writeText(`${shareData.text} ${shareData.url}`);
+      toast("MindDeck link copied");
+    }
+  } catch (error) {
+    if (error?.name !== "AbortError") toast("Could not share right now");
+  }
+});
+$("#mobileLegacySettingsOpen").addEventListener("click", () => {
+  hideMobilePage("#mobileSettingsView");
+  openSettings();
+});
+$("#mobilePrivacy").addEventListener("click", () => toast("Your account and decks use secure, private cloud sync"));
+$("#mobileRateApp").addEventListener("click", () => toast("Thank you — your feedback helps shape MindDeck"));
+$("#mobileUpgradeButton").addEventListener("click", () => {
+  hideMobilePage("#mobileSettingsView");
+  setWorkspace("overall");
+});
+$("#mobileSignOutOpen").addEventListener("click", () => {
+  if (!authState.user) {
+    hideMobilePage("#mobileSettingsView");
+    openAuthFlow("signin");
+    return;
+  }
+  $("#mobileSignOutConfirm").hidden = false;
+});
+$("#mobileSignOutCancel").addEventListener("click", () => { $("#mobileSignOutConfirm").hidden = true; });
+$("#mobileSignOutConfirmButton").addEventListener("click", () => {
+  $("#mobileSignOutConfirm").hidden = true;
+  $("#signOut").click();
+});
+
+$$('[data-progress-tab]').forEach((button) =>
+  button.addEventListener("click", () => {
+    $$('[data-progress-tab]').forEach((item) => item.classList.toggle("active", item === button));
+    $$('[data-progress-panel]').forEach((panel) =>
+      panel.classList.toggle("active", panel.dataset.progressPanel === button.dataset.progressTab)
+    );
+  })
+);
+
 $("#settings").addEventListener("click", openSettings);
 $("#openGeneratorSettings").addEventListener("click", openSettings);
 $("#settingsClose").addEventListener("click", () => $("#settingsModal").classList.remove("open"));
@@ -2618,6 +3060,7 @@ $("#classSelect").addEventListener("change", (event) => {
   } catch {
     // The chosen class still applies to the current deck.
   }
+  updateMobileAccountUI();
 });
 $("#lockAi").addEventListener("click", () => lockAI().catch((error) => {
   $("#error").textContent = error.message;

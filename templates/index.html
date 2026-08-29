@@ -909,30 +909,26 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 }
 /* END MOBILE PREMIUM POLISH */
 </style>
+<link rel="stylesheet" href="/static/mobile-reference.css?v=1">
 </head>
-<body data-workspace="generate">
+<body data-workspace="home">
 <div id="splash-screen" role="dialog" aria-modal="true" aria-label="MindDeck is loading">
-<div class="mdSplashGlow purple" aria-hidden="true"></div>
-<div class="mdSplashGlow pink" aria-hidden="true"></div>
-<div class="mdSplashScene" aria-hidden="true">
-<div class="mdSplashOrbit orbitOne"></div>
-<div class="mdSplashOrbit orbitTwo"></div>
-<div class="mdSplashSpark sparkOne">✦</div>
-<div class="mdSplashSpark sparkTwo">✧</div>
-<div class="mdSplashSpark sparkThree">✦</div>
-<div class="mdSplashCardBack backTwo"></div>
-<div class="mdSplashCardBack backOne"></div>
-<div class="mdSplashCard">
-<div class="mdSplashShine"></div>
-<div class="mdSplashHeader"><div class="mdSplashLogo"><img src="/static/minddeck-icon.svg?v=2" alt="" aria-hidden="true"></div><div><span class="mdSplashBrand">MindDeck</span><small class="mdSplashTag">AI-powered active recall</small></div><span class="mdSplashReady"><i></i>Ready</span></div>
-<div class="mdSplashBody"><span>YOUR SMART STUDY SPACE</span><strong>Learn smarter.<br>Remember longer.</strong><p>Turning every note into lasting knowledge.</p></div>
-<div class="mdSplashFooter"><span>AI MEMORY ENGINE</span><span class="mdSplashSteps"><i></i><i></i><i></i></span></div>
+<div class="launchGlow launchGlowOne" aria-hidden="true"></div>
+<div class="launchGlow launchGlowTwo" aria-hidden="true"></div>
+<div class="launchIdentity">
+<div class="launchMark" aria-hidden="true"><img src="/static/minddeck-icon.svg?v=2" alt=""></div>
+<h1>mind<span>deck</span></h1>
+<p>Learn. Recall. Grow.</p>
 </div>
+<div class="launchEntry">
+<div class="launchLoader" id="track" role="status" aria-live="polite">
+<div class="launchTrack"><div class="launchFill" id="fill"></div></div>
+<span id="percent-label">0%</span>
 </div>
-<div class="mdSplashLoader" role="status" aria-live="polite">
-<div class="mdSplashTrack" id="track"><div class="mdSplashFill" id="fill"></div></div>
-<div class="mdSplashPercent" id="percent-label">0%</div>
-<button class="mdSplashBegin" id="begin-text" type="button">Let's begin <span aria-hidden="true">✦</span></button>
+<div class="launchActions" id="splash-actions" hidden>
+<button class="launchPrimary" id="begin-text" type="button">GET STARTED</button>
+<button class="launchSecondary" id="splash-sign-in" type="button">I ALREADY HAVE AN ACCOUNT</button>
+</div>
 </div>
 </div>
 <div class="ambientGrid" aria-hidden="true"></div>
@@ -950,24 +946,28 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 </div>
 <nav>
 <p class="label">Workspace</p>
-<button class="nav active" id="navGenerate" type="button" data-workspace-target="generate">
+<button class="nav" id="navDeck" type="button" data-workspace-target="deck">
+<i class="glyph" aria-hidden="true">▣</i>
+<span>My deck</span>
+</button>
+<button class="nav" id="navGenerate" type="button" data-workspace-target="generate">
 <i class="glyph" aria-hidden="true">✦</i>
 <span>Generate</span>
+</button>
+<button class="nav active navHome" id="navHome" type="button" data-workspace-target="home">
+<i class="glyph" aria-hidden="true">⌂</i>
+<span>Home</span>
 </button>
 <button class="nav" id="navStudy" type="button" data-workspace-target="study">
 <i class="glyph" aria-hidden="true">◈</i>
 <span>Study</span>
 <em id="dueNav">0</em>
 </button>
-<button class="nav" id="navDeck" type="button" data-workspace-target="deck">
-<i class="glyph" aria-hidden="true">▣</i>
-<span>My deck</span>
+<button class="nav" id="navOverall" type="button" data-workspace-target="overall">
+<i class="glyph" aria-hidden="true">▥</i>
+<span>Overall</span>
 </button>
-<button class="nav" id="navPlanner" type="button" data-workspace-target="planner">
-<i class="glyph" aria-hidden="true">◷</i>
-<span>Planner</span>
-</button>
-<button class="nav" id="openOral" type="button">
+<button class="nav desktopOral" id="openOral" type="button">
 <i class="glyph" aria-hidden="true">●</i>
 <span>Oral Exam</span>
 </button>
@@ -1009,6 +1009,181 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 </button>
 </div>
 </header>
+<section class="mobileReferenceView mobileHomeView" id="mobileHomeView" aria-label="MindDeck home">
+<header class="mobileUserBar">
+<button class="mobileAvatarButton" id="mobileAccountOpen" type="button" aria-label="Open profile">
+<img id="mobileAvatarImage" alt="" referrerpolicy="no-referrer" hidden>
+<span id="mobileAvatarFallback">M</span>
+</button>
+<div class="mobileGreeting">
+<small id="mobileGreetingText">Good to see you,</small>
+<strong id="mobileUserName">MindDeck learner</strong>
+<span><button id="mobileClassPill" type="button" aria-label="Switch class">Class 12</button><i>FREE</i></span>
+</div>
+<button class="mobileIconButton" id="mobileSettingsOpen" type="button" aria-label="Open settings">⚙</button>
+</header>
+
+<div class="mobileCounterStrip" aria-label="Study snapshot">
+<div><span aria-hidden="true">◷</span><strong id="mobileDueCount">0</strong><small>Due</small></div>
+<div><span aria-hidden="true">✦</span><strong id="mobileStreakCount">0</strong><small>Streak</small></div>
+<div><span aria-hidden="true">⚡</span><strong id="mobileEnergyValue">40</strong><small>Energy</small></div>
+</div>
+
+<form class="mobileSearch" id="mobileDeckSearchForm" role="search">
+<span aria-hidden="true">⌕</span>
+<input id="mobileDeckSearch" type="search" maxlength="120" autocomplete="off" placeholder="Stuck somewhere? Search your deck">
+<button type="submit" aria-label="Search">↗</button>
+</form>
+
+<article class="mobileSessionCard">
+<div class="mobileCardKicker"><span>TODAY'S SESSION</span><time>Today</time></div>
+<small>Start here</small>
+<h2 id="mobileSessionTitle">Begin your first chapter</h2>
+<p id="mobileSessionCopy">Pick a subject and start learning.</p>
+<button class="mobileGradientButton" id="mobileStartLearning" type="button">Start learning <span aria-hidden="true">→</span></button>
+</article>
+
+<article class="mobileReviewCard">
+<div class="mobileReviewIcon" aria-hidden="true">◈</div>
+<div><small>UPCOMING REVIEW</small><strong id="mobileReviewTitle">Your next review is being prepared</strong><p id="mobileReviewCopy">Create cards and MindDeck will schedule them with SM-2.</p></div>
+<button id="mobileReviewNow" type="button">Review</button>
+</article>
+
+<section class="mobileSection">
+<div class="mobileSectionHeading"><div><small>YOUR PLAYGROUND</small><h2>Choose a subject</h2></div><button id="mobileSeeDeck" type="button">See all</button></div>
+<div class="mobileSubjectRail">
+<button class="mobileSubject physics" type="button" data-subject-filter="physics"><i aria-hidden="true">⚛</i><strong>Physics</strong><span><b data-mobile-subject-count="physics">0</b> cards</span></button>
+<button class="mobileSubject chemistry" type="button" data-subject-filter="physical-chemistry"><i aria-hidden="true">⚗</i><strong>Chemistry</strong><span><b data-mobile-subject-count="physical-chemistry">0</b> cards</span></button>
+<button class="mobileSubject biology" type="button" data-subject-filter="biology"><i aria-hidden="true">⌬</i><strong>Biology</strong><span><b data-mobile-subject-count="biology">0</b> cards</span></button>
+<button class="mobileSubject accounts" type="button" data-subject-filter="accountancy"><i aria-hidden="true">Σ</i><strong>Accountancy</strong><span><b data-mobile-subject-count="accountancy">0</b> cards</span></button>
+</div>
+</section>
+
+<section class="mobileSection mobileGoalsSection">
+<div class="mobileSectionHeading"><div><small>YOUR DAILY PLAN</small><h2>Today's goals</h2></div><button id="mobilePlannerShortcut" type="button">Planner</button></div>
+<div class="mobileGoalList">
+<div><i class="goalAmber" aria-hidden="true">◎</i><span><strong>Review due cards</strong><small>Clear today's memory queue</small></span><b id="mobileGoalDue">0/0</b></div>
+<div><i class="goalPink" aria-hidden="true">▣</i><span><strong>Build your first deck</strong><small>Create at least 15 study cards</small></span><b id="mobileGoalDeck">0/15</b></div>
+<div><i class="goalPurple" aria-hidden="true">◷</i><span><strong>Complete one focus sprint</strong><small>Stay focused for 25 minutes</small></span><b id="mobileGoalFocus">0/1</b></div>
+</div>
+</section>
+
+<aside class="mobileTipCard">
+<img src="/static/minddeck-icon.svg?v=2" alt="" aria-hidden="true">
+<div><small>MINDECK'S TIP</small><p id="mobileTipText">Start small: create one chapter deck and review it today.</p></div>
+</aside>
+
+<div class="mobileQuickGrid" aria-label="Quick actions">
+<button id="mobileFormulaShortcut" type="button"><i aria-hidden="true">Σ</i><span><strong>Quick formula revision</strong><small>Recall formulas fast</small></span></button>
+<button id="mobileOpenOral" type="button"><i aria-hidden="true">●</i><span><strong>Oral exam</strong><small>Explain one concept aloud</small></span></button>
+<button id="mobileProgressShortcut" type="button"><i aria-hidden="true">▥</i><span><strong>My progress</strong><small>See mastery and streaks</small></span></button>
+<button id="mobileCreateShortcut" type="button"><i aria-hidden="true">＋</i><span><strong>Generate deck</strong><small>Turn notes into cards</small></span></button>
+</div>
+</section>
+
+<section class="mobileReferenceView mobileProgressView" id="mobileProgressView" aria-label="Overall progress">
+<header class="mobilePageHeader"><button id="mobileOverallBack" type="button" aria-label="Back to home">←</button><h1>Your progress</h1><span id="mobileOverallClass">Class 12</span></header>
+<div class="mobileProgressIntro"><span>SM-2 MEMORY REPORT</span><p>Your progress updates as you review and rate cards.</p></div>
+<div class="mobileProgressTabs" role="tablist">
+<button class="active" type="button" data-progress-tab="overview">Overview</button>
+<button type="button" data-progress-tab="mastery">Mastery</button>
+<button type="button" data-progress-tab="plan">Plan</button>
+</div>
+<div class="mobileProgressPanel active" data-progress-panel="overview">
+<div class="mobileSnapshotGrid">
+<div><span>◎</span><strong id="mobileOverallMastery">0%</strong><small>Mastery</small></div>
+<div><span>◈</span><strong id="mobileOverallReviews">0</strong><small>Cards</small></div>
+<div><span>✦</span><strong id="mobileOverallStreak">0</strong><small>Streak</small></div>
+</div>
+<article class="mobileReadinessCard">
+<div class="mobileReadinessRing" id="mobileReadinessRing"><strong id="mobileReadinessScore">0</strong><small>/ 100</small></div>
+<div><small>MEMORY READINESS</small><h2 id="mobileReadinessLabel">Ready to begin</h2><p id="mobileReadinessCopy">Create a deck to start measuring long-term recall.</p></div>
+</article>
+<div class="mobileSectionHeading"><div><small>LAST 7 DAYS</small><h2>Study rhythm</h2></div></div>
+<div class="mobileWeekChart" id="mobileWeekChart" aria-label="Study activity over the last seven days"></div>
+</div>
+<div class="mobileProgressPanel" data-progress-panel="mastery">
+<div class="mobileSectionHeading"><div><small>BY SUBJECT</small><h2>Mastery map</h2></div></div>
+<div class="mobileMasteryList">
+<div><span><i class="physicsDot"></i>Physics</span><progress data-mobile-subject-progress="physics" max="100" value="0"></progress><b data-mobile-subject-percent="physics">0%</b></div>
+<div><span><i class="chemistryDot"></i>Chemistry</span><progress data-mobile-subject-progress="physical-chemistry" max="100" value="0"></progress><b data-mobile-subject-percent="physical-chemistry">0%</b></div>
+<div><span><i class="biologyDot"></i>Biology</span><progress data-mobile-subject-progress="biology" max="100" value="0"></progress><b data-mobile-subject-percent="biology">0%</b></div>
+<div><span><i class="accountsDot"></i>Accountancy</span><progress data-mobile-subject-progress="accountancy" max="100" value="0"></progress><b data-mobile-subject-percent="accountancy">0%</b></div>
+</div>
+</div>
+<div class="mobileProgressPanel" data-progress-panel="plan">
+<article class="mobilePlanCard"><small>TODAY'S PLAN</small><h2>Build momentum one session at a time.</h2><p>Finish due reviews, create one focused deck, and complete a 25-minute sprint.</p><button id="mobilePlanOpen" type="button">Open daily planner →</button></article>
+</div>
+</section>
+
+<section class="mobileFullPage" id="mobileSettingsView" hidden aria-label="Settings">
+<header class="mobilePageHeader"><button id="mobileSettingsClose" type="button" aria-label="Close settings">×</button><h1>Settings</h1><span></span></header>
+<button class="mobileProfileSummary" id="mobileProfileOpen" type="button">
+<span class="mobileProfileAvatar" id="mobileSettingsAvatar">M</span>
+<span><strong id="mobileSettingsName">MindDeck learner</strong><small id="mobileSettingsMeta">Class 12 · Free plan</small></span><b aria-hidden="true">›</b>
+</button>
+<button class="mobileUpgradeCard" type="button" id="mobileUpgradeButton"><i aria-hidden="true">✦</i><span><strong>Unlock your full study plan</strong><small>Explore MindDeck's advanced study tools</small></span><b aria-hidden="true">›</b></button>
+<div class="mobileSettingsGroup"><small>ACCOUNT</small>
+<button id="mobileProfileDetailsOpen" type="button"><i>♙</i><span><strong>Profile details</strong><small>Name, email &amp; study preferences</small></span><b>›</b></button>
+<button id="mobileAvatarOpen" type="button"><i>◉</i><span><strong>Change avatar</strong><small>Pick a new look for your profile</small></span><b>›</b></button>
+</div>
+<div class="mobileSettingsGroup"><small>COMMUNITY</small>
+<button id="mobileShareOpen" type="button"><i>♧</i><span><strong>Refer a friend</strong><small>Share MindDeck with a study partner</small></span><b>›</b></button>
+<button id="mobileRateApp" type="button"><i>★</i><span><strong>Rate the app</strong><small>Tell us what to improve next</small></span><b>›</b></button>
+</div>
+<div class="mobileSettingsGroup"><small>APP</small>
+<button id="mobileNotificationsOpen" type="button"><i>♢</i><span><strong>Notifications</strong><small>Study reminders and streak alerts</small></span><b>›</b></button>
+<button id="mobileLegacySettingsOpen" type="button"><i>⚙</i><span><strong>AI &amp; generation</strong><small>Provider access and generation settings</small></span><b>›</b></button>
+<button id="mobilePrivacy" type="button"><i>♧</i><span><strong>Privacy &amp; security</strong><small>How MindDeck protects your data</small></span><b>›</b></button>
+</div>
+<button class="mobileSignOut" id="mobileSignOutOpen" type="button">↪ Sign out</button>
+<p class="mobileSettingsFooter">Made for focused learners · MindDeck</p>
+<div class="mobileConfirmBackdrop" id="mobileSignOutConfirm" hidden>
+<div class="mobileConfirmCard" role="dialog" aria-modal="true" aria-labelledby="mobileSignOutTitle">
+<i aria-hidden="true">↪</i><div><h2 id="mobileSignOutTitle">Sign out</h2><p>You’ll need to log in again to restore your cloud study progress. Sign out now?</p></div>
+<div><button id="mobileSignOutCancel" type="button">Cancel</button><button id="mobileSignOutConfirmButton" type="button">Sign out</button></div>
+</div>
+</div>
+</section>
+
+<section class="mobileFullPage" id="mobileProfileView" hidden aria-label="Profile details">
+<header class="mobilePageHeader"><button class="mobileSubpageBack" type="button" data-mobile-close="mobileProfileView">←</button><h1>Profile details</h1><span></span></header>
+<div class="mobileProfileHero"><span id="mobileProfileHeroAvatar">M</span><strong id="mobileProfileName">MindDeck learner</strong><small id="mobileProfileClass">Class 12</small></div>
+<div class="mobileProfileBlock"><small>PERSONAL INFO</small><div><span>Name</span><strong id="mobileProfileNameValue">MindDeck learner</strong></div><div><span>Email</span><strong id="mobileProfileEmailValue">Saved on this device</strong></div></div>
+<div class="mobileProfileBlock"><small>ACADEMICS</small><div><span>Grade / class</span><strong id="mobileProfileClassValue">Class 12</strong></div><div><span>Subjects</span><strong>Physics · Chemistry · Biology · Accountancy</strong></div></div>
+<div class="mobileProfileBlock"><small>LEARNING STYLE</small><div><span>Revision system</span><strong>SM-2 adaptive recall</strong></div><div><span>Daily goal</span><strong id="mobileProfileGoalValue">25 min / day</strong></div></div>
+</section>
+
+<section class="mobileFullPage" id="mobileNotificationsView" hidden aria-label="Notification settings">
+<header class="mobilePageHeader"><button class="mobileSubpageBack" type="button" data-mobile-close="mobileNotificationsView">←</button><h1>Notifications</h1><span></span></header>
+<p class="mobilePageCopy">Choose which MindDeck reminders appear on this device.</p>
+<div class="mobileToggleList">
+<label><i>☀</i><span><strong>Daily motivation</strong><small>A quick reminder to start studying</small></span><input type="checkbox" data-mobile-setting="motivation" checked></label>
+<label><i>✦</i><span><strong>Streak alerts</strong><small>Protect your current study streak</small></span><input type="checkbox" data-mobile-setting="streak" checked></label>
+<label><i>⚡</i><span><strong>Review ready</strong><small>Know when flashcards are due</small></span><input type="checkbox" data-mobile-setting="reviews" checked></label>
+<label><i>▥</i><span><strong>Progress updates</strong><small>Your weekly mastery recap</small></span><input type="checkbox" data-mobile-setting="progress" checked></label>
+</div>
+</section>
+
+<section class="mobileFullPage" id="mobileAvatarView" hidden aria-label="Choose an avatar">
+<header class="mobilePageHeader"><button class="mobileSubpageBack" type="button" data-mobile-close="mobileAvatarView">←</button><h1>Pick your avatar</h1><span></span></header>
+<div class="mobileAvatarPreview" id="mobileAvatarPreview">M</div>
+<div class="mobileAvatarGrid" role="listbox" aria-label="Avatar choices">
+<button type="button" data-mobile-avatar="📚">📚</button><button type="button" data-mobile-avatar="⚛">⚛</button><button type="button" data-mobile-avatar="⚗">⚗</button><button type="button" data-mobile-avatar="🧠">🧠</button>
+<button type="button" data-mobile-avatar="🚀">🚀</button><button type="button" data-mobile-avatar="✦">✦</button><button type="button" data-mobile-avatar="⚡">⚡</button><button type="button" data-mobile-avatar="🔥">🔥</button>
+<button type="button" data-mobile-avatar="🎯">🎯</button><button type="button" data-mobile-avatar="🏆">🏆</button><button type="button" data-mobile-avatar="🎓">🎓</button><button type="button" data-mobile-avatar="🧪">🧪</button>
+</div>
+<button class="mobileGradientButton mobileAvatarSave" id="mobileAvatarSave" type="button">Save avatar</button>
+</section>
+
+<section class="mobileFullPage" id="mobileShareView" hidden aria-label="Refer a friend">
+<header class="mobilePageHeader"><button class="mobileSubpageBack" type="button" data-mobile-close="mobileShareView">←</button><h1>Refer &amp; share</h1><span></span></header>
+<div class="mobileShareHero"><img src="/static/minddeck-icon.svg?v=2" alt=""><h2>Share the learning</h2><p>Invite a friend to build and review a MindDeck together.</p></div>
+<div class="mobileReferralCode"><small>YOUR INVITE CODE</small><strong id="mobileReferralCode">MINDDECK</strong><button id="mobileCopyReferral" type="button">Copy</button></div>
+<button class="mobileGradientButton" id="mobileShareReferral" type="button">Share MindDeck</button>
+<div class="mobileHowItWorks"><h2>How it works</h2><div><i>1</i><span><strong>Share your code</strong><small>Send it to a study partner.</small></span></div><div><i>2</i><span><strong>They start learning</strong><small>Both of you can build smarter study habits.</small></span></div></div>
+</section>
+
 <section class="hero heroCard">
 <div class="subjectWorkspace">
 <div class="heroBadge"><span aria-hidden="true"></span>Exam revision workspace</div>
@@ -1460,13 +1635,14 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 </div>
 </div>
 <div class="modal" id="authModal">
-<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+<div class="dialog authDialog" id="authDialog" role="dialog" aria-modal="true" aria-labelledby="authTitle" data-auth-mode="signin">
+<div class="authBrand"><img src="/static/minddeck-icon.svg?v=2" alt="" aria-hidden="true"><span>MindDeck</span></div>
 <div class="dhead">
-<h3 id="authTitle">Your MindDeck account</h3>
+<h3 id="authTitle">Welcome back</h3>
 <button class="close" id="authClose" type="button" aria-label="Close account dialog">×</button>
 </div>
 <div id="authSignedOut">
-<p class="authCopy">Sign in to securely restore your cards, study position, and review progress on another device.</p>
+<p class="authCopy" id="authCopy">Sign in and pick up your study plan where you left off.</p>
 <button class="googleAuth" id="googleSignIn" type="button" hidden>
 <svg class="googleMark" viewBox="0 0 18 18" aria-hidden="true">
 <path fill="#4285f4" d="M17.64 9.205c0-.638-.057-1.252-.164-1.841H9v3.482h4.844a4.14 4.14 0 0 1-1.797 2.716v2.258h2.909c1.702-1.567 2.684-3.875 2.684-6.615"></path>
@@ -1480,6 +1656,10 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 <div class="oauthSecurity" id="oauthSecurity" hidden><i aria-hidden="true"></i>Server-protected sign-in · no Google token stored in your browser</div>
 <div class="authDivider" id="emailAuthDivider" hidden><span>or use email</span></div>
 <div class="authFields">
+<div class="authModeField signupOnlyField">
+<label for="authFullName">Full name</label>
+<input id="authFullName" type="text" autocomplete="name" maxlength="80" placeholder="e.g. Aadhya Sharma">
+</div>
 <label for="authEmail">Email</label>
 <input id="authEmail" type="email" inputmode="email" autocomplete="email" maxlength="254" placeholder="you@example.com">
 <label for="authPassword">Password</label>
@@ -1488,15 +1668,20 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 <button class="passwordToggle" id="togglePassword" type="button" aria-label="Show password" aria-pressed="false">Show</button>
 </div>
 <small class="passwordHelp" id="authPasswordHelp">Existing account? Use your current password. New accounts require 12 or more characters.</small>
+<div class="authModeField signupOnlyField">
+<label for="authReferral">Referral code <span>(optional)</span></label>
+<input id="authReferral" type="text" autocomplete="off" maxlength="32" placeholder="Have a friend's code? Enter it">
+</div>
 </div>
 <div class="authActions">
 <button class="btn primary" id="signIn" type="button">Sign in</button>
 <button class="btn" id="signUp" type="button">Create account</button>
 </div>
+<p class="authModeSwitch"><span id="authModePrompt">New to MindDeck?</span> <button id="authModeToggle" type="button">Create an account</button></p>
 <div class="authMessage" id="authMessage" aria-live="polite"></div>
 <div class="authError" id="authError" role="alert"></div>
 <div class="dactions">
-<button class="btn" id="authCancel" type="button">Not now</button>
+<button class="btn" id="authCancel" type="button">Continue on this device</button>
 </div>
 </div>
 <div id="authSignedIn" hidden>
@@ -1655,29 +1840,38 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
   const percentLabel = document.getElementById("percent-label");
   const track = document.getElementById("track");
   const beginText = document.getElementById("begin-text");
+  const signInText = document.getElementById("splash-sign-in");
+  const actions = document.getElementById("splash-actions");
   const splashScreen = document.getElementById("splash-screen");
-  if (!fill || !percentLabel || !track || !beginText || !splashScreen) return;
+  if (!fill || !percentLabel || !track || !beginText || !signInText || !actions || !splashScreen) return;
 
   document.body.classList.add("splash-lock");
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   let progress = reduceMotion ? 100 : 0;
 
-  const enterApp = () => {
+  const enterApp = (mode = "guest") => {
+    if (!splashScreen.isConnected) return;
+    window.__minddeckAuthMode = mode;
     splashScreen.classList.add("hide");
     document.body.classList.remove("splash-lock");
     beginText.disabled = true;
+    signInText.disabled = true;
+    if (mode === "signup" || mode === "signin") {
+      window.dispatchEvent(new CustomEvent("minddeck:first-run", { detail: { mode } }));
+    }
     window.setTimeout(() => splashScreen.remove(), reduceMotion ? 160 : 720);
   };
 
-  beginText.addEventListener("click", enterApp);
+  window.minddeckDismissSplash = () => enterApp("guest");
+  beginText.addEventListener("click", () => enterApp("signup"));
+  signInText.addEventListener("click", () => enterApp("signin"));
 
   const finish = () => {
     fill.style.width = "100%";
     percentLabel.textContent = "100%";
     window.setTimeout(() => {
       track.style.display = "none";
-      percentLabel.style.display = "none";
-      beginText.style.display = "block";
+      actions.hidden = false;
       beginText.focus({ preventScroll: true });
     }, reduceMotion ? 20 : 300);
   };
@@ -1698,6 +1892,6 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
   }, 35);
 })();
 </script>
-<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=15"></script>
+<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=16"></script>
 </body>
 </html>
