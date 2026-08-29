@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en"{% if returning_user %} class="splash-seen"{% endif %}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -9,6 +9,18 @@
 <link rel="manifest" href="/static/manifest.webmanifest">
 <link rel="icon" href="/static/minddeck-icon.svg?v=2" type="image/svg+xml">
 <meta name="csrf-token" content="{{ csrf_token }}">
+<script nonce="{{ csp_nonce }}">
+try {
+  const onboardingKey = "minddeck:onboarding-complete-v1";
+  if (document.documentElement.classList.contains("splash-seen")) {
+    localStorage.setItem(onboardingKey, "1");
+  } else if (localStorage.getItem(onboardingKey) === "1") {
+    document.documentElement.classList.add("splash-seen");
+  }
+} catch {
+  // A valid account cookie still lets the server skip onboarding.
+}
+</script>
 <style nonce="{{ csp_nonce }}">
 :root{--bg:#0a0d14;--panel:#111620d9;--line:#ffffff15;--text:#f5f7ff;--muted:#8a93a7;--a:#6366f1;--b:#8b5cf6;--green:#34d399;--red:#fb7185}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button,input,textarea,select{font:inherit}.glow{position:fixed;border-radius:50%;filter:blur(130px);opacity:.2;pointer-events:none}.g1{width:500px;height:500px;background:#4f46e5;left:-180px;top:-180px}.g2{width:520px;height:520px;background:#7c3aed;right:-180px;bottom:-220px}.app{position:relative;display:grid;grid-template-columns:235px 1fr;min-height:100vh}.side{border-right:1px solid var(--line);padding:28px 19px;display:flex;flex-direction:column;background:#0c1018c9}.brand{display:flex;align-items:center;gap:11px;font-size:20px;font-weight:800;margin:0 9px 30px}.logo{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:linear-gradient(135deg,var(--a),var(--b));box-shadow:0 8px 24px #6366f155}.glyph{width:17px;display:inline-grid;place-items:center;font-style:normal;font-weight:800;color:currentColor}.logo .glyph{width:auto}.label{font-size:9px;letter-spacing:1.7px;text-transform:uppercase;color:#60697c;margin:15px 12px 8px}.nav{width:100%;height:43px;border:0;border-radius:11px;background:transparent;color:var(--muted);display:flex;align-items:center;gap:11px;padding:0 13px;cursor:pointer}.nav.active,.nav:hover{background:#6366f119;color:#b9c0ff}.nav em{margin-left:auto;font-style:normal}.sideStat{margin-top:auto;border:1px solid var(--line);border-radius:14px;padding:14px;background:#ffffff06}.sideStat small{font-size:9px;color:var(--muted)}.sideStat strong{display:block;font-size:12px;margin-top:5px}.bar{display:block;width:100%;height:5px;border:0;border-radius:9px;background:#ffffff12;overflow:hidden;margin-top:10px;appearance:none}.bar::-webkit-progress-bar{background:#ffffff12;border-radius:9px}.bar::-webkit-progress-value,.bar::-moz-progress-bar{background:linear-gradient(90deg,var(--a),var(--b));border-radius:9px;transition:.3s}.main{padding:24px 34px 50px;max-width:1400px;width:100%;margin:auto}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:25px}.top h1{font-size:15px;margin:0}.top p{font-size:10px;color:var(--muted);margin:4px 0}.actions{display:flex;gap:8px}.btn{height:38px;border:1px solid var(--line);border-radius:10px;background:#ffffff08;color:white;padding:0 14px;display:flex;align-items:center;gap:7px;font-size:10px;font-weight:700;cursor:pointer}.btn.primary{border:0;background:linear-gradient(135deg,var(--a),var(--b))}.hero{display:flex;justify-content:space-between;align-items:end;margin-bottom:22px}.hero>div>small,.eyebrow{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#999cff}.hero h2{font-size:31px;letter-spacing:-1.3px;margin:7px 0}.hero p{font-size:11px;color:var(--muted);margin:0}.stats{display:flex;gap:8px}.stat{min-width:90px;border:1px solid var(--line);background:#ffffff06;border-radius:13px;padding:11px 13px}.stat strong{display:block;font-size:17px}.stat small{font-size:9px;color:var(--muted)}.grid{display:grid;grid-template-columns:minmax(350px,.9fr) minmax(420px,1.1fr);gap:17px}.panel{border:1px solid var(--line);border-radius:20px;background:var(--panel);backdrop-filter:blur(20px);overflow:hidden}.phead{padding:18px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between}.phead h3{margin:0;font-size:13px}.phead span{font-size:9px;color:var(--muted)}.compose,.study{padding:18px}.tabs{display:flex;background:#090c12;border-radius:11px;padding:4px;gap:4px;margin-bottom:14px}.tab{flex:1;height:33px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:10px;cursor:pointer}.tab.active{background:#252c3b;color:white}.pane{display:none}.pane.active{display:block}.notes{width:100%;height:218px;resize:vertical;border:1px solid var(--line);border-radius:13px;background:#090d15;color:white;padding:14px;outline:0;font-size:11px;line-height:1.7}.notes:focus{border-color:#6366f180}.drop{height:218px;border:1px dashed #ffffff28;border-radius:13px;background:#090d15;display:grid;place-items:center;text-align:center;cursor:pointer}.drop.drag{border-color:var(--a);background:#6366f114}.drop .glyph{color:#9297ff;font-size:22px}.drop strong,.drop span{display:block;font-size:11px}.drop span{color:var(--muted);font-size:9px;margin-top:6px}.fileInfo{color:#6ee7b7;background:#34d39912;border-radius:8px;padding:9px;margin-top:9px;font-size:9px}.api{display:grid;grid-template-columns:130px 1fr auto;gap:8px;margin-top:12px}.api select,.api input,.lockAi{height:38px;border:1px solid var(--line);border-radius:9px;background:#090d15;color:#aeb6c7;padding:0 10px;outline:0;font-size:9px}.lockAi{cursor:pointer;color:#fda4af}.hint{font-size:8px;color:#646c7d;margin:7px 2px 12px}.generate{width:100%;height:43px;border:0;border-radius:11px;background:linear-gradient(135deg,var(--a),var(--b));color:white;font-size:11px;font-weight:700;cursor:pointer}.generate:disabled{opacity:.5}.error{min-height:14px;margin-top:8px;color:#fda4af;font-size:9px}.study{min-height:500px}.studyTop{display:flex;justify-content:space-between;align-items:center;margin-bottom:11px;font-size:9px;color:var(--muted)}.pill{color:#b8bcff;background:#6366f119;border-radius:99px;padding:6px 9px}.progress{height:4px;margin-bottom:18px}.scene{perspective:1000px;height:270px;cursor:pointer}.card{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .55s}.card.flip{transform:rotateY(180deg)}.face{position:absolute;inset:0;backface-visibility:hidden;border:1px solid #ffffff19;border-radius:18px;background:radial-gradient(circle at 50% 0,#343d7855,transparent 48%),linear-gradient(145deg,#181e2b,#101520);display:flex;align-items:center;justify-content:center;text-align:center;padding:28px;box-shadow:0 20px 45px #0005}.face.back{transform:rotateY(180deg);background:radial-gradient(circle at 50% 0,#5a3c8255,transparent 48%),linear-gradient(145deg,#1b1929,#10131d)}.face small{position:absolute;top:18px;letter-spacing:2px;text-transform:uppercase;color:#788096;font-size:8px}.face p{font-size:17px;line-height:1.55;font-weight:600;margin:0}.face em{position:absolute;bottom:16px;font-size:8px;color:#646c7d;font-style:normal}.rates{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:14px}.rate{height:48px;border:1px solid var(--line);border-radius:10px;background:#ffffff07;color:#aab2c2;font-size:8px;cursor:pointer}.rate strong{display:block;font-size:10px;margin-bottom:2px}.again strong{color:var(--red)}.hard strong{color:#fbbf24}.good strong{color:#60a5fa}.easy strong{color:var(--green)}.pager{display:flex;justify-content:center;align-items:center;gap:17px;margin-top:13px}.pager button{width:33px;height:33px;border:1px solid var(--line);border-radius:9px;background:#ffffff08;color:white;cursor:pointer}.pager span{font-size:9px;color:var(--muted)}.deck{margin-top:17px}.row{display:grid;grid-template-columns:1fr 80px 90px 35px;align-items:center;gap:8px;padding:12px 18px;border-top:1px solid var(--line);font-size:9px}.row strong{font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.row span{color:var(--muted)}.row button{width:30px;height:30px;border:0;border-radius:8px;background:#ffffff08;color:white}.empty{padding:28px;text-align:center;color:var(--muted);font-size:10px}.modal{position:fixed;inset:0;background:#03050add;z-index:20;display:none;place-items:center;padding:20px;backdrop-filter:blur(8px)}.modal.open{display:grid}.dialog{width:min(500px,100%);border:1px solid var(--line);border-radius:20px;background:#121722;padding:22px}.dhead{display:flex;justify-content:space-between}.dialog h3{font-size:15px;margin:0}.close{border:0;background:none;color:var(--muted);font-size:20px}.dialog label{display:block;font-size:9px;color:var(--muted);margin:15px 0 7px}.dialog textarea{width:100%;height:85px;border:1px solid var(--line);border-radius:10px;background:#0a0e16;color:white;padding:11px;resize:vertical}.dactions{display:flex;justify-content:flex-end;gap:8px;margin-top:15px}.toast{position:fixed;right:20px;bottom:20px;background:#1d2532;border:1px solid var(--line);padding:11px 15px;border-radius:10px;font-size:9px;opacity:0;transform:translateY(60px);transition:.25s}.toast.show{opacity:1;transform:none}
 [hidden]{display:none!important}.account{max-width:220px;overflow:hidden;white-space:nowrap}.accountAvatar{width:24px;height:24px;flex:0 0 24px;display:grid;place-items:center;overflow:hidden;border-radius:50%;background:linear-gradient(135deg,var(--a),#ec4899);color:#fff;font-size:10px;font-weight:900;box-shadow:0 0 0 2px #ffffff18}.accountAvatar img{width:100%;height:100%;display:block;object-fit:cover}.accountLabel{min-width:0;overflow:hidden;text-overflow:ellipsis}.syncState[data-state="ok"]{color:#6ee7b7}.syncState[data-state="busy"]{color:#a5b4fc}.syncState[data-state="error"]{color:#fda4af}.authCopy{font-size:10px;line-height:1.6;color:var(--muted);margin:13px 0 3px}.authFields{display:grid;gap:9px}.authFields input{width:100%;height:43px;border:1px solid var(--line);border-radius:10px;background:#0a0e16;color:white;padding:0 12px;outline:0;font-size:11px}.authFields input:focus{border-color:#6366f180}.authActions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.authActions .btn{justify-content:center}.authError{min-height:15px;color:#fda4af;font-size:9px;margin-top:9px}.authMessage{min-height:15px;color:#6ee7b7;font-size:9px;margin-top:9px}.signedInBox{border:1px solid var(--line);border-radius:12px;background:#ffffff06;padding:15px;margin-top:15px}.signedInBox strong{display:block;font-size:12px;overflow-wrap:anywhere}.signedInBox small{display:block;color:var(--muted);font-size:9px;margin-top:5px}
@@ -909,7 +921,7 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 }
 /* END MOBILE PREMIUM POLISH */
 </style>
-<link rel="stylesheet" href="/static/mobile-reference.css?v=5">
+<link rel="stylesheet" href="/static/mobile-reference.css?v=6">
 </head>
 <body data-workspace="home">
 <div id="splash-screen" role="dialog" aria-modal="true" aria-label="MindDeck is loading">
@@ -921,11 +933,7 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 <p>Learn. Recall. Grow.</p>
 </div>
 <div class="launchEntry">
-<div class="launchLoader" id="track" role="status" aria-live="polite">
-<div class="launchTrack"><div class="launchFill" id="fill"></div></div>
-<span id="percent-label">0%</span>
-</div>
-<div class="launchActions" id="splash-actions" hidden>
+<div class="launchActions" id="splash-actions">
 <button class="launchPrimary" id="begin-text" type="button">GET STARTED</button>
 <button class="launchSecondary" id="splash-sign-in" type="button">I ALREADY HAVE AN ACCOUNT</button>
 </div>
@@ -1875,18 +1883,18 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 </div>
 <script nonce="{{ csp_nonce }}">
 (() => {
-  const fill = document.getElementById("fill");
-  const percentLabel = document.getElementById("percent-label");
-  const track = document.getElementById("track");
   const beginText = document.getElementById("begin-text");
   const signInText = document.getElementById("splash-sign-in");
-  const actions = document.getElementById("splash-actions");
   const splashScreen = document.getElementById("splash-screen");
-  if (!fill || !percentLabel || !track || !beginText || !signInText || !actions || !splashScreen) return;
+  if (!beginText || !signInText || !splashScreen) return;
+
+  if (document.documentElement.classList.contains("splash-seen")) {
+    splashScreen.remove();
+    return;
+  }
 
   document.body.classList.add("splash-lock");
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  let progress = reduceMotion ? 100 : 0;
 
   const enterApp = (mode = "guest") => {
     if (!splashScreen.isConnected) return;
@@ -1898,39 +1906,14 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
     if (mode === "signup" || mode === "signin") {
       window.dispatchEvent(new CustomEvent("minddeck:first-run", { detail: { mode } }));
     }
-    window.setTimeout(() => splashScreen.remove(), reduceMotion ? 160 : 720);
+    window.setTimeout(() => splashScreen.remove(), reduceMotion ? 60 : 180);
   };
 
   window.minddeckDismissSplash = () => enterApp("guest");
   beginText.addEventListener("click", () => enterApp("signup"));
   signInText.addEventListener("click", () => enterApp("signin"));
-
-  const finish = () => {
-    fill.style.width = "100%";
-    percentLabel.textContent = "100%";
-    window.setTimeout(() => {
-      track.style.display = "none";
-      actions.hidden = false;
-      beginText.focus({ preventScroll: true });
-    }, reduceMotion ? 20 : 300);
-  };
-
-  if (reduceMotion) {
-    finish();
-    return;
-  }
-
-  const interval = window.setInterval(() => {
-    progress = Math.min(100, progress + 2);
-    fill.style.width = progress + "%";
-    percentLabel.textContent = progress + "%";
-    if (progress >= 100) {
-      window.clearInterval(interval);
-      finish();
-    }
-  }, 35);
 })();
 </script>
-<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=19"></script>
+<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=20"></script>
 </body>
 </html>

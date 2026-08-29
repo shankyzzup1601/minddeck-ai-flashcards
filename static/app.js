@@ -30,6 +30,7 @@ const THEME_STORE = "minddeck-visual-theme-v1";
 const CLASS_STORE = "minddeck-class-v1";
 const PROFILE_STORE = "minddeck-mobile-profile-v1";
 const MOBILE_SETTINGS_STORE = "minddeck-mobile-settings-v1";
+const ONBOARDING_STORE = "minddeck:onboarding-complete-v1";
 const GENERATED_DECK_SIZE = 15;
 const DECK_SCHEMA_VERSION = 6;
 const THEMES = Object.freeze([
@@ -1844,6 +1845,15 @@ function setSyncStatus(message, state = "idle") {
   status.dataset.state = state;
 }
 
+function markOnboardingComplete() {
+  document.documentElement.classList.add("splash-seen");
+  try {
+    localStorage.setItem(ONBOARDING_STORE, "1");
+  } catch {
+    // The authenticated cookie still skips onboarding while this session is valid.
+  }
+}
+
 function updateAccountUI() {
   const signedIn = Boolean(authState.user);
   const googleAvailable = authState.enabled && authState.googleEnabled && !signedIn;
@@ -1897,7 +1907,10 @@ function updateAccountUI() {
   if (!authState.enabled) setSyncStatus("Saved on this device · cloud setup pending");
   else if (!signedIn) setSyncStatus("Saved on this device · sign in to sync");
   updateMobileAccountUI();
-  if (signedIn) window.minddeckDismissSplash?.();
+  if (signedIn) {
+    markOnboardingComplete();
+    window.minddeckDismissSplash?.();
+  }
 }
 
 async function fetchAuthConfig() {
@@ -3624,7 +3637,7 @@ loadAccount()
   })
   .finally(loadTimerState);
 if ("serviceWorker" in navigator) {
-  const shellRefreshKey = "minddeck-shell-v24-refreshed";
+  const shellRefreshKey = "minddeck-shell-v25-refreshed";
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     try {
       if (sessionStorage.getItem(shellRefreshKey)) return;
@@ -3636,7 +3649,7 @@ if ("serviceWorker" in navigator) {
   });
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("/static/sw.js?v=24", { scope: "/", updateViaCache: "none" })
+      .register("/static/sw.js?v=25", { scope: "/", updateViaCache: "none" })
       .then((registration) => registration.update())
       .catch(() => {});
   });

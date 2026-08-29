@@ -774,8 +774,17 @@ def home():
     g.csp_nonce = secrets.token_urlsafe(18)
     existing_csrf = request.cookies.get(csrf_cookie_name(), "")
     csrf_token = existing_csrf if 32 <= len(existing_csrf) <= 128 else secrets.token_urlsafe(32)
+    returning_user = bool(
+        request.cookies.get(auth_access_cookie_name())
+        or request.cookies.get(auth_refresh_cookie_name())
+    )
     response = make_response(
-        render_template("index.html", csp_nonce=g.csp_nonce, csrf_token=csrf_token)
+        render_template(
+            "index.html",
+            csp_nonce=g.csp_nonce,
+            csrf_token=csrf_token,
+            returning_user=returning_user,
+        )
     )
     response.set_cookie(
         csrf_cookie_name(),

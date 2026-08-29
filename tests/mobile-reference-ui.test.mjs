@@ -19,6 +19,13 @@ test("mobile launch starts with account choices", () => {
   assert.match(html, /id="authReferral"/);
   assert.match(app, /minddeck:first-run/);
   assert.match(app, /openAuthFlow\(event\.detail\?\.mode \|\| "signup"\)/);
+  assert.match(html, /minddeck:onboarding-complete-v1/);
+  assert.doesNotMatch(html, /id="splash-actions" hidden/);
+  assert.doesNotMatch(html, /id="track"/);
+  assert.doesNotMatch(html, /window\.setInterval\(\(\) => \{\s*progress/);
+  assert.match(app, /const ONBOARDING_STORE = "minddeck:onboarding-complete-v1"/);
+  assert.match(app, /localStorage\.setItem\(ONBOARDING_STORE, "1"\)/);
+  assert.match(app, /if \(signedIn\) \{\s*markOnboardingComplete\(\);/);
 });
 
 test("mobile shell includes the five reference destinations", () => {
@@ -50,7 +57,7 @@ test("My Deck has a guided empty state and reliable account fallback", () => {
   assert.match(app, /dataset\.deckEmptyAction/);
   assert.match(app, /accountAvatarImage\.onload/);
   assert.match(app, /updateViaCache: "none"/);
-  assert.match(app, /minddeck-shell-v24-refreshed/);
+  assert.match(app, /minddeck-shell-v25-refreshed/);
 });
 
 test("Science and Commerce shelves include complete subject shortcuts", () => {
@@ -72,11 +79,11 @@ test("Science and Commerce shelves include complete subject shortcuts", () => {
 });
 
 test("mobile UI assets are versioned and available offline", () => {
-  assert.match(html, /mobile-reference\.css\?v=5/);
-  assert.match(html, /app\.js\?v=19/);
-  assert.match(serviceWorker, /minddeck-shell-v24/);
-  assert.match(serviceWorker, /mobile-reference\.css\?v=5/);
-  assert.match(serviceWorker, /app\.js\?v=19/);
+  assert.match(html, /mobile-reference\.css\?v=6/);
+  assert.match(html, /app\.js\?v=20/);
+  assert.match(serviceWorker, /minddeck-shell-v25/);
+  assert.match(serviceWorker, /mobile-reference\.css\?v=6/);
+  assert.match(serviceWorker, /app\.js\?v=20/);
   assert.match(css, /@media \(max-width: 760px\)/);
 });
 

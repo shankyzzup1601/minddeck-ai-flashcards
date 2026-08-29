@@ -124,6 +124,22 @@ class MindDeckSecurityTests(unittest.TestCase):
         self.assertIn("Secure", response.headers["Set-Cookie"])
         self.assertIn("SameSite=Strict", response.headers["Set-Cookie"])
 
+    def test_returning_account_cookie_skips_first_run_splash(self):
+        self.client.set_cookie(
+            "__Host-minddeck_refresh",
+            "returning-user-refresh-token",
+            domain="minddeck.test",
+            secure=True,
+            path="/",
+        )
+
+        response, _csrf = self.home()
+        page = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('<html lang="en" class="splash-seen">', page)
+        self.assertNotIn("returning-user-refresh-token", page)
+
     def test_online_providers_fail_closed_without_all_secrets(self):
         with patch.dict(os.environ, {}, clear=True):
             response = self.client.get("/api/config", base_url=self.base_url)
