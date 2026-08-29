@@ -348,6 +348,60 @@ class MindDeckSecurityTests(unittest.TestCase):
             ],
         )
 
+    def test_cloud_planner_tasks_are_sanitized(self):
+        normalized = minddeck.normalize_cloud_deck(
+            {
+                "cards": [],
+                "planner": [
+                    {
+                        "id": "plan_task_1",
+                        "title": "  Revise electrostatics  ",
+                        "subject": "Physics",
+                        "date": "2026-08-29",
+                        "time": "18:30",
+                        "done": True,
+                        "createdAt": 1_000,
+                    },
+                    {
+                        "id": "plan_task_2",
+                        "title": "Practise journal entries",
+                        "subject": "Unknown",
+                        "date": "2026-08-30",
+                        "time": "99:99",
+                        "done": "yes",
+                        "createdAt": 2_000,
+                    },
+                    {"id": "bad", "title": "", "date": "invalid"},
+                ],
+                "updatedAt": 0,
+            }
+        )
+
+        self.assertEqual(normalized["version"], 7)
+        self.assertEqual(
+            normalized["planner"],
+            [
+                {
+                    "id": "plan_task_1",
+                    "title": "Revise electrostatics",
+                    "subject": "Physics",
+                    "date": "2026-08-29",
+                    "time": "18:30",
+                    "done": True,
+                    "createdAt": 1_000,
+                },
+                {
+                    "id": "plan_task_2",
+                    "title": "Practise journal entries",
+                    "subject": "General",
+                    "date": "2026-08-30",
+                    "time": "",
+                    "done": False,
+                    "createdAt": 2_000,
+                },
+            ],
+        )
+
     def test_cloud_deck_preserves_smart_learning_state(self):
         normalized = minddeck.normalize_cloud_deck(
             {
@@ -402,7 +456,7 @@ class MindDeckSecurityTests(unittest.TestCase):
         )
 
         card = normalized["cards"][0]
-        self.assertEqual(normalized["version"], 6)
+        self.assertEqual(normalized["version"], 7)
         self.assertEqual(card["template"], "formula")
         self.assertEqual(card["subject"], "Physics")
         self.assertEqual(card["examTags"], ["JEE Main 2024", "Formula"])

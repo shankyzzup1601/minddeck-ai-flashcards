@@ -413,6 +413,69 @@ def normalize_study_stats(value) -> dict:
     }
 
 
+def normalize_planner_tasks(value) -> list[dict]:
+    if not isinstance(value, list):
+        return []
+    allowed_subjects = {
+        "General",
+        "Physics",
+        "Chemistry",
+        "Mathematics",
+        "Biology",
+        "Accountancy",
+        "Business Studies",
+        "Economics",
+        "Entrepreneurship",
+    }
+    normalized = []
+    seen_ids = set()
+    now_ms = int(time.time() * 1_000)
+    for raw_task in value[-120:]:
+        if not isinstance(raw_task, dict):
+            continue
+        task_id = raw_task.get("id", "")
+        title = raw_task.get("title", "")
+        date_value = raw_task.get("date", "")
+        if not (
+            isinstance(task_id, str)
+            and re.fullmatch(r"[a-z0-9_-]{4,80}", task_id, re.I)
+            and task_id not in seen_ids
+            and isinstance(title, str)
+            and 1 <= len(title.strip()) <= 120
+            and isinstance(date_value, str)
+            and re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_value)
+        ):
+            continue
+        try:
+            datetime.strptime(date_value, "%Y-%m-%d")
+        except ValueError:
+            continue
+        subject = raw_task.get("subject", "General")
+        if subject not in allowed_subjects:
+            subject = "General"
+        task_time = raw_task.get("time", "")
+        if not isinstance(task_time, str) or (
+            task_time and not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", task_time)
+        ):
+            task_time = ""
+        created_at = raw_task.get("createdAt", now_ms)
+        if isinstance(created_at, bool) or not isinstance(created_at, (int, float)):
+            created_at = now_ms
+        seen_ids.add(task_id)
+        normalized.append(
+            {
+                "id": task_id,
+                "title": title.strip(),
+                "subject": subject,
+                "date": date_value,
+                "time": task_time,
+                "done": raw_task.get("done") is True,
+                "createdAt": min(max(0, round(created_at)), now_ms + 60_000),
+            }
+        )
+    return normalized
+
+
 def normalize_cloud_deck(value) -> dict:
     if not isinstance(value, dict):
         raise ValueError("Invalid deck.")
@@ -572,11 +635,12 @@ def normalize_cloud_deck(value) -> dict:
     updated_at = raw_updated if isinstance(raw_updated, int) and not isinstance(raw_updated, bool) else 0
     updated_at = min(max(updated_at, 0), now_ms + 60_000)
     return {
-        "version": 6,
+        "version": 7,
         "cards": normalized_cards,
         "index": index,
         "reviewed": reviewed,
         "study": normalize_study_stats(value.get("study")),
+        "planner": normalize_planner_tasks(value.get("planner")),
         "updatedAt": updated_at,
     }
 

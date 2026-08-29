@@ -921,7 +921,7 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 }
 /* END MOBILE PREMIUM POLISH */
 </style>
-<link rel="stylesheet" href="/static/mobile-reference.css?v=8">
+<link rel="stylesheet" href="/static/mobile-reference.css?v=9">
 </head>
 <body data-workspace="home">
 <div id="splash-screen" role="dialog" aria-modal="true" aria-label="MindDeck is loading">
@@ -970,6 +970,11 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 <i class="glyph" aria-hidden="true">🧠</i>
 <span>Study</span>
 <em id="dueNav">0</em>
+</button>
+<button class="nav" id="navPlanner" type="button" data-workspace-target="planner">
+<i class="glyph" aria-hidden="true">🗓️</i>
+<span>Plan</span>
+<em id="plannerNavCount"></em>
 </button>
 <button class="nav" id="navOverall" type="button" data-workspace-target="overall">
 <i class="glyph" aria-hidden="true">📊</i>
@@ -1314,6 +1319,23 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 <p class="widgetCopy" id="streakMessage">Complete a focus session to light up your week.</p>
 <div class="weekBars" id="weekBars" aria-label="Focus activity over the last seven days"></div>
 <p class="momentumNote">Last 7 days · activity is saved with your study profile</p>
+</article>
+</section>
+<section class="plannerWorkspace" id="plannerWorkspace" aria-labelledby="plannerTitle">
+<article class="plannerPanel">
+<header class="plannerHeader">
+<div><small>🗓️ DAILY STUDY PLANNER</small><h2 id="plannerTitle">Plan today. Finish calmly.</h2><p>Add the exact work you want to complete, then start a focus sprint beside it.</p></div>
+<div class="plannerProgressCard"><strong id="plannerProgressText">0 / 0</strong><span>tasks complete</span><progress id="plannerProgress" max="100" value="0">0%</progress></div>
+</header>
+<form class="plannerComposer" id="plannerForm">
+<label class="plannerTaskField"><span>Study task</span><input id="plannerTaskInput" type="text" maxlength="120" autocomplete="off" required placeholder="e.g. Revise electrostatics"></label>
+<label><span>Subject</span><select id="plannerSubject"><option>General</option><option>Physics</option><option>Chemistry</option><option>Mathematics</option><option>Biology</option><option>Accountancy</option><option>Business Studies</option><option>Economics</option><option>Entrepreneurship</option></select></label>
+<label><span>Date</span><input id="plannerDate" type="date" required></label>
+<label><span>Time</span><input id="plannerTime" type="time"></label>
+<button class="plannerAdd" type="submit">＋ Add task</button>
+</form>
+<div class="plannerQuickAdd" aria-label="Quick planner tasks"><span>Quick add</span><button type="button" data-planner-template="Review due cards" data-planner-subject="General">📚 Due review</button><button type="button" data-planner-template="Create a 15-card deck" data-planner-subject="General">✨ Build deck</button><button type="button" data-planner-template="Revise one complete chapter" data-planner-subject="General">🧠 Revise chapter</button></div>
+<div class="plannerList" id="plannerList" aria-live="polite"></div>
 </article>
 </section>
 <section class="insightGrid" aria-label="Learning insights">
@@ -1920,6 +1942,6 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
   signInText.addEventListener("click", () => enterApp("signin"));
 })();
 </script>
-<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=23"></script>
+<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=24"></script>
 </body>
 </html>

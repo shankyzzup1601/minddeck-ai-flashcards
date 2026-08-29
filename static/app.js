@@ -32,7 +32,8 @@ const PROFILE_STORE = "minddeck-mobile-profile-v1";
 const MOBILE_SETTINGS_STORE = "minddeck-mobile-settings-v1";
 const ONBOARDING_STORE = "minddeck:onboarding-complete-v1";
 const GENERATED_DECK_SIZE = 15;
-const DECK_SCHEMA_VERSION = 6;
+const DECK_SCHEMA_VERSION = 7;
+const MAX_PLANNER_TASKS = 120;
 const THEMES = Object.freeze([
   { key: "cosmic", label: "Midnight" },
   { key: "aurora", label: "Terminal" },
@@ -43,6 +44,17 @@ const TIMER_MODES = Object.freeze({
   break: { label: "Quick reset", duration: 5 * 60, isFocus: false },
   deep: { label: "Deep focus", duration: 50 * 60, isFocus: true },
 });
+const PLANNER_SUBJECTS = new Set([
+  "General",
+  "Physics",
+  "Chemistry",
+  "Mathematics",
+  "Biology",
+  "Accountancy",
+  "Business Studies",
+  "Economics",
+  "Entrepreneurship",
+]);
 const TEMPLATE_LABELS = Object.freeze({
   basic: "Recall",
   ncert: "NCERT Cloze",
@@ -101,6 +113,7 @@ let activeAccountKey = null;
 let accountStoreFresh = false;
 let removeGuestAfterSync = false;
 let studyStats = defaultStudyStats();
+let plannerTasks = [];
 let timerState = defaultTimerState();
 let timerInterval = null;
 let activeTheme = THEMES[0].key;
@@ -144,6 +157,7 @@ function setWorkspace(workspace, scroll = true) {
   const [title, subtitle] = headings[target];
   $(".top h1").textContent = title;
   $(".top p").textContent = subtitle;
+  if (target === "planner") renderPlannerTasks();
   if (scroll) window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
 }
 
@@ -366,6 +380,47 @@ function normalizeStudyStats(value) {
   };
 }
 
+function normalizePlannerTask(value) {
+  if (!value || typeof value !== "object") return null;
+  const title = typeof value.title === "string" ? value.title.trim().slice(0, 120) : "";
+  if (!title) return null;
+  const id =
+    typeof value.id === "string" && /^[a-z0-9_-]{4,80}$/i.test(value.id)
+      ? value.id
+      : Date.now().toString(36) + Math.random().toString(36).slice(2);
+  const subject = PLANNER_SUBJECTS.has(value.subject) ? value.subject : "General";
+  const date =
+    typeof value.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value.date) &&
+    Number.isFinite(Date.parse(`${value.date}T12:00:00`))
+      ? value.date
+      : localDateKey();
+  const time = typeof value.time === "string" && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value.time)
+    ? value.time
+    : "";
+  return {
+    id,
+    title,
+    subject,
+    date,
+    time,
+    done: value.done === true,
+    createdAt: Math.round(finiteNumber(value.createdAt, Date.now(), 0, Number.MAX_SAFE_INTEGER)),
+  };
+}
+
+function normalizePlannerTasks(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  const tasks = [];
+  for (const rawTask of value.slice(-MAX_PLANNER_TASKS)) {
+    const task = normalizePlannerTask(rawTask);
+    if (!task || seen.has(task.id)) continue;
+    seen.add(task.id);
+    tasks.push(task);
+  }
+  return tasks;
+}
+
 function defaultTimerState(mode = "focus") {
   const config = TIMER_MODES[mode] || TIMER_MODES.focus;
   return { mode, duration: config.duration, remaining: config.duration, running: false, endAt: 0 };
@@ -457,6 +512,7 @@ function deckSnapshot() {
     index,
     reviewed: [...reviewed],
     study: studyStats,
+    planner: plannerTasks,
     updatedAt: deckUpdatedAt,
   };
 }
@@ -488,6 +544,7 @@ function applyDeckState(value) {
       : []
   );
   studyStats = normalizeStudyStats(value.study);
+  plannerTasks = normalizePlannerTasks(value.planner);
   deckUpdatedAt = finiteNumber(value.updatedAt, 0, 0, Number.MAX_SAFE_INTEGER);
   return true;
 }
@@ -507,6 +564,7 @@ async function load() {
       index = 0;
       reviewed = new Set();
       studyStats = defaultStudyStats();
+      plannerTasks = [];
       deckUpdatedAt = 0;
     } else {
       upgraded = upgradeLegacyShortDeck(backup);
@@ -534,6 +592,7 @@ function activateAccountStore(accountKey) {
       index = 0;
       reviewed = new Set();
       studyStats = defaultStudyStats();
+      plannerTasks = [];
       deckUpdatedAt = 0;
       accountStoreFresh = true;
     }
@@ -904,6 +963,140 @@ function renderStudyWidgets() {
     : "Complete a focus session to light up your week.";
   renderWeekBars();
   syncMobileDashboard();
+}
+
+function plannerSubjectIcon(subject) {
+  return {
+    Physics: "⚛️",
+    Chemistry: "🧪",
+    Mathematics: "📐",
+    Biology: "🧬",
+    Accountancy: "🧾",
+    "Business Studies": "💼",
+    Economics: "📈",
+    Entrepreneurship: "🚀",
+  }[subject] || "📚";
+}
+
+function plannerDateLabel(dateKey) {
+  const today = localDateKey();
+  if (dateKey === today) return "Today";
+  const tomorrow = new Date();
+  tomorrow.setHours(12, 0, 0, 0);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (dateKey === localDateKey(tomorrow)) return "Tomorrow";
+  return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" }).format(
+    new Date(`${dateKey}T12:00:00`)
+  );
+}
+
+function plannerTimeLabel(time) {
+  if (!time) return "Any time";
+  return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(
+    new Date(`2000-01-01T${time}:00`)
+  );
+}
+
+function renderPlannerTasks() {
+  const list = $("#plannerList");
+  if (!list) return;
+  const dateInput = $("#plannerDate");
+  if (dateInput && !dateInput.value) dateInput.value = localDateKey();
+
+  const todayTasks = plannerTasks.filter((task) => task.date === localDateKey());
+  const progressTasks = todayTasks.length ? todayTasks : plannerTasks;
+  const complete = progressTasks.filter((task) => task.done).length;
+  const progress = progressTasks.length ? Math.round((complete / progressTasks.length) * 100) : 0;
+  $("#plannerProgressText").textContent = `${complete} / ${progressTasks.length}`;
+  $("#plannerProgress").value = progress;
+  $("#plannerProgress").textContent = `${progress}%`;
+  const openCount = plannerTasks.filter((task) => !task.done).length;
+  $("#plannerNavCount").textContent = openCount ? String(Math.min(openCount, 99)) : "";
+
+  list.replaceChildren();
+  if (!plannerTasks.length) {
+    const empty = document.createElement("div");
+    empty.className = "plannerEmpty";
+    const icon = document.createElement("span");
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = "🗓️";
+    const copy = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = "Your plan is clear";
+    const detail = document.createElement("small");
+    detail.textContent = "Add one realistic study task above to begin.";
+    copy.append(title, detail);
+    empty.append(icon, copy);
+    list.append(empty);
+    return;
+  }
+
+  const ordered = [...plannerTasks].sort((left, right) =>
+    Number(left.done) - Number(right.done) ||
+    left.date.localeCompare(right.date) ||
+    (left.time || "99:99").localeCompare(right.time || "99:99") ||
+    left.createdAt - right.createdAt
+  );
+  for (const task of ordered) {
+    const row = document.createElement("article");
+    row.className = "plannerTask";
+    row.dataset.done = String(task.done);
+    row.dataset.today = String(task.date === localDateKey());
+
+    const checkbox = document.createElement("input");
+    checkbox.className = "plannerCheck";
+    checkbox.type = "checkbox";
+    checkbox.checked = task.done;
+    checkbox.dataset.plannerToggle = task.id;
+    checkbox.setAttribute("aria-label", `${task.done ? "Reopen" : "Complete"} ${task.title}`);
+
+    const body = document.createElement("div");
+    body.className = "plannerTaskBody";
+    const title = document.createElement("strong");
+    title.textContent = task.title;
+    const meta = document.createElement("span");
+    meta.textContent = `${plannerSubjectIcon(task.subject)} ${task.subject} · ${plannerDateLabel(task.date)} · ${plannerTimeLabel(task.time)}`;
+    body.append(title, meta);
+
+    const actions = document.createElement("div");
+    actions.className = "plannerTaskActions";
+    const focus = document.createElement("button");
+    focus.className = "plannerFocus";
+    focus.type = "button";
+    focus.dataset.plannerFocus = task.id;
+    focus.textContent = "Focus";
+    focus.setAttribute("aria-label", `Start a focus timer for ${task.title}`);
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.dataset.plannerDelete = task.id;
+    remove.textContent = "×";
+    remove.setAttribute("aria-label", `Delete ${task.title}`);
+    actions.append(focus, remove);
+    row.append(checkbox, body, actions);
+    list.append(row);
+  }
+}
+
+function addPlannerTask(value) {
+  if (plannerTasks.length >= MAX_PLANNER_TASKS) {
+    toast("Finish or remove a few planner tasks first");
+    return false;
+  }
+  const task = normalizePlannerTask({
+    ...value,
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+    createdAt: Date.now(),
+    done: false,
+  });
+  if (!task) {
+    toast("Add a clear study task");
+    return false;
+  }
+  plannerTasks.push(task);
+  renderPlannerTasks();
+  save(true);
+  toast("Task added to your planner");
+  return true;
 }
 
 function localDayEnd(offset = 0) {
@@ -1547,6 +1740,7 @@ function render(touch = false) {
   clearStudyAssist();
   renderCurrentCard(card);
   renderStudyWidgets();
+  renderPlannerTasks();
   renderLearningInsights();
   renderSmartWidgets();
   renderSubjectCounts();
@@ -2962,6 +3156,57 @@ $("#deckGenerateAction").addEventListener("click", () => setWorkspace("generate"
 $("#deckAddAction").addEventListener("click", () => openManualCreator());
 $("#mobilePlannerShortcut").addEventListener("click", () => setWorkspace("planner"));
 $("#mobilePlanOpen").addEventListener("click", () => setWorkspace("planner"));
+$("#plannerForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const added = addPlannerTask({
+    title: $("#plannerTaskInput").value,
+    subject: $("#plannerSubject").value,
+    date: $("#plannerDate").value,
+    time: $("#plannerTime").value,
+  });
+  if (!added) return;
+  $("#plannerTaskInput").value = "";
+  $("#plannerTime").value = "";
+  $("#plannerTaskInput").focus();
+});
+$(".plannerQuickAdd").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-planner-template]");
+  if (!button) return;
+  addPlannerTask({
+    title: button.dataset.plannerTemplate,
+    subject: button.dataset.plannerSubject || "General",
+    date: $("#plannerDate").value || localDateKey(),
+    time: "",
+  });
+});
+$("#plannerList").addEventListener("change", (event) => {
+  const checkbox = event.target.closest("[data-planner-toggle]");
+  if (!checkbox) return;
+  const task = plannerTasks.find((item) => item.id === checkbox.dataset.plannerToggle);
+  if (!task) return;
+  task.done = checkbox.checked;
+  renderPlannerTasks();
+  save(true);
+  toast(task.done ? "Task complete ✨" : "Task moved back to your plan");
+});
+$("#plannerList").addEventListener("click", (event) => {
+  const focusButton = event.target.closest("[data-planner-focus]");
+  if (focusButton) {
+    const task = plannerTasks.find((item) => item.id === focusButton.dataset.plannerFocus);
+    if (!task) return;
+    if (timerState.mode !== "focus") selectTimerMode("focus");
+    if (!timerState.running) toggleTimer();
+    $("#timerWidget").scrollIntoView({ behavior: "smooth", block: "center" });
+    toast(`Focus started · ${task.title}`);
+    return;
+  }
+  const deleteButton = event.target.closest("[data-planner-delete]");
+  if (!deleteButton) return;
+  plannerTasks = plannerTasks.filter((item) => item.id !== deleteButton.dataset.plannerDelete);
+  renderPlannerTasks();
+  save(true);
+  toast("Planner task removed");
+});
 $("#mobileFormulaShortcut").addEventListener("click", startFormulaCram);
 $("#mobileOpenOral").addEventListener("click", openOralExam);
 $("#mobileProgressShortcut").addEventListener("click", () => setWorkspace("overall"));
@@ -3599,7 +3844,7 @@ loadAccount()
   })
   .finally(loadTimerState);
 if ("serviceWorker" in navigator) {
-  const shellRefreshKey = "minddeck-shell-v28-refreshed";
+  const shellRefreshKey = "minddeck-shell-v29-refreshed";
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     try {
       if (sessionStorage.getItem(shellRefreshKey)) return;
@@ -3611,7 +3856,7 @@ if ("serviceWorker" in navigator) {
   });
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("/static/sw.js?v=27", { scope: "/", updateViaCache: "none" })
+      .register("/static/sw.js?v=29", { scope: "/", updateViaCache: "none" })
       .then((registration) => registration.update())
       .catch(() => {});
   });

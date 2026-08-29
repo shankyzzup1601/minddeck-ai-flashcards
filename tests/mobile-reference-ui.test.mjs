@@ -30,18 +30,20 @@ test("mobile launch starts with account choices", () => {
   assert.match(app, /if \(signedIn\) \{\s*markOnboardingComplete\(\);/);
 });
 
-test("mobile shell includes the five reference destinations", () => {
-  for (const id of ["navDeck", "navGenerate", "navHome", "navStudy", "navOverall"]) {
+test("mobile shell includes a dedicated Plan destination", () => {
+  for (const id of ["navDeck", "navGenerate", "navHome", "navStudy", "navPlanner", "navOverall"]) {
     assert.match(html, new RegExp(`id="${id}"`));
   }
   for (const view of ["mobileHomeView", "mobileProgressView", "mobileSettingsView"]) {
     assert.match(html, new RegExp(`id="${view}"`));
   }
   assert.match(html, /<body data-workspace="home">/);
-  for (const emoji of ["📚", "✨", "🏡", "🧠", "📊"]) assert.ok(html.includes(emoji));
+  for (const emoji of ["📚", "✨", "🏡", "🧠", "🗓️", "📊"]) assert.ok(html.includes(emoji));
   assert.match(css, /\.navHome \.glyph \{[^}]*border-radius: 50%/s);
   assert.match(css, /width: min\(calc\(100% - 20px\), 430px\)/);
   assert.match(css, /#navDeck \.glyph::before \{ content: "📚"/);
+  assert.match(css, /#navPlanner \.glyph::before \{ content: "🗓️"/);
+  assert.match(css, /\.side #navOverall \{ display: none !important; \}/);
   assert.match(css, /body \.app > \.side \{[^}]*left: 50% !important;[^}]*transform: translate3d\(-50%, 0, 0\) !important;/s);
   assert.match(css, /overflow-x: clip/);
 });
@@ -59,7 +61,7 @@ test("My Deck has a guided empty state and reliable account fallback", () => {
   assert.match(app, /dataset\.deckEmptyAction/);
   assert.match(app, /accountAvatarImage\.onload/);
   assert.match(app, /updateViaCache: "none"/);
-  assert.match(app, /minddeck-shell-v28-refreshed/);
+  assert.match(app, /minddeck-shell-v29-refreshed/);
 });
 
 test("Science and Commerce shelves include complete subject shortcuts", () => {
@@ -81,12 +83,36 @@ test("Science and Commerce shelves include complete subject shortcuts", () => {
 });
 
 test("mobile UI assets are versioned and available offline", () => {
-  assert.match(html, /mobile-reference\.css\?v=8/);
-  assert.match(html, /app\.js\?v=23/);
-  assert.match(serviceWorker, /minddeck-shell-v28/);
-  assert.match(serviceWorker, /mobile-reference\.css\?v=8/);
-  assert.match(serviceWorker, /app\.js\?v=23/);
+  assert.match(html, /mobile-reference\.css\?v=9/);
+  assert.match(html, /app\.js\?v=24/);
+  assert.match(serviceWorker, /minddeck-shell-v29/);
+  assert.match(serviceWorker, /mobile-reference\.css\?v=9/);
+  assert.match(serviceWorker, /app\.js\?v=24/);
   assert.match(css, /@media \(max-width: 760px\)/);
+});
+
+test("timer and planner are complete working study tools", () => {
+  for (const id of [
+    "timerWidget",
+    "timerTime",
+    "timerToggle",
+    "plannerWorkspace",
+    "plannerForm",
+    "plannerTaskInput",
+    "plannerSubject",
+    "plannerDate",
+    "plannerTime",
+    "plannerList",
+    "plannerProgress",
+  ]) assert.match(html, new RegExp(`id="${id}"`));
+  assert.match(app, /const MAX_PLANNER_TASKS = 120/);
+  assert.match(app, /planner: plannerTasks/);
+  assert.match(app, /function normalizePlannerTasks/);
+  assert.match(app, /data-planner-toggle/);
+  assert.match(app, /data-planner-focus/);
+  assert.match(app, /data-planner-delete/);
+  assert.match(app, /\.register\("\/static\/sw\.js\?v=29"/);
+  assert.match(css, /body\[data-workspace="planner"\] \.plannerWorkspace \{ display: block; \}/);
 });
 
 test("generation presents one built-in MindDeck AI experience", () => {
