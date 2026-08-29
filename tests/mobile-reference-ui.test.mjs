@@ -29,6 +29,9 @@ test("mobile shell includes the five reference destinations", () => {
     assert.match(html, new RegExp(`id="${view}"`));
   }
   assert.match(html, /<body data-workspace="home">/);
+  for (const emoji of ["📚", "✨", "🏡", "🧠", "📊"]) assert.ok(html.includes(emoji));
+  assert.match(css, /\.navHome \.glyph \{[^}]*border-radius: 50%/s);
+  assert.match(css, /width: min\(calc\(100% - 20px\), 430px\)/);
 });
 
 test("Science and Commerce shelves include complete subject shortcuts", () => {
@@ -50,10 +53,10 @@ test("Science and Commerce shelves include complete subject shortcuts", () => {
 });
 
 test("mobile UI assets are versioned and available offline", () => {
-  assert.match(html, /mobile-reference\.css\?v=2/);
+  assert.match(html, /mobile-reference\.css\?v=3/);
   assert.match(html, /app\.js\?v=17/);
-  assert.match(serviceWorker, /minddeck-shell-v21/);
-  assert.match(serviceWorker, /mobile-reference\.css\?v=2/);
+  assert.match(serviceWorker, /minddeck-shell-v22/);
+  assert.match(serviceWorker, /mobile-reference\.css\?v=3/);
   assert.match(serviceWorker, /app\.js\?v=17/);
   assert.match(css, /@media \(max-width: 760px\)/);
 });
