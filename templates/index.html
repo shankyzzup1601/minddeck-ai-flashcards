@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>MindDeck AI Flashcards</title>
-<meta name="description" content="Create smart flashcards from notes and PDFs, then learn with spaced repetition.">
+<meta name="description" content="Create CBSE Class 11 and 12 revision cards from MindDeck's ready syllabus, your notes, photos, or PDFs.">
 <meta name="theme-color" content="#080a0f">
 <link rel="manifest" href="/static/manifest.webmanifest">
 <link rel="icon" href="/static/minddeck-icon.svg?v=2" type="image/svg+xml">
@@ -925,7 +925,7 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 }
 /* END MOBILE PREMIUM POLISH */
 </style>
-<link rel="stylesheet" href="/static/mobile-reference.css?v=11">
+<link rel="stylesheet" href="/static/mobile-reference.css?v=12">
 </head>
 <body data-workspace="home">
 <div id="splash-screen" role="dialog" aria-modal="true" aria-label="MindDeck is loading">
@@ -1061,8 +1061,8 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 <article class="mobileSessionCard">
 <div class="mobileCardKicker"><span>TODAY'S SESSION</span><time>Today</time></div>
 <small>Start here</small>
-<h2 id="mobileSessionTitle">Begin your first chapter</h2>
-<p id="mobileSessionCopy">Pick a subject and start learning.</p>
+<h2 id="mobileSessionTitle">Your syllabus is ready.</h2>
+<p id="mobileSessionCopy">Choose a chapter and MindDeck will build the revision cards.</p>
 <button class="mobileGradientButton" id="mobileStartLearning" type="button">Start learning <span aria-hidden="true">→</span></button>
 </article>
 
@@ -1114,7 +1114,7 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 <button id="mobileFormulaShortcut" type="button"><i aria-hidden="true">Σ</i><span><strong>Quick formula revision</strong><small>Recall formulas fast</small></span></button>
 <button id="mobileOpenOral" type="button"><i aria-hidden="true">●</i><span><strong>Oral exam</strong><small>Explain one concept aloud</small></span></button>
 <button id="mobileProgressShortcut" type="button"><i aria-hidden="true">▥</i><span><strong>My progress</strong><small>See mastery and streaks</small></span></button>
-<button id="mobileCreateShortcut" type="button"><i aria-hidden="true">＋</i><span><strong>Generate deck</strong><small>Turn notes into cards</small></span></button>
+<button id="mobileCreateShortcut" type="button"><i aria-hidden="true">📖</i><span><strong>Ready revision</strong><small>Choose a syllabus chapter</small></span></button>
 </div>
 </section>
 
@@ -1481,10 +1481,52 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 <section class="grid">
 <article class="panel" id="createPanel">
 <div class="phead">
-<h3>Create a study deck</h3>
-<span>3 simple steps · 15 questions</span>
+<h3>Create revision cards</h3>
+<span>Ready syllabus + your own material</span>
 </div>
 <div class="compose">
+<div class="generationPaths" role="tablist" aria-label="Choose where to create cards from">
+<button class="generationPath active" type="button" role="tab" aria-selected="true" data-generation-path="syllabus"><i aria-hidden="true">📚</i><span><strong>Ready syllabus</strong><small>No notes needed</small></span></button>
+<button class="generationPath" type="button" role="tab" aria-selected="false" data-generation-path="custom"><i aria-hidden="true">📝</i><span><strong>My notes / PDF</strong><small>Add your own material</small></span></button>
+</div>
+<section class="generationSource syllabusSource" id="syllabusSourcePane" aria-label="Ready CBSE and NCERT syllabus">
+<div class="syllabusHero">
+<div><span>CBSE · NCERT</span><h4>Choose a chapter. MindDeck builds the revision cards.</h4><p>Classes 11 and 12 are already organised by your PCM, PCB, or Commerce stream.</p></div>
+<b id="syllabusCoverage">Complete syllabus</b>
+</div>
+<div class="syllabusSelectors">
+<label for="syllabusClass">Class
+<select id="syllabusClass"><option value="Class 11">Class 11</option><option value="Class 12" selected>Class 12</option></select>
+</label>
+<label for="syllabusSubject">Subject
+<select id="syllabusSubject"><option value="Physics">Physics</option></select>
+</label>
+<label class="syllabusChapterField" for="syllabusChapter">Chapter
+<select id="syllabusChapter"><option value="Electric Charges and Fields">1. Electric Charges and Fields</option></select>
+</label>
+<label for="syllabusCardMode">Revision style
+<select id="syllabusCardMode">
+<option value="mixed">Smart mix · Q&amp;A + cloze</option>
+<option value="ncert">NCERT keywords &amp; traps</option>
+<option value="formula">Formula, unit &amp; method</option>
+<option value="assertion">Assertion &amp; Reason</option>
+<option value="reaction">Reaction mechanism</option>
+<option value="journal">Journal entry practice</option>
+<option value="derivation">Board derivations</option>
+</select>
+</label>
+</div>
+<div class="syllabusPreview">
+<span class="syllabusBook" aria-hidden="true">📖</span>
+<div><small id="syllabusPreviewLabel">CLASS 12 · PHYSICS · CHAPTER 1</small><strong id="syllabusPreviewTitle">Electric Charges and Fields</strong><p id="syllabusPreviewCopy">Core concepts, formulas, SI units, derivations, numericals and common board traps.</p></div>
+<b>15 cards</b>
+</div>
+<div class="generationProviderNote"><span id="syllabusProviderLabel">MindDeck AI · Connecting…</span><button class="openMindDeckAi" type="button">About MindDeck AI</button></div>
+<button class="generate syllabusGenerate" id="generateSyllabus" type="button">✨ Create 15 revision cards</button>
+<div class="error" id="syllabusError" role="alert"></div>
+</section>
+<section class="generationSource customSource" id="customSourcePane" aria-label="Create cards from your own material" hidden>
+<div class="customMaterialIntro"><span>YOUR MATERIAL</span><strong>Add notes, a PDF, or a textbook photo.</strong><p>MindDeck reads your content and turns it into a focused 15-card revision deck.</p></div>
 <div class="tabs">
 <button class="tab active" data-tab="notes">Text / notes</button>
 <button class="tab" data-tab="file">PDF / file</button>
@@ -1579,6 +1621,7 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 <button class="generate" id="generate">✨ Generate 15 with AI</button>
 <div class="error" id="error">
 </div>
+</section>
 </div>
 </article>
 <article class="panel" id="studyPanel">
@@ -1808,7 +1851,8 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 </div>
 </div>
 <div class="aiCapabilityGrid" aria-label="MindDeck AI features">
-<article><span aria-hidden="true">📝</span><strong>Notes to cards</strong><small>Creates 15 focused questions from pasted notes and files.</small></article>
+<article><span aria-hidden="true">📚</span><strong>Syllabus to cards</strong><small>Builds a revision deck from any ready Class 11 or 12 chapter.</small></article>
+<article><span aria-hidden="true">📝</span><strong>Your material</strong><small>Creates focused questions from your own notes and PDFs.</small></article>
 <article><span aria-hidden="true">📸</span><strong>Photo understanding</strong><small>Reads textbook pages, handwriting, and whiteboards.</small></article>
 <article><span aria-hidden="true">💡</span><strong>Smart hints</strong><small>Builds progressive clues while keeping the answer hidden.</small></article>
 </div>
@@ -1971,6 +2015,6 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
   signInText.addEventListener("click", () => enterApp("signin"));
 })();
 </script>
-<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=26"></script>
+<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=27"></script>
 </body>
 </html>

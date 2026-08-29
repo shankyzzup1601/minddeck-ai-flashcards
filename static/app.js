@@ -17,6 +17,12 @@ import {
   saveDeckBackup,
   saveImageAsset,
 } from "./smart-study.js";
+import {
+  chaptersFor,
+  subjectGuide,
+  syllabusChapterCount,
+  totalSyllabusChapterCount,
+} from "./cbse-syllabus.js?v=1";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -36,6 +42,7 @@ const ONBOARDING_STORE = "minddeck:onboarding-complete-v1";
 const GENERATED_DECK_SIZE = 15;
 const DECK_SCHEMA_VERSION = 7;
 const MAX_PLANNER_TASKS = 120;
+const TOTAL_SYLLABUS_CHAPTERS = totalSyllabusChapterCount();
 const THEMES = Object.freeze([
   { key: "cosmic", label: "Midnight" },
   { key: "aurora", label: "Terminal" },
@@ -180,7 +187,7 @@ function setWorkspace(workspace, scroll = true) {
   });
   const headings = {
     home: ["MindDeck Home", "Your complete study plan for today."],
-    generate: ["Create Flashcards", "Paste your notes and create 15 clear questions."],
+    generate: ["Revision Library", "Choose a ready syllabus chapter or add your own notes and PDF."],
     study: ["Study", "Flip the card, recall the answer, then choose a rating."],
     deck: ["My Deck", "View, review, or remove your saved questions."],
     planner: ["Daily Planner", "Choose a study time, start the timer, and track today’s progress."],
@@ -299,14 +306,15 @@ function selectedGenerationMetadata(cardMode) {
   return { classLevel, stream, subject, chapter, selectedTags };
 }
 
-function applyGenerationMetadata(generated, cardMode) {
-  const { classLevel, stream, subject, chapter, selectedTags } = selectedGenerationMetadata(cardMode);
+function applyGenerationMetadata(generated, cardMode, metadata = null) {
+  const { classLevel, stream, subject, chapter, selectedTags } = metadata || selectedGenerationMetadata(cardMode);
   const requestedTemplate = ["ncert", "formula", "assertion", "reaction", "journal", "derivation"].includes(cardMode)
     ? cardMode
     : "";
   return generated.map((card) => {
-    card.subject = card.subject || subject;
-    card.examTags = [...new Set([...(card.examTags || []), classLevel, stream, chapter, ...selectedTags].filter(Boolean))].slice(0, 6);
+    card.subject = subject || card.subject;
+    card.chapter = chapter || card.chapter || "";
+    card.examTags = [...new Set([classLevel, stream, chapter, ...selectedTags, ...(card.examTags || [])].filter(Boolean))].slice(0, 6);
     if (requestedTemplate && card.template === "basic") card.template = requestedTemplate;
     if (selectedTags.includes("NCERT Exception / Trap")) card.trap = true;
     return card;
@@ -716,6 +724,85 @@ function replaceStudyOptions(select, subjects, includeGeneral = false) {
   select.value = labels.includes(previous) ? previous : labels[0];
 }
 
+function setGenerationPath(nextPath = "syllabus") {
+  const path = nextPath === "custom" ? "custom" : "syllabus";
+  $$('[data-generation-path]').forEach((button) => {
+    const active = button.dataset.generationPath === path;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  const syllabusPane = $("#syllabusSourcePane");
+  const customPane = $("#customSourcePane");
+  if (syllabusPane) syllabusPane.hidden = path !== "syllabus";
+  if (customPane) customPane.hidden = path !== "custom";
+  document.body.dataset.generationPath = path;
+}
+
+function updateSyllabusChapterOptions(preferredChapter = "") {
+  const classLevel = $("#syllabusClass")?.value || selectedClassLevel();
+  const subject = $("#syllabusSubject")?.value || streamSubjects()[0]?.label || "Physics";
+  const select = $("#syllabusChapter");
+  if (!select) return;
+  const previous = preferredChapter || select.value;
+  const chapters = chaptersFor(classLevel, subject);
+  select.replaceChildren();
+  chapters.forEach((chapter) => {
+    const option = document.createElement("option");
+    option.value = chapter.title;
+    option.textContent = `${chapter.number}. ${chapter.title}`;
+    select.append(option);
+  });
+  if ([...select.options].some((option) => option.value === previous)) select.value = previous;
+  const chapter = chapters.find((item) => item.title === select.value) || chapters[0];
+  setOptionalText(
+    "#syllabusPreviewLabel",
+    chapter ? `${classLevel.toUpperCase()} · ${subject.toUpperCase()} · CHAPTER ${chapter.number}` : `${classLevel.toUpperCase()} · ${subject.toUpperCase()}`
+  );
+  setOptionalText("#syllabusPreviewTitle", chapter?.title || "Choose a chapter");
+  setOptionalText("#syllabusPreviewCopy", subjectGuide(subject));
+}
+
+function syncSyllabusLibrary({ preferredSubject = "", preferredChapter = "" } = {}) {
+  const classLevel = selectedClassLevel();
+  const classSelect = $("#syllabusClass");
+  const subjectSelect = $("#syllabusSubject");
+  if (!classSelect || !subjectSelect) return;
+  classSelect.value = classLevel;
+  const subjects = streamSubjects().map((subject) => subject.label);
+  const previous = preferredSubject || subjectSelect.value;
+  subjectSelect.replaceChildren();
+  subjects.forEach((subject) => {
+    const option = document.createElement("option");
+    option.value = subject;
+    option.textContent = subject;
+    subjectSelect.append(option);
+  });
+  subjectSelect.value = subjects.includes(previous) ? previous : subjects[0];
+  const stream = selectedStudyStream();
+  const chapterCount = syllabusChapterCount(classLevel, subjects);
+  setOptionalText("#syllabusCoverage", `${chapterCount} chapters · ${STUDY_STREAMS[stream].label}`);
+  const panel = $("#syllabusSourcePane");
+  if (panel) panel.dataset.totalSyllabusChapters = String(TOTAL_SYLLABUS_CHAPTERS);
+  updateSyllabusChapterOptions(preferredChapter);
+}
+
+function selectedSyllabusMetadata(cardMode) {
+  const classLevel = $("#syllabusClass").value;
+  const studyStream = selectedStudyStream();
+  const subject = $("#syllabusSubject").value;
+  const chapter = $("#syllabusChapter").value;
+  const selectedTags = ["CBSE", "NCERT"];
+  if (cardMode === "formula") selectedTags.push("Formula Only");
+  if (cardMode === "derivation") selectedTags.push("3-Mark Board Derivation");
+  return {
+    classLevel,
+    stream: STUDY_STREAMS[studyStream].selectValue,
+    subject,
+    chapter,
+    selectedTags,
+  };
+}
+
 function applyStudyStream(nextStream, persist = false) {
   const stream = normalizeStudyStream(nextStream);
   const config = STUDY_STREAMS[stream];
@@ -754,6 +841,7 @@ function applyStudyStream(nextStream, persist = false) {
 
   replaceStudyOptions($("#subjectSelect"), config.subjects);
   replaceStudyOptions($("#plannerSubject"), config.subjects, true);
+  syncSyllabusLibrary();
   renderSubjectCounts();
   renderStarterDecks();
   return stream;
@@ -948,8 +1036,8 @@ function syncMobileDashboard() {
   );
 
   if (!cards.length) {
-    setOptionalText("#mobileSessionTitle", "Begin your first chapter");
-    setOptionalText("#mobileSessionCopy", "Pick a subject and start learning.");
+    setOptionalText("#mobileSessionTitle", "Your syllabus is ready.");
+    setOptionalText("#mobileSessionCopy", "Choose a chapter and MindDeck will build the revision cards.");
     setOptionalText("#mobileReviewTitle", "Your next review is being prepared");
     setOptionalText("#mobileReviewCopy", "Create cards and MindDeck will schedule them with SM-2.");
   } else if (due) {
@@ -1808,7 +1896,7 @@ function renderDeck() {
     const title = document.createElement("h3");
     title.textContent = "Turn one chapter into lasting memory.";
     const copy = document.createElement("p");
-    copy.textContent = "Paste your notes and MindDeck will build 15 clear questions, or add a card yourself.";
+    copy.textContent = "Choose a ready syllabus chapter for 15 revision cards, or use your own notes and PDF.";
     const actions = document.createElement("div");
     actions.className = "deckEmptyActions";
     const generate = document.createElement("button");
@@ -2067,6 +2155,17 @@ async function generateWithAI(text, cardMode) {
   return data.cards;
 }
 
+async function generateSyllabusWithAI({ classLevel, subject, chapter, cardMode }) {
+  const bridge = aiRuntime === "bridge";
+  const data = await apiRequest(bridge ? "/api/minddeck-ai" : "/api/syllabus", {
+    body: bridge
+      ? { mode: "syllabus", classLevel, subject, chapter, cardMode }
+      : { provider: "minddeck", classLevel, subject, chapter, cardMode },
+    refreshAuth: true,
+  });
+  return data.cards;
+}
+
 async function generateFromImage(file, cardMode) {
   const imageData = await fileToDataUrl(file);
   const bridge = aiRuntime === "bridge";
@@ -2096,6 +2195,10 @@ function generationButtonLabel() {
     : `✨ Create ${GENERATED_DECK_SIZE} offline`;
 }
 
+function syllabusGenerationButtonLabel() {
+  return aiProviders.minddeck ? `✨ Create ${GENERATED_DECK_SIZE} revision cards` : "✨ MindDeck AI is reconnecting";
+}
+
 function syncProvider() {
   const ready = Boolean(aiProviders.minddeck);
   const signedIn = Boolean(authState.user);
@@ -2118,6 +2221,11 @@ function syncProvider() {
       : "✨ MindDeck AI is built in. Sign in to keep generation private and tied to your account."
     : "📚 You can still build cards locally while MindDeck AI reconnects.";
   $("#generate").textContent = generationButtonLabel();
+  setOptionalText("#syllabusProviderLabel", ready
+    ? signedIn ? "MindDeck AI · Ready syllabus" : "MindDeck AI · Sign in to create"
+    : "MindDeck AI · Reconnecting…");
+  const syllabusButton = $("#generateSyllabus");
+  if (syllabusButton) syllabusButton.textContent = syllabusGenerationButtonLabel();
 }
 
 async function loadConfig() {
@@ -2157,8 +2265,8 @@ function openSettings() {
 function openOralExam() {
   const card = cards[index];
   if (!card) {
-    openNotesComposer();
-    toast("Create a card before starting an oral exam");
+    openSyllabusComposer();
+    toast("Choose a chapter before starting an oral exam");
     return;
   }
   $("#oralQuestion").textContent = card.front;
@@ -2611,6 +2719,7 @@ async function readFile(file) {
 
 function openNotesComposer() {
   setWorkspace("generate", false);
+  setGenerationPath("custom");
   const notesTab = $('[data-tab="notes"]');
   if (!notesTab.classList.contains("active")) notesTab.click();
   const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
@@ -2618,10 +2727,19 @@ function openNotesComposer() {
   window.setTimeout(() => $("#notes").focus(), 350);
 }
 
+function openSyllabusComposer(subject = "") {
+  setWorkspace("generate", false);
+  setGenerationPath("syllabus");
+  syncSyllabusLibrary({ preferredSubject: subject });
+  const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+  $("#createPanel").scrollIntoView({ behavior, block: "start" });
+  window.setTimeout(() => $("#syllabusChapter").focus(), 300);
+}
+
 function startDashboardReview() {
   if (!cards.length) {
-    openNotesComposer();
-    toast("Create a deck first");
+    openSyllabusComposer();
+    toast("Choose a syllabus chapter to begin");
     return;
   }
   studyQueueIds = [];
@@ -2821,8 +2939,8 @@ function startLeechCram() {
 
 function startCramSprint() {
   if (!cards.length) {
-    openNotesComposer();
-    toast("Create a deck first");
+    openSyllabusComposer();
+    toast("Choose a chapter to create your first deck");
     return;
   }
   const due = cards.filter((card) => Date.parse(card.dueDate) <= Date.now());
@@ -2873,9 +2991,8 @@ function startSubjectReview(workspaceKey) {
   if (!config) return;
   const matching = cards.filter((card) => subjectMatches(card, workspaceKey));
   if (!matching.length) {
-    $("#subjectSelect").value = config.subject;
-    openNotesComposer();
-    toast(`Create your first ${config.label} cards`);
+    openSyllabusComposer(config.subject);
+    toast(`Choose a ${config.label} chapter`);
     return;
   }
   const due = matching.filter((card) => Date.parse(card.dueDate) <= Date.now());
@@ -3175,7 +3292,7 @@ function renderStarterDecks() {
   if (!visibleDecks.length) {
     const empty = document.createElement("div");
     empty.className = "modalEmpty";
-    empty.textContent = "Create a focused deck from your own class notes for this stream.";
+    empty.textContent = "Choose any chapter from your ready syllabus to build a focused revision deck.";
     list.append(empty);
     return;
   }
@@ -3244,6 +3361,23 @@ function importSharedDeckFromHash() {
   }
 }
 
+$$('[data-generation-path]').forEach((button) => {
+  button.addEventListener("click", () => setGenerationPath(button.dataset.generationPath));
+});
+
+$("#syllabusClass").addEventListener("change", (event) => {
+  $("#classSelect").value = event.target.value;
+  try {
+    localStorage.setItem(CLASS_STORE, event.target.value);
+  } catch {
+    // The selected syllabus remains available for this tab.
+  }
+  syncSyllabusLibrary({ preferredSubject: $("#syllabusSubject").value });
+  updateMobileAccountUI();
+});
+$("#syllabusSubject").addEventListener("change", () => updateSyllabusChapterOptions());
+$("#syllabusChapter").addEventListener("change", () => updateSyllabusChapterOptions($("#syllabusChapter").value));
+
 $$('.tab').forEach((button) => {
   button.addEventListener("click", () => {
     $$(".tab,.pane").forEach((element) => element.classList.remove("active"));
@@ -3311,8 +3445,8 @@ $$("[data-subject-filter]").forEach((button) =>
 
 const openPrimaryStudyFlow = () => {
   if (!cards.length) {
-    setWorkspace("generate");
-    toast("Create your first deck to begin");
+    openSyllabusComposer();
+    toast("Choose a syllabus chapter to begin");
     return;
   }
   const dueIndex = cards.findIndex((card) => Date.parse(card.dueDate) <= Date.now());
@@ -3325,7 +3459,7 @@ const openPrimaryStudyFlow = () => {
 $("#mobileStartLearning").addEventListener("click", openPrimaryStudyFlow);
 $("#mobileReviewNow").addEventListener("click", openPrimaryStudyFlow);
 $("#mobileSeeDeck").addEventListener("click", () => setWorkspace("deck"));
-$("#deckGenerateAction").addEventListener("click", () => setWorkspace("generate"));
+$("#deckGenerateAction").addEventListener("click", () => openSyllabusComposer());
 $("#deckAddAction").addEventListener("click", () => openManualCreator());
 $("#mobilePlannerShortcut").addEventListener("click", () => setWorkspace("planner"));
 $("#mobilePlanOpen").addEventListener("click", () => setWorkspace("planner"));
@@ -3383,7 +3517,7 @@ $("#plannerList").addEventListener("click", (event) => {
 $("#mobileFormulaShortcut").addEventListener("click", startFormulaCram);
 $("#mobileOpenOral").addEventListener("click", openOralExam);
 $("#mobileProgressShortcut").addEventListener("click", () => setWorkspace("overall"));
-$("#mobileCreateShortcut").addEventListener("click", () => setWorkspace("generate"));
+$("#mobileCreateShortcut").addEventListener("click", () => openSyllabusComposer());
 $("#mobileOverallBack").addEventListener("click", () => setWorkspace("home"));
 $("#mobileDeckSearchForm").addEventListener("submit", (event) => {
   event.preventDefault();
@@ -3526,6 +3660,7 @@ $$('[data-progress-tab]').forEach((button) =>
 
 $("#settings").addEventListener("click", openSettings);
 $("#openGeneratorSettings").addEventListener("click", openSettings);
+$$('.openMindDeckAi').forEach((button) => button.addEventListener("click", openSettings));
 $("#settingsClose").addEventListener("click", () => $("#settingsModal").classList.remove("open"));
 $("#settingsDone").addEventListener("click", () => $("#settingsModal").classList.remove("open"));
 $("#openOral").addEventListener("click", openOralExam);
@@ -3537,6 +3672,7 @@ $("#classSelect").addEventListener("change", (event) => {
   } catch {
     // The chosen class still applies to the current deck.
   }
+  syncSyllabusLibrary({ preferredSubject: $("#syllabusSubject")?.value || "" });
   updateMobileAccountUI();
 });
 $("#streamSelect").addEventListener("change", (event) => {
@@ -3676,6 +3812,57 @@ document.addEventListener("visibilitychange", () => {
   if (!document.hidden) updateTimerFromClock();
 });
 window.addEventListener("beforeunload", storeTimerState);
+
+$("#generateSyllabus").addEventListener("click", async () => {
+  const button = $("#generateSyllabus");
+  const errorElement = $("#syllabusError");
+  const cardMode = $("#syllabusCardMode").value;
+  const metadata = selectedSyllabusMetadata(cardMode);
+  errorElement.textContent = "";
+
+  if (!metadata.chapter) {
+    errorElement.textContent = "Choose a chapter first.";
+    return;
+  }
+  if (!aiProviders.minddeck) {
+    errorElement.textContent = "MindDeck AI is reconnecting. Try again in a moment.";
+    loadConfig();
+    return;
+  }
+  if (!authState.user) {
+    errorElement.textContent = "Sign in once, then MindDeck can create ready syllabus cards for you.";
+    openAuthFlow("signin");
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = `✨ Building ${metadata.chapter}…`;
+  try {
+    let generated = (await generateSyllabusWithAI({
+      classLevel: metadata.classLevel,
+      subject: metadata.subject,
+      chapter: metadata.chapter,
+      cardMode,
+    })).map((item) => normalizeCard(item)).filter(Boolean);
+    generated = completeGeneratedDeck(generated, "", cardMode);
+    cards = applyGenerationMetadata(generated, cardMode, metadata);
+    studyQueueIds = [];
+    index = 0;
+    reviewed.clear();
+    setWorkspace("study", false);
+    render(true);
+    toast(`${GENERATED_DECK_SIZE} ${metadata.subject} revision cards ready`);
+  } catch (error) {
+    if (error.status === 401) {
+      await loadAccount();
+      openAuthFlow("signin");
+    }
+    errorElement.textContent = error.message || "MindDeck could not build this chapter yet.";
+  } finally {
+    button.disabled = false;
+    button.textContent = syllabusGenerationButtonLabel();
+  }
+});
 
 $("#generate").addEventListener("click", async () => {
   const activePane = $(".pane.active")?.id || "notesPane";
@@ -3943,7 +4130,7 @@ $("#saveCard").addEventListener("click", async () => {
 $("#deckList").addEventListener("click", (event) => {
   const emptyAction = event.target.closest("[data-deck-empty-action]");
   if (emptyAction?.dataset.deckEmptyAction === "generate") {
-    setWorkspace("generate");
+    openSyllabusComposer();
     return;
   }
   if (emptyAction?.dataset.deckEmptyAction === "manual") {
@@ -3967,6 +4154,7 @@ $("#clear").addEventListener("click", () => {
   studyQueueIds = [];
   index = 0;
   reviewed.clear();
+  setGenerationPath("syllabus");
   setWorkspace("generate", false);
   render(true);
 });
@@ -4037,7 +4225,7 @@ loadAccount()
   })
   .finally(loadTimerState);
 if ("serviceWorker" in navigator) {
-  const shellRefreshKey = "minddeck-shell-v31-refreshed";
+  const shellRefreshKey = "minddeck-shell-v32-refreshed";
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     try {
       if (sessionStorage.getItem(shellRefreshKey)) return;
@@ -4049,7 +4237,7 @@ if ("serviceWorker" in navigator) {
   });
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("/static/sw.js?v=31", { scope: "/", updateViaCache: "none" })
+      .register("/static/sw.js?v=32", { scope: "/", updateViaCache: "none" })
       .then((registration) => registration.update())
       .catch(() => {});
   });

@@ -132,6 +132,7 @@ export function normalizeEnhancements(value) {
       })
     : [];
   const subject = typeof value?.subject === "string" ? value.subject.trim().slice(0, 80) : "";
+  const chapter = typeof value?.chapter === "string" ? value.chapter.trim().slice(0, 120) : "";
   const graphShape = ["downward", "upward", "ppc", "isotherm", "bell"].includes(value?.graphShape)
     ? value.graphShape
     : "downward";
@@ -150,6 +151,7 @@ export function normalizeEnhancements(value) {
     hints,
     template,
     subject,
+    chapter,
     examTags,
     trap: Boolean(value?.trap),
     mistake: Boolean(value?.mistake),
@@ -340,6 +342,7 @@ export function encodeDeckShare(cards) {
       c: enhanced.type === "cloze" ? enhanced.clozeText : "",
       p: enhanced.template,
       s: enhanced.subject,
+      ch: enhanced.chapter,
       g: enhanced.examTags,
       x: enhanced.trap,
       r: enhanced.sections,
@@ -365,6 +368,7 @@ export function decodeDeckShare(code) {
       clozeText: card.t === "c" ? String(card.c || "").slice(0, 2_000) : "",
       template: parsed.v === 2 ? card.p : "basic",
       subject: parsed.v === 2 ? card.s : "",
+      chapter: parsed.v === 2 ? card.ch : "",
       examTags: parsed.v === 2 ? card.g : [],
       trap: parsed.v === 2 && card.x === true,
       sections: parsed.v === 2 ? card.r : [],

@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import json
 import os
 import re
 import unittest
@@ -771,6 +772,63 @@ class MindDeckSecurityTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("Secrets are not accepted", response.json["error"])
+
+    def test_syllabus_generation_needs_no_uploaded_notes(self):
+        prompts = []
+
+        def fake_syllabus_response(prompt, account_key, **_kwargs):
+            prompts.append((prompt, account_key))
+            return json.dumps(
+                {
+                    "cards": [
+                        {
+                            "front": f"Physics revision question {number}?",
+                            "back": f"Accurate revision answer {number}.",
+                            "subject": "Physics",
+                        }
+                        for number in range(1, 16)
+                    ]
+                }
+            )
+
+        with patch.object(minddeck, "minddeck_ai_ready", return_value=True), patch.object(
+            minddeck, "current_cloud_user", return_value={"account_key": "a" * 24}
+        ), patch.object(minddeck, "minddeck_ai_response", side_effect=fake_syllabus_response):
+            _home, csrf = self.home()
+            response = self.post(
+                "/api/syllabus",
+                {
+                    "provider": "minddeck",
+                    "classLevel": "Class 12",
+                    "subject": "Physics",
+                    "chapter": "Electric Charges and Fields",
+                    "cardMode": "mixed",
+                },
+                csrf,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json["cards"]), 15)
+        self.assertIn("CBSE/NCERT Class 12 Physics", prompts[0][0])
+        self.assertIn("Electric Charges and Fields", prompts[0][0])
+        self.assertEqual(prompts[0][1], "a" * 24)
+
+    def test_syllabus_generation_rejects_unknown_subjects(self):
+        _home, csrf = self.home()
+        response = self.post(
+            "/api/syllabus",
+            {
+                "provider": "minddeck",
+                "classLevel": "Class 12",
+                "subject": "Management",
+                "chapter": "Business Environment",
+                "cardMode": "mixed",
+            },
+            csrf,
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("syllabus subject", response.json["error"])
 
     def test_browser_secrets_are_rejected_by_vision_endpoint(self):
         _home, csrf = self.home()

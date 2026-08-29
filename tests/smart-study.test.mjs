@@ -13,6 +13,7 @@ const examDeck = [
     type: "basic",
     template: "formula",
     subject: "Physics",
+    chapter: "Laws of Motion",
     examTags: ["JEE Main 2024", "Formula"],
     trap: true,
     sections: [
@@ -25,6 +26,7 @@ const examDeck = [
 const restored = decodeDeckShare(encodeDeckShare(examDeck));
 assert.equal(restored[0].template, "formula");
 assert.equal(restored[0].subject, "Physics");
+assert.equal(restored[0].chapter, "Laws of Motion");
 assert.deepEqual(restored[0].examTags, ["JEE Main 2024", "Formula"]);
 assert.equal(restored[0].trap, true);
 assert.deepEqual(restored[0].sections, examDeck[0].sections);

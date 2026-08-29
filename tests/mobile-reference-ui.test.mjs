@@ -61,7 +61,7 @@ test("My Deck has a guided empty state and reliable account fallback", () => {
   assert.match(app, /dataset\.deckEmptyAction/);
   assert.match(app, /accountAvatarImage\.onload/);
   assert.match(app, /updateViaCache: "none"/);
-  assert.match(app, /minddeck-shell-v31-refreshed/);
+  assert.match(app, /minddeck-shell-v32-refreshed/);
 });
 
 test("Science and Commerce shelves include complete subject shortcuts", () => {
@@ -83,11 +83,12 @@ test("Science and Commerce shelves include complete subject shortcuts", () => {
 });
 
 test("mobile UI assets are versioned and available offline", () => {
-  assert.match(html, /mobile-reference\.css\?v=11/);
-  assert.match(html, /app\.js\?v=26/);
-  assert.match(serviceWorker, /minddeck-shell-v31/);
-  assert.match(serviceWorker, /mobile-reference\.css\?v=11/);
-  assert.match(serviceWorker, /app\.js\?v=26/);
+  assert.match(html, /mobile-reference\.css\?v=12/);
+  assert.match(html, /app\.js\?v=27/);
+  assert.match(serviceWorker, /minddeck-shell-v32/);
+  assert.match(serviceWorker, /mobile-reference\.css\?v=12/);
+  assert.match(serviceWorker, /app\.js\?v=27/);
+  assert.match(serviceWorker, /cbse-syllabus\.js\?v=1/);
   assert.match(css, /@media \(max-width: 760px\)/);
 });
 
@@ -111,7 +112,7 @@ test("timer and planner are complete working study tools", () => {
   assert.match(app, /data-planner-toggle/);
   assert.match(app, /data-planner-focus/);
   assert.match(app, /data-planner-delete/);
-  assert.match(app, /\.register\("\/static\/sw\.js\?v=31"/);
+  assert.match(app, /\.register\("\/static\/sw\.js\?v=32"/);
   assert.match(css, /body\[data-workspace="planner"\] \.plannerWorkspace \{ display: block; \}/);
 });
 
@@ -154,7 +155,8 @@ test("signed-in learners choose class and stream once and see only relevant subj
 test("generation presents one built-in MindDeck AI experience", () => {
   assert.match(html, /id="settingsTitle">MindDeck AI</);
   assert.match(html, /id="aiStatusBadge"/);
-  assert.match(html, /Notes to cards/);
+  assert.match(html, /Syllabus to cards/);
+  assert.match(html, /Your material/);
   assert.match(html, /Photo understanding/);
   assert.match(html, /Smart hints/);
   assert.match(html, /Generate 15 with AI/);
@@ -168,6 +170,31 @@ test("generation presents one built-in MindDeck AI experience", () => {
   assert.match(app, /Sign in once to generate with MindDeck AI/);
   assert.match(css, /\.aiStatusCard/);
   assert.match(css, /#settingsModal \.aiSettingsDialog \{[^}]*overflow-y: auto;/s);
+});
+
+test("generation starts with ready syllabus and keeps notes and PDFs as an extra path", () => {
+  for (const id of [
+    "syllabusSourcePane",
+    "customSourcePane",
+    "syllabusClass",
+    "syllabusSubject",
+    "syllabusChapter",
+    "syllabusCardMode",
+    "generateSyllabus",
+    "syllabusCoverage",
+  ]) assert.match(html, new RegExp(`id="${id}"`));
+  assert.match(html, /data-generation-path="syllabus"/);
+  assert.match(html, /Ready syllabus/);
+  assert.match(html, /No notes needed/);
+  assert.match(html, /data-generation-path="custom"/);
+  assert.match(html, /My notes \/ PDF/);
+  assert.match(html, /id="file"[^>]*accept="\.pdf,\.txt"/);
+  assert.match(app, /mode: "syllabus"/);
+  assert.match(app, /function syncSyllabusLibrary/);
+  assert.match(app, /function openSyllabusComposer/);
+  assert.match(app, /generateSyllabusWithAI/);
+  assert.match(css, /\.generationPaths/);
+  assert.match(css, /\.syllabusSelectors/);
 });
 
 test("the Vercel AI bridge keeps identity and credentials server-side", () => {
