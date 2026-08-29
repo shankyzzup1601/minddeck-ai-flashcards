@@ -213,7 +213,8 @@ body[data-workspace="planner"] .plannerWorkspace { display: block; }
 .authDialog[data-auth-mode="signup"] #signIn { display: none !important; }
 
 /* Deck library */
-.accountGuestIcon { display: grid; place-items: center; font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
+.accountGuestIcon { display: grid; place-items: center; }
+.accountGlyph { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; }
 .deckOverview { padding: 22px; border-bottom: 1px solid #ffffff10; background: radial-gradient(circle at 90% 0, #ff315f20, transparent 38%), linear-gradient(135deg, #18111d, #0e1118); }
 .deckOverviewTop { display: grid; grid-template-columns: minmax(0, 1fr) 96px; align-items: center; gap: 18px; }
 .deckOverview small { color: #ff7c54; font-size: 7px; font-weight: 850; letter-spacing: 1.4px; }
@@ -387,7 +388,11 @@ body[data-workspace="planner"] .plannerWorkspace { display: block; }
   .actions > :not(#account) { display: none !important; }
   .actions > #account { display: flex !important; width: 39px; min-width: 39px; height: 39px; padding: 0 !important; justify-content: center; border: 1px solid #4b3546 !important; border-radius: 50% !important; background: linear-gradient(145deg, #2a1a29, #121017) !important; box-shadow: 0 8px 20px #0008, inset 0 1px #ffffff13 !important; }
   .accountLabel { display: none !important; }
-  .accountGuestIcon { width: 27px; height: 27px; border-radius: 50%; background: linear-gradient(145deg, #ff7044, #d7187b); font-size: 13px; box-shadow: inset 0 1px #ffffff45; }
+  .actions > #account .accountGuestIcon:not([hidden]),
+  .actions > #account .accountAvatar:not([hidden]) { display: grid !important; place-items: center; }
+  .actions > #account .accountAvatar #accountAvatarFallback:not([hidden]) { display: grid !important; place-items: center; }
+  .actions > #account .accountAvatar img:not([hidden]) { display: block !important; }
+  .accountGuestIcon { width: 27px; height: 27px; border-radius: 50%; color: #fff; background: linear-gradient(145deg, #ff7044, #d7187b); box-shadow: inset 0 1px #ffffff45, 0 0 16px #f0267252; }
   .accountAvatar { width: 29px !important; height: 29px !important; flex-basis: 29px !important; background: linear-gradient(145deg, #ff7044, #d7187b) !important; box-shadow: none !important; font-size: 11px !important; }
 
   body[data-workspace="planner"] .plannerWorkspace { width: 100%; margin: 10px 0 0; }

@@ -700,7 +700,7 @@ function updateMobileAccountUI() {
   }
 
   if (image && fallbackElement) {
-    const showImage = Boolean(avatarUrl && !profile.avatar);
+    const showImage = Boolean(avatarUrl);
     fallbackElement.textContent = fallback;
     const showFallback = () => {
       image.hidden = true;
@@ -2060,7 +2060,7 @@ function updateAccountUI() {
       accountAvatarFallback.hidden = true;
     };
     showFallback();
-    if (avatarUrl && !profile.avatar) accountAvatarImage.src = avatarUrl;
+    if (avatarUrl) accountAvatarImage.src = avatarUrl;
     else accountAvatarImage.removeAttribute("src");
   } else {
     accountAvatarImage.removeAttribute("src");
@@ -3844,7 +3844,7 @@ loadAccount()
   })
   .finally(loadTimerState);
 if ("serviceWorker" in navigator) {
-  const shellRefreshKey = "minddeck-shell-v29-refreshed";
+  const shellRefreshKey = "minddeck-shell-v30-refreshed";
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     try {
       if (sessionStorage.getItem(shellRefreshKey)) return;
@@ -3856,7 +3856,7 @@ if ("serviceWorker" in navigator) {
   });
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("/static/sw.js?v=29", { scope: "/", updateViaCache: "none" })
+      .register("/static/sw.js?v=30", { scope: "/", updateViaCache: "none" })
       .then((registration) => registration.update())
       .catch(() => {});
   });
