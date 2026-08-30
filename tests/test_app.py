@@ -14,6 +14,13 @@ import app as minddeck
 
 
 class MindDeckSecurityTests(unittest.TestCase):
+    def test_mobile_account_name_is_stable_while_auth_state_loads(self):
+        script = Path("static/app.js").read_text(encoding="utf-8")
+        self.assertIn('ACCOUNT_NAME_STORE = "minddeck-last-account-name-v1"', script)
+        self.assertIn("if (!authStateResolved)", script)
+        self.assertIn("localStorage.setItem(ACCOUNT_NAME_STORE, confirmedName)", script)
+        self.assertIn("localStorage.removeItem(ACCOUNT_NAME_STORE)", script)
+
     def test_service_worker_does_not_cache_auth_or_fresh_install_navigation(self):
         worker = Path("static/sw.js").read_text(encoding="utf-8")
         self.assertIn('url.pathname === "/" && !url.search', worker)
