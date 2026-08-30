@@ -942,8 +942,8 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 }
 /* END MOBILE PREMIUM POLISH */
 </style>
-<link rel="stylesheet" href="/static/mobile-reference.css?v=12">
-<link rel="stylesheet" href="/static/mcq-test.css?v=2">
+<link rel="stylesheet" href="/static/mobile-reference.css?v=13">
+<link rel="stylesheet" href="/static/mcq-test.css?v=3">
 </head>
 <body data-workspace="home">
 <div id="splash-screen" role="dialog" aria-modal="true" aria-label="MindDeck is loading">
@@ -1261,7 +1261,7 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 <span class="memoryRing memoryRingTwo"></span>
 <span class="memoryCore"><strong>SM-2</strong><small>ACTIVE</small></span>
 </div>
-<button class="formulaCramTop" id="quickFormulaCram" type="button">Σ Quick 10-Min Formula Cram</button>
+<button class="formulaCramTop" id="quickFormulaCram" type="button">Σ 10-Min Formula Revision</button>
 </div>
 </div>
 <div class="subjectSwitcher" aria-label="Subject revision shortcuts">
@@ -1648,11 +1648,16 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 <article class="panel" id="studyPanel">
 <section class="mcqTestCenter" id="mcqTestCenter" aria-label="Class 12 MCQ test center">
 <div class="mcqLaunch" id="mcqLaunch">
-<span class="mcqEyebrow">CLASS 12 · FULL MOCK TEST</span><h2>Test your exam readiness.</h2>
-<p>180 stream-specific MCQs with 2 minutes per question and a 360-minute full-paper timer.</p>
-<div class="mcqPaperMeta"><div><strong id="mcqStreamName">PCB</strong><small>Selected stream</small></div><div><strong>180</strong><small>Questions</small></div><div><strong>360 min</strong><small>Exam time</small></div></div>
+<span class="mcqEyebrow">CLASS 12 · CUSTOM MOCK TEST</span><h2>Build your perfect test.</h2>
+<p>Choose the full syllabus or selected chapters, set your difficulty, and begin with two minutes per question.</p>
+<div class="mcqSetup" aria-label="Test setup">
+<div class="mcqSetupGroup"><span>TEST COVERAGE</span><div class="mcqSegmented" id="mcqScope"><button class="active" type="button" data-scope="full" aria-pressed="true">Full syllabus</button><button type="button" data-scope="chapters" aria-pressed="false">Choose chapters</button></div></div>
+<div class="mcqChapterPicker" id="mcqChapterPicker" hidden><div class="mcqChapterTop"><strong>Select chapters</strong><button id="mcqSelectAll" type="button">Select all</button></div><div id="mcqChapterList"></div></div>
+<div class="mcqSetupGroup"><span>DIFFICULTY</span><div class="mcqSegmented mcqDifficulty" id="mcqDifficulty"><button type="button" data-level="easy" aria-pressed="false">Easy</button><button class="active" type="button" data-level="medium" aria-pressed="true">Medium</button><button type="button" data-level="hard" aria-pressed="false">Hard</button></div></div>
+</div>
+<div class="mcqPaperMeta"><div><strong id="mcqStreamName">PCB</strong><small>Selected stream</small></div><div><strong id="mcqQuestionCount">180</strong><small>Questions</small></div><div><strong id="mcqExamMinutes">360 min</strong><small>Exam time</small></div></div>
 <div class="mcqSections" id="mcqSections"></div>
-<button class="mcqPrimary" id="mcqStart" type="button">Start full test →</button>
+<button class="mcqPrimary" id="mcqStart" type="button">Start medium test →</button>
 </div>
 <div class="mcqExam" id="mcqExam" hidden>
 <header class="mcqExamHeader"><div><small id="mcqSubject">Physics</small><strong id="mcqNumber">Question 1 of 180</strong></div><div class="mcqTimers"><span><small>QUESTION</small><b id="mcqQuestionTime">02:00</b></span><span><small>FULL TEST</small><b id="mcqExamTime">360:00</b></span></div></header>
@@ -2054,6 +2059,6 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 })();
 </script>
 <script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=36"></script>
-<script nonce="{{ csp_nonce }}" type="module" src="/static/mcq-test.js?v=2"></script>
+<script nonce="{{ csp_nonce }}" type="module" src="/static/mcq-test.js?v=3"></script>
 </body>
 </html>
