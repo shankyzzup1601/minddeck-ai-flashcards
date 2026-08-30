@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MindDeck</string>
+    <string name="launch_url">https://minddeck-ai-flashcards.vercel.app/</string>
+</resources>
