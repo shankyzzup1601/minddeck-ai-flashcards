@@ -21,8 +21,8 @@
   <main>
     <img src="/static/minddeck-icon.svg?v=2" alt="MindDeck book logo">
     <h1>{{ "Signed in" if oauth_result == "ok" else "Sign-in didn’t finish" }}</h1>
-    <p>{{ "Returning you to the MindDeck app…" if oauth_result == "ok" else "Return to MindDeck and try Google sign-in again." }}</p>
-    <a href="/">Return to MindDeck</a>
+    <p>{{ "Returning you to the MindDeck app…" if oauth_result == "ok" else "Open MindDeck and try Google sign-in again." }}</p>
+    <a id="returnToApp" href="{{ app_return_url }}">Open MindDeck app</a>
   </main>
   <script nonce="{{ csp_nonce }}">
     (() => {

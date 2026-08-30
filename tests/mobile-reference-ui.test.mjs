@@ -3,11 +3,12 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const root = new URL("../", import.meta.url);
-const [html, app, css, serviceWorker, aiBridge, packageJson] = await Promise.all([
+const [html, app, css, serviceWorker, manifest, aiBridge, packageJson] = await Promise.all([
   readFile(new URL("templates/index.html", root), "utf8"),
   readFile(new URL("static/app.js", root), "utf8"),
   readFile(new URL("static/mobile-reference.css", root), "utf8"),
   readFile(new URL("static/sw.js", root), "utf8"),
+  readFile(new URL("static/manifest.webmanifest", root), "utf8"),
   readFile(new URL("api/minddeck-ai.mjs", root), "utf8"),
   readFile(new URL("package.json", root), "utf8"),
 ]);
@@ -61,7 +62,7 @@ test("My Deck has a guided empty state and reliable account fallback", () => {
   assert.match(app, /dataset\.deckEmptyAction/);
   assert.match(app, /accountAvatarImage\.onload/);
   assert.match(app, /updateViaCache: "none"/);
-  assert.match(app, /minddeck-shell-v33-refreshed/);
+  assert.match(app, /minddeck-shell-v34-refreshed/);
 });
 
 test("Science and Commerce shelves include complete subject shortcuts", () => {
@@ -84,12 +85,15 @@ test("Science and Commerce shelves include complete subject shortcuts", () => {
 
 test("mobile UI assets are versioned and available offline", () => {
   assert.match(html, /mobile-reference\.css\?v=12/);
-  assert.match(html, /app\.js\?v=28/);
-  assert.match(serviceWorker, /minddeck-shell-v33/);
+  assert.match(html, /app\.js\?v=29/);
+  assert.match(html, /manifest\.webmanifest\?v=2/);
+  assert.match(serviceWorker, /minddeck-shell-v34/);
   assert.match(serviceWorker, /mobile-reference\.css\?v=12/);
-  assert.match(serviceWorker, /app\.js\?v=28/);
+  assert.match(serviceWorker, /app\.js\?v=29/);
   assert.match(serviceWorker, /cbse-syllabus\.js\?v=1/);
   assert.match(css, /@media \(max-width: 760px\)/);
+  assert.equal(JSON.parse(manifest).id, "/");
+  assert.equal(JSON.parse(manifest).launch_handler.client_mode, "navigate-existing");
 });
 
 test("timer and planner are complete working study tools", () => {
@@ -112,7 +116,7 @@ test("timer and planner are complete working study tools", () => {
   assert.match(app, /data-planner-toggle/);
   assert.match(app, /data-planner-focus/);
   assert.match(app, /data-planner-delete/);
-  assert.match(app, /\.register\("\/static\/sw\.js\?v=33"/);
+  assert.match(app, /\.register\("\/static\/sw\.js\?v=34"/);
   assert.match(css, /body\[data-workspace="planner"\] \.plannerWorkspace \{ display: block; \}/);
 });
 

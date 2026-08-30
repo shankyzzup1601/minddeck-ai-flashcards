@@ -11,7 +11,7 @@ import urllib.error
 import urllib.request
 from collections import defaultdict, deque
 from datetime import datetime, timezone
-from urllib.parse import urlencode, urlparse
+from urllib.parse import quote, urlencode, urlparse
 
 from flask import Flask, g, jsonify, make_response, redirect, render_template, request
 from werkzeug.security import check_password_hash
@@ -824,11 +824,24 @@ def clear_oauth_cookie(response):
 def oauth_result_response(result: str, *, popup: bool = False):
     if popup:
         g.csp_nonce = secrets.token_urlsafe(18)
+        origin = request_app_origin() or "/"
+        auth_result = "google-ok" if result == "ok" else "google-error"
+        parsed_origin = urlparse(origin) if origin != "/" else None
+        browser_return_url = f"{origin}/?auth={auth_result}" if origin != "/" else f"/?auth={auth_result}"
+        app_return_url = browser_return_url
+        if parsed_origin and parsed_origin.scheme == "https" and parsed_origin.netloc:
+            app_return_url = (
+                f"intent://{parsed_origin.netloc}/?auth={auth_result}#Intent;"
+                f"scheme=https;action=android.intent.action.VIEW;"
+                f"category=android.intent.category.BROWSABLE;"
+                f"S.browser_fallback_url={quote(browser_return_url, safe='')};end"
+            )
         response = make_response(
             render_template(
                 "oauth_complete.html",
                 csp_nonce=g.csp_nonce,
                 oauth_result="ok" if result == "ok" else "error",
+                app_return_url=app_return_url,
             )
         )
         clear_oauth_cookie(response)

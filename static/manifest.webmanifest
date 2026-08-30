@@ -1,10 +1,14 @@
 {
   "name": "MindDeck AI Flashcards",
   "short_name": "MindDeck",
+  "id": "/",
   "description": "An offline-first smart flashcard studio with spaced repetition.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  },
   "background_color": "#08050d",
   "theme_color": "#ff315f",
   "icons": [
