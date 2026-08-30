@@ -1,9 +1,9 @@
-const CACHE_NAME = "minddeck-shell-v45";
+const CACHE_NAME = "minddeck-shell-v46";
 const SHELL = [
   "/",
   "/static/app.js?v=36",
-  "/static/mcq-test.js?v=3",
-  "/static/mcq-test.css?v=3",
+  "/static/mcq-test.js?v=4",
+  "/static/mcq-test.css?v=4",
   "/static/mobile-reference.css?v=13",
   "/static/cbse-syllabus.js?v=1",
   "/static/smart-study.js",

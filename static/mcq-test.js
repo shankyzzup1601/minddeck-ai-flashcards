@@ -1,3 +1,4 @@
+import { CBSE_SYLLABUS } from "./cbse-syllabus.js?v=1";
 const $=(s)=>document.querySelector(s);
 const STREAMS={
  PCB:[["Physics",45],["Chemistry",45],["Botany",45],["Zoology",45]],
@@ -15,16 +16,25 @@ const FACTS={
  Economics:[["GDP","value of final domestic output"],["Repo rate","rate at which central bank lends to banks"],["Fiscal deficit","government expenditure minus receipts excluding borrowings"],["Multiplier","change in income divided by change in investment"],["Balance of payments","record of international economic transactions"],["Marginal propensity to consume","change in consumption divided by change in income"],["Aggregate demand","planned spending at a given income level"],["Depreciation of currency","fall in currency value under flexible exchange"],["Human capital","stock of skills education and health"],["Sustainable development","development preserving future capacity"]],
  Entrepreneurship:[["Entrepreneur","person who organises resources and bears risk"],["Business plan","written roadmap of a proposed venture"],["Market survey","systematic collection of market information"],["Break-even point","level where total revenue equals total cost"],["Franchising","right to use another firm's business format"],["Innovation","commercial application of a new idea"],["Working capital","funds used in daily operations"],["Angel investor","individual investing early-stage capital"],["Branding","creating a distinct product identity"],["Feasibility study","assessment of venture viability"]],
 };
+const syllabusTitles=(subject)=>CBSE_SYLLABUS["Class 12"][subject].map(chapter=>chapter.title);
+const mapChapters=(titles,subject)=>titles.map((title,index)=>[title,[index%FACTS[subject].length]]);
+const biologyTitles=syllabusTitles("Biology");
+const BOTANY_CHAPTERS=new Set([
+ "Sexual Reproduction in Flowering Plants","Principles of Inheritance and Variation",
+ "Molecular Basis of Inheritance","Microbes in Human Welfare",
+ "Biotechnology: Principles and Processes","Biotechnology and its Applications",
+ "Organisms and Populations","Ecosystem","Biodiversity and Conservation",
+]);
 const CHAPTERS={
- Physics:[["Electrostatics & Current",[0,1,2,3]],["Magnetism & EMI",[4,8]],["Optics & Modern Physics",[5,6,7,9]]],
- Chemistry:[["Solutions & Electrochemistry",[0,1,2,8]],["Inorganic Chemistry",[4,9]],["Organic Chemistry",[3,5,6,7]]],
- Botany:[["Reproduction",[0,1,2]],["Genetics & Biotechnology",[3,4,5,6,7]],["Ecology",[8,9]]],
- Zoology:[["Human Reproduction",[0,1,8]],["Human Health",[2,3,7,9]],["Evolution & Environment",[4,5,6]]],
- Mathematics:[["Calculus",[0,1,6,8]],["Algebra & Vectors",[2,3,7]],["Probability & Optimisation",[4,5,9]]],
- Accountancy:[["Partnership Accounts",[0,1,2,6,9]],["Companies & Debentures",[3,7]],["Financial Statements",[4,5,8]]],
- "Business Studies":[["Management Functions",[0,1,2,3,4]],["Organisation",[5,6]],["Marketing & Consumer",[7,8,9]]],
- Economics:[["National Income",[0,3,5,6]],["Money & Government",[1,2,4,7]],["Development",[8,9]]],
- Entrepreneurship:[["Enterprise Planning",[0,1,2,8,9]],["Finance",[3,6,7]],["Growth & Innovation",[4,5]]],
+ Physics:mapChapters(syllabusTitles("Physics"),"Physics"),
+ Chemistry:mapChapters(syllabusTitles("Chemistry"),"Chemistry"),
+ Botany:mapChapters(biologyTitles.filter(title=>BOTANY_CHAPTERS.has(title)),"Botany"),
+ Zoology:mapChapters(biologyTitles.filter(title=>!BOTANY_CHAPTERS.has(title)),"Zoology"),
+ Mathematics:mapChapters(syllabusTitles("Mathematics"),"Mathematics"),
+ Accountancy:mapChapters(syllabusTitles("Accountancy"),"Accountancy"),
+ "Business Studies":mapChapters(syllabusTitles("Business Studies"),"Business Studies"),
+ Economics:mapChapters(syllabusTitles("Economics"),"Economics"),
+ Entrepreneurship:mapChapters(syllabusTitles("Entrepreneurship"),"Entrepreneurship"),
 };
 let questions=[],answers=[],current=0,questionLeft=120,examLeft=21600,timer=null,submitted=false,scope="full",difficulty="medium";
 const fmt=(s)=>`${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
