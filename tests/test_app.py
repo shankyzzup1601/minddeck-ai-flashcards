@@ -39,7 +39,7 @@ class MindDeckSecurityTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(
             response.headers["Location"],
-            "https://github.com/shankyzzup1601/minddeck-ai-flashcards/releases/download/minddeck-android-v1.1.0/MindDeck.apk",
+            "https://github.com/shankyzzup1601/minddeck-ai-flashcards/releases/download/minddeck-android-v1.2.0/MindDeck.apk",
         )
 
     def test_android_asset_links_verify_published_apk(self):
