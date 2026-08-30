@@ -62,6 +62,10 @@ class MindDeckSecurityTests(unittest.TestCase):
             "A2:56:F6:5F:B9:19:6B:FF:55:EB:76:52:B8:09:A6:59:3A:2D:4C:88:AF:0A:5B:2B:61:7E:31:C9:4F:53:19:21",
             statement["target"]["sha256_cert_fingerprints"],
         )
+        self.assertIn(
+            "D0:EB:88:22:AC:B3:23:82:3F:40:CB:6D:01:86:CE:45:86:AA:80:17:9E:0B:AF:B9:D7:A6:5A:A8:E7:A5:6B:B5",
+            statement["target"]["sha256_cert_fingerprints"],
+        )
 
     base_url = "https://minddeck.test"
     user_agent = "MindDeck Security Test"
