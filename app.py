@@ -888,9 +888,13 @@ def unlocked_provider() -> str | None:
 @app.get("/")
 def home():
     g.csp_nonce = secrets.token_urlsafe(18)
+    fresh_android_install = (
+        request.args.get("fresh-install") == "android-v2"
+        and "Android" in request.headers.get("User-Agent", "")
+    )
     existing_csrf = request.cookies.get(csrf_cookie_name(), "")
     csrf_token = existing_csrf if 32 <= len(existing_csrf) <= 128 else secrets.token_urlsafe(32)
-    returning_user = bool(
+    returning_user = not fresh_android_install and bool(
         request.cookies.get(auth_access_cookie_name())
         or request.cookies.get(auth_refresh_cookie_name())
     )
@@ -911,6 +915,9 @@ def home():
         samesite="Strict",
         path="/",
     )
+    if fresh_android_install:
+        clear_auth_cookies(response)
+        clear_oauth_cookie(response)
     return response
 
 
