@@ -14,6 +14,11 @@ import app as minddeck
 
 
 class MindDeckSecurityTests(unittest.TestCase):
+    def test_reinstall_requires_study_profile_for_every_account(self):
+        template = Path("templates/index.html").read_text(encoding="utf-8")
+        self.assertIn('key.startsWith("minddeck-study-profile-complete-v1:")', template)
+        self.assertIn("localStorage.removeItem(key)", template)
+
     def test_service_worker_update_never_forces_an_app_reload(self):
         script = Path("static/app.js").read_text(encoding="utf-8")
         self.assertNotIn('addEventListener("controllerchange"', script)
