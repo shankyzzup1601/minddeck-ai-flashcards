@@ -14,6 +14,10 @@ import app as minddeck
 
 
 class MindDeckSecurityTests(unittest.TestCase):
+    def test_chrome_pull_to_refresh_is_disabled(self):
+        template = Path("templates/index.html").read_text(encoding="utf-8")
+        self.assertGreaterEqual(template.count("overscroll-behavior-y:none"), 2)
+
     def test_reinstall_requires_study_profile_for_every_account(self):
         template = Path("templates/index.html").read_text(encoding="utf-8")
         self.assertIn('key.startsWith("minddeck-study-profile-complete-v1:")', template)
