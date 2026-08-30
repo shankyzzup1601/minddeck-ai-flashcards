@@ -751,6 +751,12 @@ html[data-study-stream="commerce"] .scienceShelf { display: none !important; }
   .mobileProfileBlock span { color: #716b76; font-size: 7px; }
   .mobileProfileBlock strong { max-width: 68%; color: #d5d0d9; font-size: 8px; text-align: right; overflow-wrap: anywhere; }
   .mobilePageCopy { margin: -6px 4px 15px; color: #817a86; font-size: 8px; }
+  .mobileNotificationPermission { margin: 0 4px 14px; padding: 13px; display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid #2b4745; border-radius: 13px; background: linear-gradient(135deg, rgba(40, 213, 176, .12), rgba(105, 73, 255, .1)); box-shadow: 0 12px 26px rgba(0, 0, 0, .2); }
+  .mobileNotificationPermission span { display: grid; gap: 4px; min-width: 0; }
+  .mobileNotificationPermission strong { color: #f5f7ff; font-size: 9px; }
+  .mobileNotificationPermission small { color: #817a86; font-size: 7px; line-height: 1.4; }
+  .mobileNotificationPermission button { border: 0; border-radius: 999px; padding: 8px 11px; background: #76f4d8; color: #07110f; font-size: 8px; font-weight: 900; white-space: nowrap; }
+  .mobileNotificationPermission button:disabled { opacity: .65; }
   .mobileToggleList { overflow: hidden; border: 1px solid #29252f; border-radius: 12px; background: #121018; }
   .mobileToggleList label { display: grid; grid-template-columns: 35px 1fr 39px; align-items: center; gap: 9px; min-height: 62px; padding: 10px; border-bottom: 1px solid #25212b; }
   .mobileToggleList label:last-child { border-bottom: 0; }

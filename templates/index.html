@@ -942,7 +942,7 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 }
 /* END MOBILE PREMIUM POLISH */
 </style>
-<link rel="stylesheet" href="/static/mobile-reference.css?v=13">
+<link rel="stylesheet" href="/static/mobile-reference.css?v=14">
 <link rel="stylesheet" href="/static/mcq-test.css?v=4">
 </head>
 <body data-workspace="home">
@@ -1125,7 +1125,7 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 
 <aside class="mobileTipCard">
 <img src="/static/minddeck-icon.svg?v=2" alt="" aria-hidden="true">
-<div><small>MINDECK'S TIP</small><p id="mobileTipText">Start small: create one chapter deck and review it today.</p></div>
+<div><small>MINDECK'S TIP · 1,000,000 POSSIBILITIES</small><p id="mobileTipText">Start small: create one chapter deck and review it today.</p></div>
 </aside>
 
 <div class="mobileQuickGrid" aria-label="Quick actions">
@@ -1219,7 +1219,11 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 
 <section class="mobileFullPage" id="mobileNotificationsView" hidden aria-label="Notification settings">
 <header class="mobilePageHeader"><button class="mobileSubpageBack" type="button" data-mobile-close="mobileNotificationsView">←</button><h1>Notifications</h1><span></span></header>
-<p class="mobilePageCopy">Choose which MindDeck reminders appear on this device.</p>
+<p class="mobilePageCopy">Get useful study nudges at respectful times. You can turn them off whenever you want.</p>
+<div class="mobileNotificationPermission">
+<span><strong>Smart study reminders</strong><small id="mobileNotificationStatus">Off until you allow notifications</small></span>
+<button id="mobileEnableNotifications" type="button">Enable</button>
+</div>
 <div class="mobileToggleList">
 <label><i>☀</i><span><strong>Daily motivation</strong><small>A quick reminder to start studying</small></span><input type="checkbox" data-mobile-setting="motivation" checked></label>
 <label><i>✦</i><span><strong>Streak alerts</strong><small>Protect your current study streak</small></span><input type="checkbox" data-mobile-setting="streak" checked></label>
@@ -2058,7 +2062,7 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
   signInText.addEventListener("click", () => enterApp("signin"));
 })();
 </script>
-<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=36"></script>
+<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=37"></script>
 <script nonce="{{ csp_nonce }}" type="module" src="/static/mcq-test.js?v=4"></script>
 </body>
 </html>

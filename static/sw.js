@@ -1,10 +1,10 @@
-const CACHE_NAME = "minddeck-shell-v46";
+const CACHE_NAME = "minddeck-shell-v47";
 const SHELL = [
   "/",
-  "/static/app.js?v=36",
+  "/static/app.js?v=37",
   "/static/mcq-test.js?v=4",
   "/static/mcq-test.css?v=4",
-  "/static/mobile-reference.css?v=13",
+  "/static/mobile-reference.css?v=14",
   "/static/cbse-syllabus.js?v=1",
   "/static/smart-study.js",
   "/static/minddeck-icon.svg?v=2",
@@ -65,6 +65,17 @@ self.addEventListener("fetch", (event) => {
         return cached;
       }
       return refreshed;
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+      const existing = windows.find((client) => "focus" in client);
+      if (existing) return existing.focus();
+      return self.clients.openWindow("/");
     })
   );
 });

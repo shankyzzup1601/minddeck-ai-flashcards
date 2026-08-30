@@ -39,11 +39,22 @@ const PROFILE_STORE = "minddeck-mobile-profile-v1";
 const ACCOUNT_NAME_STORE = "minddeck-last-account-name-v1";
 const PROFILE_SETUP_STORE = "minddeck-study-profile-complete-v1";
 const MOBILE_SETTINGS_STORE = "minddeck-mobile-settings-v1";
+const TIP_ENGINE_STORE = "minddeck-tip-engine-v1";
+const NOTIFICATION_STORE = "minddeck-notification-state-v1";
 const ONBOARDING_STORE = "minddeck:onboarding-complete-v1";
 const GENERATED_DECK_SIZE = 15;
 const DECK_SCHEMA_VERSION = 7;
 const MAX_PLANNER_TASKS = 120;
 const TOTAL_SYLLABUS_CHAPTERS = totalSyllabusChapterCount();
+const TIP_PARTS = Object.freeze([
+  Object.freeze(["Start with", "Warm up with", "Focus first on", "Revisit", "Strengthen", "Practise", "Test yourself on", "Summarise", "Recall", "Finish one round of"]),
+  Object.freeze(["one key concept", "a difficult formula", "a labelled diagram", "five quick MCQs", "one worked example", "a chapter summary", "your weakest topic", "an NCERT example", "a past mistake", "one core definition"]),
+  Object.freeze(["for five focused minutes", "for ten calm minutes", "before your next break", "without opening your notes", "using active recall", "with a blank sheet", "by teaching it aloud", "with a short timer", "in one distraction-free sprint", "until you can explain it simply"]),
+  Object.freeze(["from today’s chapter", "from your current subject", "from the last class", "from the full syllabus", "from a high-weight chapter", "from your revision queue", "from a recent test", "from your toughest unit", "from an easy scoring area", "from your saved cards"]),
+  Object.freeze(["then check the answer", "then correct one gap", "then make one recall card", "then solve a related question", "then repeat it once", "then mark your confidence", "then explain why it works", "then connect it to a formula", "then note the common trap", "then review it tomorrow"]),
+  Object.freeze(["Small wins compound.", "Accuracy comes before speed.", "Consistency beats cramming.", "Your future recall starts now.", "One clear idea is real progress.", "Make the next answer easier.", "Keep the streak meaningful.", "Turn effort into memory.", "Study less, recall more.", "You are building exam confidence."]),
+]);
+const TIP_LIBRARY_SIZE = TIP_PARTS.reduce((total, group) => total * group.length, 1);
 const THEMES = Object.freeze([
   { key: "cosmic", label: "Midnight" },
   { key: "aurora", label: "Terminal" },
@@ -1074,7 +1085,48 @@ function syncMobileDashboard() {
     if (progress) progress.value = percent;
   }
   renderMobileWeekChart();
+  renderDailyStudyTip();
   updateMobileAccountUI();
+}
+
+function stableTipHash(value) {
+  let hash = 2166136261;
+  for (const character of String(value)) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function studyTipAt(indexValue) {
+  let index = Math.abs(Number(indexValue) || 0) % TIP_LIBRARY_SIZE;
+  const pieces = TIP_PARTS.map((group) => {
+    const piece = group[index % group.length];
+    index = Math.floor(index / group.length);
+    return piece;
+  });
+  return `${pieces[0]} ${pieces[1]} ${pieces[2]} ${pieces[3]}, ${pieces[4]}. ${pieces[5]}`;
+}
+
+function dailyStudyTip() {
+  const profile = mobileProfile();
+  const identity = authState.user?.email || profile.name || "MindDeck learner";
+  const dateSeed = `${localDateKey()}|${identity}|${selectedStudyStream()}`;
+  const index = stableTipHash(dateSeed) % TIP_LIBRARY_SIZE;
+  return { index, text: studyTipAt(index) };
+}
+
+function renderDailyStudyTip() {
+  const target = $("#mobileTipText");
+  if (!target) return;
+  const tip = dailyStudyTip();
+  target.textContent = tip.text;
+  target.dataset.tipId = String(tip.index + 1);
+  try {
+    localStorage.setItem(TIP_ENGINE_STORE, JSON.stringify({ date: localDateKey(), ...tip }));
+  } catch {
+    // The tip still renders when device storage is unavailable.
+  }
 }
 
 function showMobilePage(selector) {
@@ -3672,7 +3724,10 @@ $("#mobileSettingsClose").addEventListener("click", () => hideMobilePage("#mobil
 $("#mobileProfileOpen").addEventListener("click", () => showMobilePage("#mobileProfileView"));
 $("#mobileProfileDetailsOpen").addEventListener("click", () => showMobilePage("#mobileProfileView"));
 $("#mobileEditStudyProfile").addEventListener("click", () => openStudyProfileSetup(true));
-$("#mobileNotificationsOpen").addEventListener("click", () => showMobilePage("#mobileNotificationsView"));
+$("#mobileNotificationsOpen").addEventListener("click", () => {
+  updateNotificationPermissionUI();
+  showMobilePage("#mobileNotificationsView");
+});
 $("#mobileAvatarOpen").addEventListener("click", () => showMobilePage("#mobileAvatarView"));
 $("#mobileShareOpen").addEventListener("click", () => showMobilePage("#mobileShareView"));
 $$('[data-mobile-close]').forEach((button) =>
@@ -3699,6 +3754,104 @@ $("#mobileAvatarSave").addEventListener("click", () => {
   toast("Avatar updated");
 });
 
+function notificationState() {
+  try {
+    return JSON.parse(localStorage.getItem(NOTIFICATION_STORE) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveNotificationState(nextState) {
+  try {
+    localStorage.setItem(NOTIFICATION_STORE, JSON.stringify(nextState));
+  } catch {
+    // Permission still works for the current session when storage is unavailable.
+  }
+}
+
+function updateNotificationPermissionUI() {
+  const status = $("#mobileNotificationStatus");
+  const button = $("#mobileEnableNotifications");
+  if (!status || !button) return;
+  if (!("Notification" in window)) {
+    status.textContent = "Notifications are not supported by this browser";
+    button.textContent = "Unavailable";
+    button.disabled = true;
+    return;
+  }
+  if (Notification.permission === "granted") {
+    status.textContent = "On · up to 2 useful reminders per day";
+    button.textContent = "Enabled";
+    button.disabled = true;
+  } else if (Notification.permission === "denied") {
+    status.textContent = "Blocked in browser settings";
+    button.textContent = "Blocked";
+    button.disabled = true;
+  } else {
+    status.textContent = "Off until you allow notifications";
+    button.textContent = "Enable";
+    button.disabled = false;
+  }
+}
+
+async function showStudyNotification(title, body, tag = "minddeck-study") {
+  if (!("Notification" in window) || Notification.permission !== "granted") return false;
+  const options = {
+    body,
+    tag,
+    renotify: false,
+    icon: "/static/minddeck-icon.svg?v=2",
+    badge: "/static/minddeck-icon.svg?v=2",
+    data: { url: "/" },
+  };
+  try {
+    if ("serviceWorker" in navigator) {
+      const registration = await navigator.serviceWorker.ready;
+      await registration.showNotification(title, options);
+    } else {
+      new Notification(title, options);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function enableStudyNotifications() {
+  if (!("Notification" in window)) return;
+  const permission = await Notification.requestPermission();
+  updateNotificationPermissionUI();
+  if (permission !== "granted") {
+    toast(permission === "denied" ? "Notifications are blocked in browser settings" : "Notifications were not enabled");
+    return;
+  }
+  saveNotificationState({ ...notificationState(), enabled: true, enabledAt: Date.now() });
+  await showStudyNotification("MindDeck reminders are ready", dailyStudyTip().text, "minddeck-welcome");
+  toast("Study reminders enabled");
+}
+
+async function maybeSendStudyReminder() {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  const state = notificationState();
+  if (!state.enabled) return;
+  const hour = new Date().getHours();
+  if (hour < 9 || hour >= 21) return;
+  const today = localDateKey();
+  const sentCount = state.sentDate === today ? Number(state.sentCount || 0) : 0;
+  if (sentCount >= 2 || Date.now() - Number(state.lastSentAt || 0) < 6 * 60 * 60 * 1000) return;
+  const now = Date.now();
+  const due = cards.filter((card) => Date.parse(card.dueDate) <= now).length;
+  const wantsReviews = storedMobileSettings.reviews !== false;
+  const wantsMotivation = storedMobileSettings.motivation !== false;
+  if (!wantsReviews && !wantsMotivation) return;
+  const title = due && wantsReviews ? `${due} MindDeck ${due === 1 ? "card is" : "cards are"} ready` : "A small study win is waiting";
+  const body = due && wantsReviews ? "Review now to protect long-term recall." : dailyStudyTip().text;
+  if (await showStudyNotification(title, body, `minddeck-${today}-${sentCount + 1}`)) {
+    saveNotificationState({ ...state, sentDate: today, sentCount: sentCount + 1, lastSentAt: Date.now() });
+  }
+}
+
 let storedMobileSettings = {};
 try {
   storedMobileSettings = JSON.parse(localStorage.getItem(MOBILE_SETTINGS_STORE) || "{}");
@@ -3718,6 +3871,10 @@ $$('[data-mobile-setting]').forEach((input) => {
     }
   });
 });
+
+$("#mobileEnableNotifications")?.addEventListener("click", enableStudyNotifications);
+updateNotificationPermissionUI();
+window.setInterval(maybeSendStudyReminder, 60 * 60 * 1000);
 
 $("#mobileCopyReferral").addEventListener("click", async () => {
   const code = $("#mobileReferralCode").textContent;
@@ -4350,7 +4507,7 @@ loadAccount()
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("/static/sw.js?v=46", { scope: "/", updateViaCache: "none" })
+      .register("/static/sw.js?v=47", { scope: "/", updateViaCache: "none" })
       .then((registration) => registration.update())
       .catch(() => {});
   });
