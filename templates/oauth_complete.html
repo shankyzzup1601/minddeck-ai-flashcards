@@ -32,16 +32,9 @@
         channel.postMessage({ type: "minddeck-google-auth", result });
         window.setTimeout(() => channel.close(), 500);
       } catch {}
-      const returnLink = document.getElementById("returnToApp");
-      const returnUrl = returnLink?.href || "";
-      const isAndroid = /Android/i.test(navigator.userAgent);
-      if (isAndroid && returnUrl.startsWith("intent://")) {
-        // The OAuth page lives in Chrome while MindDeck runs as an installed app.
-        // Launch the verified app intent immediately so no extra tap is required.
-        window.location.replace(returnUrl);
-      } else {
-        window.setTimeout(() => window.close(), 120);
-      }
+      // This page was opened by the installed PWA. Closing it returns Android to
+      // MindDeck; navigating an https intent here only reopens the callback in Chrome.
+      window.setTimeout(() => window.close(), 120);
       window.setTimeout(() => document.documentElement.classList.add("show-fallback"), 1_200);
     })();
   </script>
