@@ -904,6 +904,7 @@ def home():
             csp_nonce=g.csp_nonce,
             csrf_token=csrf_token,
             returning_user=returning_user,
+            fresh_android_install=fresh_android_install,
         )
     )
     response.set_cookie(
