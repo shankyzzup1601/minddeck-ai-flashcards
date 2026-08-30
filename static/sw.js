@@ -1,7 +1,7 @@
-const CACHE_NAME = "minddeck-shell-v35";
+const CACHE_NAME = "minddeck-shell-v36";
 const SHELL = [
   "/",
-  "/static/app.js?v=30",
+  "/static/app.js?v=31",
   "/static/mobile-reference.css?v=12",
   "/static/cbse-syllabus.js?v=1",
   "/static/smart-study.js",
@@ -38,8 +38,11 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put("/", copy)).catch(() => {});
+          const isCleanHome = url.pathname === "/" && !url.search;
+          if (response.ok && isCleanHome) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put("/", copy)).catch(() => {});
+          }
           return response;
         })
         .catch(async () => (await caches.match("/")) || caches.match("/static/offline.html"))

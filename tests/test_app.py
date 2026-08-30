@@ -14,6 +14,11 @@ import app as minddeck
 
 
 class MindDeckSecurityTests(unittest.TestCase):
+    def test_service_worker_does_not_cache_auth_or_fresh_install_navigation(self):
+        worker = Path("static/sw.js").read_text(encoding="utf-8")
+        self.assertIn('url.pathname === "/" && !url.search', worker)
+        self.assertIn("response.ok && isCleanHome", worker)
+
     def test_fresh_android_install_renders_home_and_clears_session(self):
         self.client.set_cookie("__Host-minddeck_access", "a" * 128, domain="minddeck.test")
         self.client.set_cookie("__Host-minddeck_refresh", "r" * 64, domain="minddeck.test")
