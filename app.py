@@ -1947,6 +1947,16 @@ def health():
     return jsonify(status="ok")
 
 
+@app.get("/download/MindDeck.apk")
+def download_android_apk():
+    """Keep one clean first-party URL while the release host serves APK bytes."""
+    return redirect(
+        "https://github.com/shankyzzup1601/minddeck-ai-flashcards/releases/"
+        "download/minddeck-android-v1.1.0/MindDeck.apk",
+        code=302,
+    )
+
+
 @app.get("/.well-known/assetlinks.json")
 def android_asset_links():
     """Verify the signed MindDeck APK for full-screen Trusted Web Activity use."""
