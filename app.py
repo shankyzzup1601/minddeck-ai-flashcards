@@ -1934,6 +1934,26 @@ def health():
     return jsonify(status="ok")
 
 
+@app.get("/.well-known/assetlinks.json")
+def android_asset_links():
+    """Verify the signed MindDeck APK for full-screen Trusted Web Activity use."""
+    return jsonify(
+        [
+            {
+                "relation": ["delegate_permission/common.handle_all_urls"],
+                "target": {
+                    "namespace": "android_app",
+                    "package_name": "com.minddeck.app",
+                    "sha256_cert_fingerprints": [
+                        "72:97:3B:C1:B0:FF:5B:24:99:B1:11:85:C6:0A:FD:64:"
+                        "0A:45:35:39:34:35:6F:F4:C6:AC:7D:9B:95:F3:FA:F7"
+                    ],
+                },
+            }
+        ]
+    )
+
+
 @app.after_request
 def secure_response(response):
     response.headers["X-Content-Type-Options"] = "nosniff"

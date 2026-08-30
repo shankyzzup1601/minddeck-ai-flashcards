@@ -14,6 +14,23 @@ import app as minddeck
 
 
 class MindDeckSecurityTests(unittest.TestCase):
+    def test_android_asset_links_verify_published_apk(self):
+        response = self.client.get(
+            "/.well-known/assetlinks.json",
+            base_url=self.base_url,
+            headers={"X-Forwarded-Proto": "https"},
+        )
+        self.assertEqual(response.status_code, 200)
+        statement = response.json[0]
+        self.assertEqual(
+            statement["relation"], ["delegate_permission/common.handle_all_urls"]
+        )
+        self.assertEqual(statement["target"]["package_name"], "com.minddeck.app")
+        self.assertIn(
+            "72:97:3B:C1:B0:FF:5B:24:99:B1:11:85:C6:0A:FD:64:0A:45:35:39:34:35:6F:F4:C6:AC:7D:9B:95:F3:FA:F7",
+            statement["target"]["sha256_cert_fingerprints"],
+        )
+
     base_url = "https://minddeck.test"
     user_agent = "MindDeck Security Test"
 
