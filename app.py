@@ -13,7 +13,7 @@ from collections import defaultdict, deque
 from datetime import datetime, timezone
 from urllib.parse import urlencode, urlparse
 
-from flask import Flask, g, jsonify, make_response, redirect, render_template, request
+from flask import Flask, g, jsonify, make_response, redirect, render_template, request, send_from_directory
 from werkzeug.security import check_password_hash
 
 app = Flask(__name__)
@@ -1964,6 +1964,17 @@ def download_android_apk():
     return response
 
 
+@app.get("/static/MindDeck-Android.apk")
+def direct_android_download():
+    """Serve the APK as an attachment, including HEAD and resumable byte ranges."""
+    return send_from_directory(
+        app.static_folder, "MindDeck.apk",
+        mimetype="application/vnd.android.package-archive",
+        as_attachment=True, download_name="MindDeck-Android.apk",
+        conditional=True, max_age=0,
+    )
+
+
 @app.get("/.well-known/assetlinks.json")
 def android_asset_links():
     """Verify the signed MindDeck APK for full-screen Trusted Web Activity use."""
@@ -2031,6 +2042,11 @@ def secure_response(response):
     elif request.path == "/static/sw.js":
         response.headers["Cache-Control"] = "no-cache"
         response.headers["Service-Worker-Allowed"] = "/"
+
+    if request.path in {"/static/MindDeck.apk", "/static/MindDeck-Android.apk"} and response.status_code in {200, 206, 304}:
+        response.headers["Content-Type"] = "application/vnd.android.package-archive"
+        response.headers["Content-Disposition"] = 'attachment; filename="MindDeck-Android.apk"'
+        response.headers["Cache-Control"] = "no-store, no-transform"
 
     if https_request:
         response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"

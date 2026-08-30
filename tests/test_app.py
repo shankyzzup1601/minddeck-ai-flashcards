@@ -100,6 +100,27 @@ class MindDeckSecurityTests(unittest.TestCase):
             "/static/MindDeck.apk?v=1.2.0",
         )
 
+    def test_direct_apk_download_headers_bytes_and_resume(self):
+        apk = Path("static/MindDeck.apk").read_bytes()
+        for path in ("/static/MindDeck.apk", "/static/MindDeck-Android.apk"):
+            response = self.client.get(path, base_url=self.base_url)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data, apk)
+            self.assertEqual(response.mimetype, "application/vnd.android.package-archive")
+            self.assertIn("attachment;", response.headers["Content-Disposition"])
+            self.assertIn("no-store", response.headers["Cache-Control"])
+            self.assertEqual(int(response.headers["Content-Length"]), len(apk))
+            response.close()
+            head = self.client.head(path, base_url=self.base_url)
+            self.assertEqual(head.status_code, 200)
+            self.assertEqual(int(head.headers["Content-Length"]), len(apk))
+            head.close()
+            partial = self.client.get(path, base_url=self.base_url, headers={"Range": "bytes=100-199"})
+            self.assertEqual(partial.status_code, 206)
+            self.assertEqual(partial.data, apk[100:200])
+            self.assertEqual(partial.headers["Content-Range"], f"bytes 100-199/{len(apk)}")
+            partial.close()
+
     def test_android_asset_links_verify_published_apk(self):
         response = self.client.get(
             "/.well-known/assetlinks.json",
