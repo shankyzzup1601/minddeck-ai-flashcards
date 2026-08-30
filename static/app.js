@@ -3749,6 +3749,9 @@ $("#mobileLegacySettingsOpen").addEventListener("click", () => {
   openSettings();
 });
 $("#mobilePrivacy").addEventListener("click", () => toast("Your account and decks use secure, private cloud sync"));
+$("#mobileSupportEmail").addEventListener("click", () => {
+  window.location.href = "mailto:minddeck41@gmail.com?subject=MindDeck%20query";
+});
 $("#mobileRateApp").addEventListener("click", () => toast("Thank you — your feedback helps shape MindDeck"));
 $("#mobileUpgradeButton").addEventListener("click", () => {
   hideMobilePage("#mobileSettingsView");
@@ -4347,7 +4350,7 @@ loadAccount()
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("/static/sw.js?v=39", { scope: "/", updateViaCache: "none" })
+      .register("/static/sw.js?v=40", { scope: "/", updateViaCache: "none" })
       .then((registration) => registration.update())
       .catch(() => {});
   });
