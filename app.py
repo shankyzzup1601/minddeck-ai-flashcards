@@ -1959,7 +1959,9 @@ def android_asset_links():
                     "package_name": "com.minddeck.app",
                     "sha256_cert_fingerprints": [
                         "72:97:3B:C1:B0:FF:5B:24:99:B1:11:85:C6:0A:FD:64:"
-                        "0A:45:35:39:34:35:6F:F4:C6:AC:7D:9B:95:F3:FA:F7"
+                        "0A:45:35:39:34:35:6F:F4:C6:AC:7D:9B:95:F3:FA:F7",
+                        "A2:56:F6:5F:B9:19:6B:FF:55:EB:76:52:B8:09:A6:59:"
+                        "3A:2D:4C:88:AF:0A:5B:2B:61:7E:31:C9:4F:53:19:21",
                     ],
                 },
             }
