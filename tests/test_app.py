@@ -235,7 +235,7 @@ class MindDeckSecurityTests(unittest.TestCase):
             "",
         )
 
-    def test_google_start_uses_pkce_and_httponly_transaction_cookie(self):
+    def test_google_start_uses_pkce_and_signed_callback_transaction(self):
         with patch.dict(os.environ, self.google_environment(), clear=True), patch.object(
             minddeck, "google_auth_ready", return_value=True
         ):
@@ -249,15 +249,17 @@ class MindDeckSecurityTests(unittest.TestCase):
         self.assertEqual(authorization_url.netloc, "minddeck-test.supabase.co")
         self.assertEqual(authorization_url.path, "/auth/v1/authorize")
         self.assertEqual(query["provider"], ["google"])
-        self.assertEqual(query["redirect_to"], [f"{self.base_url}/api/auth/google/callback"])
+        callback_url = urlparse(query["redirect_to"][0])
+        callback_query = parse_qs(callback_url.query)
+        self.assertEqual(callback_url.scheme, "https")
+        self.assertEqual(callback_url.netloc, "minddeck.test")
+        self.assertEqual(callback_url.path, "/api/auth/google/callback")
+        self.assertEqual(callback_query["flow"], ["redirect"])
+        self.assertRegex(callback_query["transaction"][0], r"^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$")
         self.assertEqual(query["code_challenge_method"], ["s256"])
         self.assertRegex(query["code_challenge"][0], r"^[A-Za-z0-9_-]{43}$")
         cookies = "\n".join(response.headers.getlist("Set-Cookie"))
-        self.assertIn("__Host-minddeck_oauth=", cookies)
-        self.assertIn("HttpOnly", cookies)
-        self.assertIn("Secure", cookies)
-        self.assertIn("SameSite=Lax", cookies)
-        self.assertIn("Max-Age=600", cookies)
+        self.assertNotIn("__Host-minddeck_oauth=", cookies)
         self.assertNotIn("code_verifier", response.get_data(as_text=True))
         self.assertNotIn("access_token", response.get_data(as_text=True))
 
@@ -508,12 +510,15 @@ class MindDeckSecurityTests(unittest.TestCase):
         challenge = parse_qs(urlparse(started.json["authorizationUrl"]).query)[
             "code_challenge"
         ][0]
+        callback_url = parse_qs(urlparse(started.json["authorizationUrl"]).query)[
+            "redirect_to"
+        ][0]
         auth_code = "12345678-1234-1234-1234-123456789abc"
         with patch.dict(os.environ, self.google_environment(), clear=True), patch.object(
             minddeck, "supabase_json", return_value=tokens
         ) as upstream:
             callback = self.client.get(
-                f"/api/auth/google/callback?code={auth_code}",
+                f"{urlparse(callback_url).path}?{urlparse(callback_url).query}&code={auth_code}",
                 base_url=self.base_url,
                 headers={"User-Agent": self.user_agent, "X-Forwarded-Proto": "https"},
             )
@@ -556,16 +561,15 @@ class MindDeckSecurityTests(unittest.TestCase):
         redirect_to = parse_qs(urlparse(started.json["authorizationUrl"]).query)[
             "redirect_to"
         ][0]
-        self.assertEqual(
-            redirect_to,
-            f"{self.base_url}/api/auth/google/callback?flow=popup",
-        )
+        redirect_query = parse_qs(urlparse(redirect_to).query)
+        self.assertEqual(redirect_query["flow"], ["popup"])
+        self.assertIn("transaction", redirect_query)
 
         with patch.dict(os.environ, self.google_environment(), clear=True), patch.object(
             minddeck, "supabase_json", return_value=tokens
         ) as upstream:
             callback = self.client.get(
-                "/api/auth/google/callback?flow=popup&code=12345678-1234-1234-1234-123456789abc",
+                f"{urlparse(redirect_to).path}?{urlparse(redirect_to).query}&code=12345678-1234-1234-1234-123456789abc",
                 base_url=self.base_url,
                 headers={
                     "User-Agent": "Chrome Android OAuth Handoff",
@@ -594,11 +598,8 @@ class MindDeckSecurityTests(unittest.TestCase):
                 base_url=self.base_url,
                 headers={"User-Agent": self.user_agent, "X-Forwarded-Proto": "https"},
             )
-            self.client.set_cookie(
-                "__Host-minddeck_oauth", "tampered.transaction", domain="minddeck.test"
-            )
             tampered = self.client.get(
-                callback_path,
+                callback_path + "&flow=redirect&transaction=tampered.transaction",
                 base_url=self.base_url,
                 headers={"User-Agent": self.user_agent, "X-Forwarded-Proto": "https"},
             )
@@ -607,12 +608,15 @@ class MindDeckSecurityTests(unittest.TestCase):
             minddeck, "google_auth_ready", return_value=True
         ), patch.object(minddeck.time, "time", return_value=1_000):
             _home, csrf = self.home()
-            self.post("/api/auth/google/start", {}, csrf)
+            started = self.post("/api/auth/google/start", {}, csrf)
+            expired_callback = parse_qs(
+                urlparse(started.json["authorizationUrl"]).query
+            )["redirect_to"][0]
         with patch.dict(os.environ, self.google_environment(), clear=True), patch.object(
             minddeck, "supabase_json"
         ) as expired_upstream, patch.object(minddeck.time, "time", return_value=2_000):
             expired = self.client.get(
-                callback_path,
+                f"{urlparse(expired_callback).path}?{urlparse(expired_callback).query}&code=12345678-1234-1234-1234-123456789abc",
                 base_url=self.base_url,
                 headers={"User-Agent": self.user_agent, "X-Forwarded-Proto": "https"},
             )
@@ -629,12 +633,15 @@ class MindDeckSecurityTests(unittest.TestCase):
             minddeck, "google_auth_ready", return_value=True
         ):
             _home, csrf = self.home()
-            self.post("/api/auth/google/start", {}, csrf)
+            started = self.post("/api/auth/google/start", {}, csrf)
+            callback_url = parse_qs(
+                urlparse(started.json["authorizationUrl"]).query
+            )["redirect_to"][0]
         with patch.dict(os.environ, self.google_environment(), clear=True), patch.object(
             minddeck, "supabase_json"
         ) as upstream:
             response = self.client.get(
-                "/api/auth/google/callback?error=access_denied",
+                f"{urlparse(callback_url).path}?{urlparse(callback_url).query}&error=access_denied",
                 base_url=self.base_url,
                 headers={"User-Agent": self.user_agent, "X-Forwarded-Proto": "https"},
             )

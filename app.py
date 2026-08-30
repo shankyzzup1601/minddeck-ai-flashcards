@@ -729,14 +729,23 @@ def base64url_decode(value: str) -> bytes:
     return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
 
 
-def sign_oauth_transaction(verifier: str, origin: str, flow: str = "redirect") -> str:
+def derive_oauth_verifier(transaction_nonce: str, origin: str) -> str:
+    """Derive the PKCE verifier without relying on cross-app browser storage."""
+    digest = hmac.new(
+        oauth_secret().encode("utf-8"),
+        f"minddeck-google-pkce-v2.{transaction_nonce}.{origin}".encode("utf-8"),
+        hashlib.sha256,
+    ).digest()
+    return base64url_encode(digest)
+
+
+def sign_oauth_transaction(transaction_nonce: str, origin: str, flow: str = "redirect") -> str:
     payload = {
         "exp": int(time.time()) + OAUTH_TRANSACTION_SECONDS,
         "flow": "popup" if flow == "popup" else "redirect",
-        "nonce": secrets.token_urlsafe(18),
+        "nonce": transaction_nonce,
         "origin": origin,
-        "v": 1,
-        "verifier": verifier,
+        "v": 2,
     }
     encoded = base64url_encode(
         json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
@@ -769,10 +778,9 @@ def verify_oauth_transaction(token: str, origin: str) -> dict | None:
         payload = json.loads(base64url_decode(encoded).decode("utf-8"))
     except (ValueError, UnicodeDecodeError, json.JSONDecodeError):
         return None
-    if not isinstance(payload, dict) or payload.get("v") != 1:
+    if not isinstance(payload, dict) or payload.get("v") != 2:
         return None
     expires = payload.get("exp")
-    verifier = payload.get("verifier")
     nonce = payload.get("nonce")
     flow = payload.get("flow", "redirect")
     stored_origin = payload.get("origin")
@@ -780,15 +788,14 @@ def verify_oauth_transaction(token: str, origin: str) -> dict | None:
     if not (
         isinstance(expires, int)
         and now <= expires <= now + OAUTH_TRANSACTION_SECONDS + 30
-        and isinstance(verifier, str)
-        and re.fullmatch(r"[A-Za-z0-9_-]{43,128}", verifier)
         and isinstance(nonce, str)
-        and re.fullmatch(r"[A-Za-z0-9_-]{16,80}", nonce)
+        and re.fullmatch(r"[A-Za-z0-9_-]{32,80}", nonce)
         and flow in {"redirect", "popup"}
         and isinstance(stored_origin, str)
         and hmac.compare_digest(stored_origin, origin)
     ):
         return None
+    payload["verifier"] = derive_oauth_verifier(nonce, stored_origin)
     return payload
 
 
@@ -958,11 +965,12 @@ def auth_google_start():
     body = request.get_json(silent=True)
     popup_flow = isinstance(body, dict) and body.get("popup") is True
 
-    verifier = secrets.token_urlsafe(64)
+    transaction_nonce = secrets.token_urlsafe(32)
+    verifier = derive_oauth_verifier(transaction_nonce, origin)
     challenge = base64url_encode(hashlib.sha256(verifier.encode("ascii")).digest())
-    callback_url = f"{origin}/api/auth/google/callback"
-    if popup_flow:
-        callback_url += "?flow=popup"
+    flow = "popup" if popup_flow else "redirect"
+    transaction = sign_oauth_transaction(transaction_nonce, origin, flow)
+    callback_url = f"{origin}/api/auth/google/callback?{urlencode({'flow': flow, 'transaction': transaction})}"
     query = urlencode(
         {
             "provider": "google",
@@ -973,10 +981,6 @@ def auth_google_start():
     )
     authorization_url = f"{settings[0]}/auth/v1/authorize?{query}"
     response = jsonify(authorizationUrl=authorization_url)
-    set_oauth_cookie(
-        response,
-        sign_oauth_transaction(verifier, origin, "popup" if popup_flow else "redirect"),
-    )
     return response
 
 
@@ -984,9 +988,7 @@ def auth_google_start():
 def auth_google_callback():
     origin = request_app_origin()
     popup_flow = request.args.get("flow") == "popup"
-    transaction = verify_oauth_transaction(
-        request.cookies.get(oauth_cookie_name(), ""), origin or ""
-    )
+    transaction = verify_oauth_transaction(request.args.get("transaction", ""), origin or "")
     if (
         not origin
         or not transaction
