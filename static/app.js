@@ -4350,7 +4350,7 @@ loadAccount()
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("/static/sw.js?v=41", { scope: "/", updateViaCache: "none" })
+      .register("/static/sw.js?v=42", { scope: "/", updateViaCache: "none" })
       .then((registration) => registration.update())
       .catch(() => {});
   });
