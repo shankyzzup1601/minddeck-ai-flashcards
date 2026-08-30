@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"{% if returning_user %} class="splash-seen"{% endif %}>
+<html lang="en"{% if returning_user %} class="splash-seen"{% endif %}{% if fresh_android_install %} data-fresh-android-install="true"{% endif %}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -12,7 +12,23 @@
 <script nonce="{{ csp_nonce }}">
 try {
   const onboardingKey = "minddeck:onboarding-complete-v1";
-  if (document.documentElement.classList.contains("splash-seen")) {
+  const freshAndroidInstall = document.documentElement.dataset.freshAndroidInstall === "true";
+  if (freshAndroidInstall) {
+    document.documentElement.classList.remove("splash-seen");
+    localStorage.removeItem(onboardingKey);
+    localStorage.removeItem("minddeck-mobile-profile-v1");
+    localStorage.removeItem("minddeck-study-profile-complete-v1");
+    localStorage.removeItem("minddeck-last-account-name-v1");
+    for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+      const key = localStorage.key(index) || "";
+      if (key.startsWith("minddeck-study-profile-complete-v1:")) {
+        localStorage.removeItem(key);
+      }
+    }
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete("fresh-install");
+    window.history.replaceState(null, "", `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
+  } else if (document.documentElement.classList.contains("splash-seen")) {
     localStorage.setItem(onboardingKey, "1");
   } else if (localStorage.getItem(onboardingKey) === "1") {
     document.documentElement.classList.add("splash-seen");
@@ -36,7 +52,8 @@ try {
 :root{color-scheme:dark;--surface:#111722e8;--surface-strong:#151c29f2;--surface-soft:#ffffff07;--hero-a:#171b42;--hero-b:#281637;--ambient-a:#4f46e5;--ambient-b:#8b5cf6;--accent-glow:#6366f16b;--shadow:0 28px 80px #0000004a;--soft-shadow:0 14px 42px #0000002e;--radius-xl:28px}
 html[data-theme="aurora"]{--a:#06b6d4;--b:#10b981;--green:#22d3ee;--hero-a:#0a2934;--hero-b:#102d25;--ambient-a:#0891b2;--ambient-b:#059669;--accent-glow:#06b6d467}
 html[data-theme="rose"]{--a:#f43f5e;--b:#d946ef;--green:#fbbf24;--hero-a:#37131f;--hero-b:#2c1234;--ambient-a:#e11d48;--ambient-b:#c026d3;--accent-glow:#f43f5e63}
-html{background:#070a10;scroll-behavior:smooth}
+html{background:#070a10;scroll-behavior:smooth;overscroll-behavior-y:none}
+body{overscroll-behavior-y:none}
 body{position:relative;overflow-x:hidden;background:radial-gradient(circle at 46% -20%,var(--accent-glow),transparent 34%),radial-gradient(circle at 100% 48%,#8b5cf625,transparent 30%),linear-gradient(145deg,#080b12 0%,var(--bg) 46%,#080a11 100%);background-attachment:fixed}
 body:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background:radial-gradient(circle at 16% 18%,#ffffff08 0 1px,transparent 2px),radial-gradient(circle at 78% 32%,#ffffff07 0 1px,transparent 2px);background-size:42px 42px,64px 64px;opacity:.55}
 .ambientGrid{position:fixed;inset:0;z-index:0;pointer-events:none;background-image:linear-gradient(#ffffff05 1px,transparent 1px),linear-gradient(90deg,#ffffff05 1px,transparent 1px);background-size:72px 72px;mask-image:linear-gradient(to bottom,#0005,transparent 72%);opacity:.2}
@@ -925,7 +942,8 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 }
 /* END MOBILE PREMIUM POLISH */
 </style>
-<link rel="stylesheet" href="/static/mobile-reference.css?v=12">
+<link rel="stylesheet" href="/static/mobile-reference.css?v=13">
+<link rel="stylesheet" href="/static/mcq-test.css?v=3">
 </head>
 <body data-workspace="home">
 <div id="splash-screen" role="dialog" aria-modal="true" aria-label="MindDeck is loading">
@@ -1177,6 +1195,9 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 <button id="mobileLegacySettingsOpen" type="button"><i>⚙</i><span><strong>AI &amp; generation</strong><small>Provider access and generation settings</small></span><b>›</b></button>
 <button id="mobilePrivacy" type="button"><i>♧</i><span><strong>Privacy &amp; security</strong><small>How MindDeck protects your data</small></span><b>›</b></button>
 </div>
+<div class="mobileSettingsGroup"><small>ABOUT</small>
+<button id="mobileSupportEmail" type="button"><i>@</i><span><strong>Queries &amp; support</strong><small>minddeck41@gmail.com</small></span><b>›</b></button>
+</div>
 <button class="mobileSignOut" id="mobileSignOutOpen" type="button">↪ Sign out</button>
 <p class="mobileSettingsFooter">Made for focused learners · MindDeck</p>
 <div class="mobileConfirmBackdrop" id="mobileSignOutConfirm" hidden>
@@ -1240,7 +1261,7 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 <span class="memoryRing memoryRingTwo"></span>
 <span class="memoryCore"><strong>SM-2</strong><small>ACTIVE</small></span>
 </div>
-<button class="formulaCramTop" id="quickFormulaCram" type="button">Σ Quick 10-Min Formula Cram</button>
+<button class="formulaCramTop" id="quickFormulaCram" type="button">Σ 10-Min Formula Revision</button>
 </div>
 </div>
 <div class="subjectSwitcher" aria-label="Subject revision shortcuts">
@@ -1625,6 +1646,28 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 </div>
 </article>
 <article class="panel" id="studyPanel">
+<section class="mcqTestCenter" id="mcqTestCenter" aria-label="Class 12 MCQ test center">
+<div class="mcqLaunch" id="mcqLaunch">
+<span class="mcqEyebrow">CLASS 12 · CUSTOM MOCK TEST</span><h2>Build your perfect test.</h2>
+<p>Choose the full syllabus or selected chapters, set your difficulty, and begin with two minutes per question.</p>
+<div class="mcqSetup" aria-label="Test setup">
+<div class="mcqSetupGroup"><span>TEST COVERAGE</span><div class="mcqSegmented" id="mcqScope"><button class="active" type="button" data-scope="full" aria-pressed="true">Full syllabus</button><button type="button" data-scope="chapters" aria-pressed="false">Choose chapters</button></div></div>
+<div class="mcqChapterPicker" id="mcqChapterPicker" hidden><div class="mcqChapterTop"><strong>Select chapters</strong><button id="mcqSelectAll" type="button">Select all</button></div><div id="mcqChapterList"></div></div>
+<div class="mcqSetupGroup"><span>DIFFICULTY</span><div class="mcqSegmented mcqDifficulty" id="mcqDifficulty"><button type="button" data-level="easy" aria-pressed="false">Easy</button><button class="active" type="button" data-level="medium" aria-pressed="true">Medium</button><button type="button" data-level="hard" aria-pressed="false">Hard</button></div></div>
+</div>
+<div class="mcqPaperMeta"><div><strong id="mcqStreamName">PCB</strong><small>Selected stream</small></div><div><strong id="mcqQuestionCount">180</strong><small>Questions</small></div><div><strong id="mcqExamMinutes">360 min</strong><small>Exam time</small></div></div>
+<div class="mcqSections" id="mcqSections"></div>
+<button class="mcqPrimary" id="mcqStart" type="button">Start medium test →</button>
+</div>
+<div class="mcqExam" id="mcqExam" hidden>
+<header class="mcqExamHeader"><div><small id="mcqSubject">Physics</small><strong id="mcqNumber">Question 1 of 180</strong></div><div class="mcqTimers"><span><small>QUESTION</small><b id="mcqQuestionTime">02:00</b></span><span><small>FULL TEST</small><b id="mcqExamTime">360:00</b></span></div></header>
+<progress id="mcqProgress" max="180" value="1"></progress>
+<article class="mcqQuestionCard"><span id="mcqQuestionTag">PHYSICS · Q1</span><h2 id="mcqQuestionText"></h2><div class="mcqOptions" id="mcqOptions"></div></article>
+<div class="mcqExamActions"><button id="mcqPrev" type="button">← Previous</button><button id="mcqPaletteToggle" type="button">Question palette</button><button id="mcqNext" type="button">Next →</button></div>
+<div class="mcqPalette" id="mcqPalette" hidden><div><strong>Question palette</strong><button id="mcqPaletteClose" type="button">×</button></div><section id="mcqPaletteGrid"></section><button class="mcqSubmit" id="mcqSubmit" type="button">Submit test</button></div>
+</div>
+<div class="mcqResult" id="mcqResult" hidden><span>TEST COMPLETE</span><h2 id="mcqScore">0 / 180</h2><p id="mcqResultCopy"></p><div id="mcqBreakdown"></div><button class="mcqPrimary" id="mcqRestart" type="button">Take another test</button></div>
+</section>
 <div class="phead">
 <h3>Study your cards</h3>
 <span>Press Space to show the answer</span>
@@ -2015,6 +2058,7 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
   signInText.addEventListener("click", () => enterApp("signin"));
 })();
 </script>
-<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=29"></script>
+<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=36"></script>
+<script nonce="{{ csp_nonce }}" type="module" src="/static/mcq-test.js?v=3"></script>
 </body>
 </html>

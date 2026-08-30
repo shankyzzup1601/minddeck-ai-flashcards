@@ -14,6 +14,106 @@ import app as minddeck
 
 
 class MindDeckSecurityTests(unittest.TestCase):
+    def test_class_12_mcq_center_has_stream_papers_and_dual_timers(self):
+        template = Path("templates/index.html").read_text(encoding="utf-8")
+        script = Path("static/mcq-test.js").read_text(encoding="utf-8")
+        self.assertIn('id="mcqTestCenter"', template)
+        self.assertIn('PCB:[["Physics",45],["Chemistry",45],["Botany",45],["Zoology",45]]', script)
+        self.assertIn('PCM:[["Physics",45],["Chemistry",45],["Mathematics",90]]', script)
+        self.assertIn('Commerce:[["Accountancy",45],["Business Studies",45],["Economics",45],["Entrepreneurship",45]]', script)
+        self.assertIn("questionLeft=120", script)
+        self.assertIn("examLeft=21600", script)
+
+    def test_about_section_has_support_email(self):
+        template = Path("templates/index.html").read_text(encoding="utf-8")
+        script = Path("static/app.js").read_text(encoding="utf-8")
+        self.assertIn("minddeck41@gmail.com", template)
+        self.assertIn("mailto:minddeck41@gmail.com", script)
+
+    def test_chrome_pull_to_refresh_is_disabled(self):
+        template = Path("templates/index.html").read_text(encoding="utf-8")
+        self.assertGreaterEqual(template.count("overscroll-behavior-y:none"), 2)
+
+    def test_reinstall_requires_study_profile_for_every_account(self):
+        template = Path("templates/index.html").read_text(encoding="utf-8")
+        self.assertIn('key.startsWith("minddeck-study-profile-complete-v1:")', template)
+        self.assertIn("localStorage.removeItem(key)", template)
+
+    def test_service_worker_update_never_forces_an_app_reload(self):
+        script = Path("static/app.js").read_text(encoding="utf-8")
+        self.assertNotIn('addEventListener("controllerchange"', script)
+        self.assertNotIn("window.location.reload()", script)
+
+    def test_fresh_install_flag_is_consumed_once_in_the_browser(self):
+        template = Path("templates/index.html").read_text(encoding="utf-8")
+        self.assertIn('cleanUrl.searchParams.delete("fresh-install")', template)
+        self.assertIn("window.history.replaceState", template)
+
+    def test_mobile_account_name_is_stable_while_auth_state_loads(self):
+        script = Path("static/app.js").read_text(encoding="utf-8")
+        self.assertIn('ACCOUNT_NAME_STORE = "minddeck-last-account-name-v1"', script)
+        self.assertIn("if (!authStateResolved)", script)
+        self.assertIn("localStorage.setItem(ACCOUNT_NAME_STORE, confirmedName)", script)
+        self.assertIn("localStorage.removeItem(ACCOUNT_NAME_STORE)", script)
+
+    def test_service_worker_does_not_cache_auth_or_fresh_install_navigation(self):
+        worker = Path("static/sw.js").read_text(encoding="utf-8")
+        self.assertIn('url.pathname === "/" && !url.search', worker)
+        self.assertIn("response.ok && isCleanHome", worker)
+
+    def test_fresh_android_install_renders_home_and_clears_session(self):
+        self.client.set_cookie("__Host-minddeck_access", "a" * 128, domain="minddeck.test")
+        self.client.set_cookie("__Host-minddeck_refresh", "r" * 64, domain="minddeck.test")
+        response = self.client.get(
+            "/?fresh-install=android-v2",
+            base_url=self.base_url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Linux; Android 15) MindDeck",
+                "X-Forwarded-Proto": "https",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("MindDeck AI Flashcards", response.get_data(as_text=True))
+        cookies = "\n".join(response.headers.getlist("Set-Cookie"))
+        self.assertGreaterEqual(cookies.count("Max-Age=0"), 3)
+
+    def test_clean_android_download_redirects_to_verified_release(self):
+        response = self.client.get(
+            "/download/MindDeck.apk",
+            base_url=self.base_url,
+            headers={"X-Forwarded-Proto": "https"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response.headers["Location"],
+            "https://github.com/shankyzzup1601/minddeck-ai-flashcards/releases/download/minddeck-android-v1.2.0/MindDeck.apk",
+        )
+
+    def test_android_asset_links_verify_published_apk(self):
+        response = self.client.get(
+            "/.well-known/assetlinks.json",
+            base_url=self.base_url,
+            headers={"X-Forwarded-Proto": "https"},
+        )
+        self.assertEqual(response.status_code, 200)
+        statement = response.json[0]
+        self.assertEqual(
+            statement["relation"], ["delegate_permission/common.handle_all_urls"]
+        )
+        self.assertEqual(statement["target"]["package_name"], "com.minddeck.app")
+        self.assertIn(
+            "72:97:3B:C1:B0:FF:5B:24:99:B1:11:85:C6:0A:FD:64:0A:45:35:39:34:35:6F:F4:C6:AC:7D:9B:95:F3:FA:F7",
+            statement["target"]["sha256_cert_fingerprints"],
+        )
+        self.assertIn(
+            "A2:56:F6:5F:B9:19:6B:FF:55:EB:76:52:B8:09:A6:59:3A:2D:4C:88:AF:0A:5B:2B:61:7E:31:C9:4F:53:19:21",
+            statement["target"]["sha256_cert_fingerprints"],
+        )
+        self.assertIn(
+            "D0:EB:88:22:AC:B3:23:82:3F:40:CB:6D:01:86:CE:45:86:AA:80:17:9E:0B:AF:B9:D7:A6:5A:A8:E7:A5:6B:B5",
+            statement["target"]["sha256_cert_fingerprints"],
+        )
+
     base_url = "https://minddeck.test"
     user_agent = "MindDeck Security Test"
 
@@ -791,6 +891,35 @@ class MindDeckSecurityTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         cookies = "\n".join(response.headers.getlist("Set-Cookie"))
         self.assertGreaterEqual(cookies.count("Max-Age=0"), 2)
+
+    def test_fresh_android_install_clears_existing_browser_session(self):
+        self.client.set_cookie("__Host-minddeck_access", "a" * 128, domain="minddeck.test")
+        self.client.set_cookie("__Host-minddeck_refresh", "r" * 64, domain="minddeck.test")
+        response = self.client.get(
+            "/api/auth/app/fresh-install",
+            base_url=self.base_url,
+            headers={
+                "User-Agent": "MindDeck Android Trusted Web Activity",
+                "Sec-Fetch-Site": "none",
+                "X-Forwarded-Proto": "https",
+            },
+        )
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["Location"], "/?fresh-install=complete")
+        cookies = "\n".join(response.headers.getlist("Set-Cookie"))
+        self.assertGreaterEqual(cookies.count("Max-Age=0"), 3)
+
+    def test_fresh_install_reset_rejects_cross_site_browser_requests(self):
+        response = self.client.get(
+            "/api/auth/app/fresh-install",
+            base_url=self.base_url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Linux; Android 15)",
+                "Sec-Fetch-Site": "cross-site",
+                "X-Forwarded-Proto": "https",
+            },
+        )
+        self.assertEqual(response.status_code, 403)
 
     def test_mutating_requests_require_csrf_and_same_origin(self):
         _home, csrf = self.home()

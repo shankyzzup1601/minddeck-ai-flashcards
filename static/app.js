@@ -36,6 +36,7 @@ const THEME_STORE = "minddeck-visual-theme-v1";
 const CLASS_STORE = "minddeck-class-v1";
 const STREAM_STORE = "minddeck-stream-v1";
 const PROFILE_STORE = "minddeck-mobile-profile-v1";
+const ACCOUNT_NAME_STORE = "minddeck-last-account-name-v1";
 const PROFILE_SETUP_STORE = "minddeck-study-profile-complete-v1";
 const MOBILE_SETTINGS_STORE = "minddeck-mobile-settings-v1";
 const ONBOARDING_STORE = "minddeck:onboarding-complete-v1";
@@ -145,6 +146,7 @@ let aiProviders = { minddeck: false, openai: false, gemini: false };
 let aiRuntime = "flask";
 let deckUpdatedAt = 0;
 let authState = { enabled: false, googleEnabled: false, user: null };
+let authStateResolved = false;
 let syncTimer = null;
 let syncInFlight = false;
 let activeStoreKey = GUEST_STORE;
@@ -896,11 +898,21 @@ function friendlyAccountName() {
   const profile = mobileProfile();
   if (profile.name) return profile.name;
   const email = authState.user?.email || "";
-  if (!email) return "MindDeck learner";
-  const localPart = email.split("@")[0].replace(/[._-]+/g, " ").trim();
-  return localPart
-    ? localPart.replace(/\b\w/g, (character) => character.toUpperCase()).slice(0, 80)
-    : "MindDeck learner";
+  if (email) {
+    const localPart = email.split("@")[0].replace(/[._-]+/g, " ").trim();
+    return localPart
+      ? localPart.replace(/\b\w/g, (character) => character.toUpperCase()).slice(0, 80)
+      : "MindDeck learner";
+  }
+  if (!authStateResolved) {
+    try {
+      const cachedName = localStorage.getItem(ACCOUNT_NAME_STORE) || "";
+      if (cachedName.trim()) return cachedName.trim().slice(0, 80);
+    } catch {
+      // The neutral label is safe while account state is loading.
+    }
+  }
+  return "MindDeck learner";
 }
 
 function selectedClassLevel() {
@@ -2397,12 +2409,22 @@ async function loadAccount() {
             }
           : null,
     };
+    if (authState.user) {
+      const confirmedName = friendlyAccountName();
+      try {
+        localStorage.setItem(ACCOUNT_NAME_STORE, confirmedName);
+      } catch {
+        // The confirmed account name still remains available for this tab.
+      }
+    }
+    authStateResolved = true;
     if (authState.user) activateAccountStore(authState.user.accountKey);
     updateAccountUI();
     if (authState.user) await reconcileCloudDeck();
     if (authState.user) openStudyProfileSetup(false);
   } catch {
     authState = { enabled: false, googleEnabled: false, user: null };
+    authStateResolved = true;
     updateAccountUI();
   }
 }
@@ -3514,6 +3536,12 @@ $("#signOut").addEventListener("click", async () => {
   try {
     await apiPost("/api/auth/signout", {});
     authState.user = null;
+    authStateResolved = true;
+    try {
+      localStorage.removeItem(ACCOUNT_NAME_STORE);
+    } catch {
+      // Signed-out account state is still applied to this tab.
+    }
     await activateGuestStore();
     updateAccountUI();
     authModal.classList.remove("open");
@@ -3721,6 +3749,9 @@ $("#mobileLegacySettingsOpen").addEventListener("click", () => {
   openSettings();
 });
 $("#mobilePrivacy").addEventListener("click", () => toast("Your account and decks use secure, private cloud sync"));
+$("#mobileSupportEmail").addEventListener("click", () => {
+  window.location.href = "mailto:minddeck41@gmail.com?subject=MindDeck%20query";
+});
 $("#mobileRateApp").addEventListener("click", () => toast("Thank you — your feedback helps shape MindDeck"));
 $("#mobileUpgradeButton").addEventListener("click", () => {
   hideMobilePage("#mobileSettingsView");
@@ -4317,19 +4348,9 @@ loadAccount()
   })
   .finally(loadTimerState);
 if ("serviceWorker" in navigator) {
-  const shellRefreshKey = "minddeck-shell-v34-refreshed";
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
-    try {
-      if (sessionStorage.getItem(shellRefreshKey)) return;
-      sessionStorage.setItem(shellRefreshKey, "1");
-    } catch {
-      // Reloading once is still safe when session storage is unavailable.
-    }
-    window.location.reload();
-  });
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("/static/sw.js?v=34", { scope: "/", updateViaCache: "none" })
+      .register("/static/sw.js?v=45", { scope: "/", updateViaCache: "none" })
       .then((registration) => registration.update())
       .catch(() => {});
   });

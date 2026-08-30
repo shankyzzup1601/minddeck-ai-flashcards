@@ -888,9 +888,13 @@ def unlocked_provider() -> str | None:
 @app.get("/")
 def home():
     g.csp_nonce = secrets.token_urlsafe(18)
+    fresh_android_install = (
+        request.args.get("fresh-install") == "android-v2"
+        and "Android" in request.headers.get("User-Agent", "")
+    )
     existing_csrf = request.cookies.get(csrf_cookie_name(), "")
     csrf_token = existing_csrf if 32 <= len(existing_csrf) <= 128 else secrets.token_urlsafe(32)
-    returning_user = bool(
+    returning_user = not fresh_android_install and bool(
         request.cookies.get(auth_access_cookie_name())
         or request.cookies.get(auth_refresh_cookie_name())
     )
@@ -900,6 +904,7 @@ def home():
             csp_nonce=g.csp_nonce,
             csrf_token=csrf_token,
             returning_user=returning_user,
+            fresh_android_install=fresh_android_install,
         )
     )
     response.set_cookie(
@@ -911,6 +916,9 @@ def home():
         samesite="Strict",
         path="/",
     )
+    if fresh_android_install:
+        clear_auth_cookies(response)
+        clear_oauth_cookie(response)
     return response
 
 
@@ -1182,6 +1190,19 @@ def auth_signout():
             pass
     response = jsonify(signedOut=True)
     clear_auth_cookies(response)
+    return response
+
+
+@app.get("/api/auth/app/fresh-install")
+def auth_app_fresh_install():
+    """Require authentication again after the Android APK is reinstalled."""
+    fetch_site = request.headers.get("Sec-Fetch-Site", "").lower()
+    user_agent = request.headers.get("User-Agent", "")
+    if "Android" not in user_agent or fetch_site not in {"none", "same-origin"}:
+        return jsonify(error="This reset is available only during Android app launch."), 403
+    response = redirect("/?fresh-install=complete", code=303)
+    clear_auth_cookies(response)
+    clear_oauth_cookie(response)
     return response
 
 
@@ -1932,6 +1953,40 @@ def generate_hints():
 @app.get("/health")
 def health():
     return jsonify(status="ok")
+
+
+@app.get("/download/MindDeck.apk")
+def download_android_apk():
+    """Keep one clean first-party URL while the release host serves APK bytes."""
+    return redirect(
+        "https://github.com/shankyzzup1601/minddeck-ai-flashcards/releases/"
+        "download/minddeck-android-v1.2.0/MindDeck.apk",
+        code=302,
+    )
+
+
+@app.get("/.well-known/assetlinks.json")
+def android_asset_links():
+    """Verify the signed MindDeck APK for full-screen Trusted Web Activity use."""
+    return jsonify(
+        [
+            {
+                "relation": ["delegate_permission/common.handle_all_urls"],
+                "target": {
+                    "namespace": "android_app",
+                    "package_name": "com.minddeck.app",
+                    "sha256_cert_fingerprints": [
+                        "72:97:3B:C1:B0:FF:5B:24:99:B1:11:85:C6:0A:FD:64:"
+                        "0A:45:35:39:34:35:6F:F4:C6:AC:7D:9B:95:F3:FA:F7",
+                        "A2:56:F6:5F:B9:19:6B:FF:55:EB:76:52:B8:09:A6:59:"
+                        "3A:2D:4C:88:AF:0A:5B:2B:61:7E:31:C9:4F:53:19:21",
+                        "D0:EB:88:22:AC:B3:23:82:3F:40:CB:6D:01:86:CE:45:"
+                        "86:AA:80:17:9E:0B:AF:B9:D7:A6:5A:A8:E7:A5:6B:B5",
+                    ],
+                },
+            }
+        ]
+    )
 
 
 @app.after_request
