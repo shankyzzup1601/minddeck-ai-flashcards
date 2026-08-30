@@ -14,6 +14,11 @@ import app as minddeck
 
 
 class MindDeckSecurityTests(unittest.TestCase):
+    def test_service_worker_update_never_forces_an_app_reload(self):
+        script = Path("static/app.js").read_text(encoding="utf-8")
+        self.assertNotIn('addEventListener("controllerchange"', script)
+        self.assertNotIn("window.location.reload()", script)
+
     def test_fresh_install_flag_is_consumed_once_in_the_browser(self):
         template = Path("templates/index.html").read_text(encoding="utf-8")
         self.assertIn('cleanUrl.searchParams.delete("fresh-install")', template)
