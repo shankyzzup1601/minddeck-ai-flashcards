@@ -14,6 +14,18 @@ import app as minddeck
 
 
 class MindDeckSecurityTests(unittest.TestCase):
+    def test_clean_android_download_redirects_to_verified_release(self):
+        response = self.client.get(
+            "/download/MindDeck.apk",
+            base_url=self.base_url,
+            headers={"X-Forwarded-Proto": "https"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response.headers["Location"],
+            "https://github.com/shankyzzup1601/minddeck-ai-flashcards/releases/download/minddeck-android-v1.1.0/MindDeck.apk",
+        )
+
     def test_android_asset_links_verify_published_apk(self):
         response = self.client.get(
             "/.well-known/assetlinks.json",
