@@ -14,6 +14,12 @@ import app as minddeck
 
 
 class MindDeckSecurityTests(unittest.TestCase):
+    def test_about_section_has_support_email(self):
+        template = Path("templates/index.html").read_text(encoding="utf-8")
+        script = Path("static/app.js").read_text(encoding="utf-8")
+        self.assertIn("minddeck41@gmail.com", template)
+        self.assertIn("mailto:minddeck41@gmail.com", script)
+
     def test_chrome_pull_to_refresh_is_disabled(self):
         template = Path("templates/index.html").read_text(encoding="utf-8")
         self.assertGreaterEqual(template.count("overscroll-behavior-y:none"), 2)
