@@ -2585,12 +2585,14 @@ async function startGoogleSignIn() {
   let timeout = 0;
   let channel = null;
   let leftApp = false;
+  let resumeCheck = 0;
   $("#authError").textContent = "";
   $("#authMessage").textContent = "";
   button.disabled = true;
 
   const cleanup = () => {
     if (timeout) window.clearTimeout(timeout);
+    if (resumeCheck) window.clearTimeout(resumeCheck);
     document.removeEventListener("visibilitychange", handleVisibilityChange);
     try {
       channel?.close();
@@ -2605,9 +2607,18 @@ async function startGoogleSignIn() {
       return;
     }
     if (!leftApp || settled) return;
-    window.setTimeout(() => {
-      if (!settled) finishPopupSignIn("error");
-    }, 1_800);
+    resumeCheck = window.setTimeout(async () => {
+      if (settled) return;
+      // Chrome and an installed WebAPK share the origin's secure cookies. Verify
+      // the completed server session when Android brings the app back instead of
+      // treating a slow handoff as a cancelled login.
+      try {
+        await loadAccount();
+        if (authState.user) await finishPopupSignIn("ok");
+      } catch {
+        // Keep waiting for the callback/BroadcastChannel until the real timeout.
+      }
+    }, 350);
   };
 
   const finishPopupSignIn = async (result) => {
