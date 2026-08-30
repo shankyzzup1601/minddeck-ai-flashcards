@@ -19,6 +19,12 @@ try {
     localStorage.removeItem("minddeck-mobile-profile-v1");
     localStorage.removeItem("minddeck-study-profile-complete-v1");
     localStorage.removeItem("minddeck-last-account-name-v1");
+    for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+      const key = localStorage.key(index) || "";
+      if (key.startsWith("minddeck-study-profile-complete-v1:")) {
+        localStorage.removeItem(key);
+      }
+    }
     const cleanUrl = new URL(window.location.href);
     cleanUrl.searchParams.delete("fresh-install");
     window.history.replaceState(null, "", `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
@@ -2025,6 +2031,6 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
   signInText.addEventListener("click", () => enterApp("signin"));
 })();
 </script>
-<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=33"></script>
+<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=34"></script>
 </body>
 </html>
