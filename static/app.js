@@ -4317,7 +4317,7 @@ loadAccount()
   })
   .finally(loadTimerState);
 if ("serviceWorker" in navigator) {
-  const shellRefreshKey = "minddeck-shell-v34-refreshed";
+  const shellRefreshKey = "minddeck-shell-v35-refreshed";
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     try {
       if (sessionStorage.getItem(shellRefreshKey)) return;
@@ -4329,7 +4329,7 @@ if ("serviceWorker" in navigator) {
   });
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("/static/sw.js?v=34", { scope: "/", updateViaCache: "none" })
+      .register("/static/sw.js?v=35", { scope: "/", updateViaCache: "none" })
       .then((registration) => registration.update())
       .catch(() => {});
   });
