@@ -14,6 +14,22 @@ import app as minddeck
 
 
 class MindDeckSecurityTests(unittest.TestCase):
+    def test_fresh_android_install_renders_home_and_clears_session(self):
+        self.client.set_cookie("__Host-minddeck_access", "a" * 128, domain="minddeck.test")
+        self.client.set_cookie("__Host-minddeck_refresh", "r" * 64, domain="minddeck.test")
+        response = self.client.get(
+            "/?fresh-install=android-v2",
+            base_url=self.base_url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Linux; Android 15) MindDeck",
+                "X-Forwarded-Proto": "https",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("MindDeck AI Flashcards", response.get_data(as_text=True))
+        cookies = "\n".join(response.headers.getlist("Set-Cookie"))
+        self.assertGreaterEqual(cookies.count("Max-Age=0"), 3)
+
     def test_clean_android_download_redirects_to_verified_release(self):
         response = self.client.get(
             "/download/MindDeck.apk",
