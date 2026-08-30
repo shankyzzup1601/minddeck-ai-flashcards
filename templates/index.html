@@ -3,6 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+/* Prevent accidental double-tap zoom without blocking browser accessibility zoom. */
+button, a, input, select, textarea, label, [role="button"] {
+  touch-action: manipulation;
+}
+@media (pointer: coarse) {
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+}
+/* Installed Android/PWA shell: scroll normally, but keep the app scale fixed. */
+@media (display-mode: standalone) and (pointer: coarse),
+       (display-mode: fullscreen) and (pointer: coarse) {
+  html, body { touch-action: pan-x pan-y; }
+}
+</style>
 <title>MindDeck AI Flashcards</title>
 <meta name="description" content="Create CBSE Class 11 and 12 revision cards from MindDeck's ready syllabus, your notes, photos, or PDFs.">
 <meta name="theme-color" content="#080a0f">
