@@ -14,6 +14,16 @@ import app as minddeck
 
 
 class MindDeckSecurityTests(unittest.TestCase):
+    def test_class_12_mcq_center_has_stream_papers_and_dual_timers(self):
+        template = Path("templates/index.html").read_text(encoding="utf-8")
+        script = Path("static/mcq-test.js").read_text(encoding="utf-8")
+        self.assertIn('id="mcqTestCenter"', template)
+        self.assertIn('PCB:[["Physics",45],["Chemistry",45],["Botany",45],["Zoology",45]]', script)
+        self.assertIn('PCM:[["Physics",45],["Chemistry",45],["Mathematics",90]]', script)
+        self.assertIn('Commerce:[["Accountancy",45],["Business Studies",45],["Economics",45],["Entrepreneurship",45]]', script)
+        self.assertIn("questionLeft=120", script)
+        self.assertIn("examLeft=21600", script)
+
     def test_about_section_has_support_email(self):
         template = Path("templates/index.html").read_text(encoding="utf-8")
         script = Path("static/app.js").read_text(encoding="utf-8")
