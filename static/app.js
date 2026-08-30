@@ -41,6 +41,7 @@ const PROFILE_SETUP_STORE = "minddeck-study-profile-complete-v1";
 const MOBILE_SETTINGS_STORE = "minddeck-mobile-settings-v1";
 const TIP_ENGINE_STORE = "minddeck-tip-engine-v1";
 const NOTIFICATION_STORE = "minddeck-notification-state-v1";
+const NATIVE_APP_STORE = "minddeck-native-android-v1";
 const ONBOARDING_STORE = "minddeck:onboarding-complete-v1";
 const GENERATED_DECK_SIZE = 15;
 const DECK_SCHEMA_VERSION = 7;
@@ -1599,6 +1600,33 @@ function startTimerTicker() {
   timerInterval = timerState.running ? window.setInterval(updateTimerFromClock, 250) : null;
 }
 
+function nativeTimerBridgeAvailable() {
+  const fromAndroidApp = new URLSearchParams(window.location.search).get("source") === "android-app";
+  if (fromAndroidApp) {
+    try {
+      localStorage.setItem(NATIVE_APP_STORE, "1");
+    } catch {
+      // The current URL is enough to identify the installed app.
+    }
+  }
+  try {
+    return fromAndroidApp || localStorage.getItem(NATIVE_APP_STORE) === "1";
+  } catch {
+    return fromAndroidApp;
+  }
+}
+
+function sendNativeTimerAction(action, seconds = timerState.remaining) {
+  if (!nativeTimerBridgeAvailable()) return false;
+  const bridge = document.createElement("iframe");
+  bridge.hidden = true;
+  bridge.setAttribute("aria-hidden", "true");
+  bridge.src = `minddeck://timer/${encodeURIComponent(action)}?seconds=${Math.max(0, Math.round(seconds))}`;
+  document.body.append(bridge);
+  window.setTimeout(() => bridge.remove(), 1500);
+  return true;
+}
+
 async function closeTimerNotification() {
   if (!("serviceWorker" in navigator)) return;
   try {
@@ -1714,6 +1742,7 @@ function completeTimer() {
   storeTimerState();
   if (config.isFocus) recordFocusSession(timerState.duration);
   else renderStudyWidgets();
+  sendNativeTimerAction("complete", 0);
   timerNotificationSecond = null;
   showStudyNotification(
     config.isFocus ? "Focus session complete ✨" : "Break complete",
@@ -1746,12 +1775,13 @@ function toggleTimer() {
     timerState.endAt = 0;
     startTimerTicker();
     syncTimerNotification(true);
+    sendNativeTimerAction("pause", timerState.remaining);
   } else {
     if (timerState.remaining <= 0) timerState.remaining = timerState.duration;
     timerState.running = true;
     timerState.endAt = Date.now() + timerState.remaining * 1000;
     startTimerTicker();
-    enableTimerNotification();
+    if (!sendNativeTimerAction("start", timerState.remaining)) enableTimerNotification();
   }
   storeTimerState();
   renderStudyWidgets();
@@ -1765,6 +1795,7 @@ function resetTimer() {
   renderStudyWidgets();
   timerNotificationSecond = null;
   closeTimerNotification();
+  sendNativeTimerAction("reset", 0);
 }
 
 function selectTimerMode(mode) {
@@ -1775,6 +1806,7 @@ function selectTimerMode(mode) {
   renderStudyWidgets();
   timerNotificationSecond = null;
   closeTimerNotification();
+  sendNativeTimerAction("reset", 0);
 }
 
 function changeDailyGoal(delta) {
@@ -4577,7 +4609,7 @@ loadAccount()
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("/static/sw.js?v=48", { scope: "/", updateViaCache: "none" })
+      .register("/static/sw.js?v=49", { scope: "/", updateViaCache: "none" })
       .then((registration) => registration.update())
       .catch(() => {});
   });

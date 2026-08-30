@@ -33,24 +33,32 @@ jobs:
       - name: Build installable APK
         run: gradle -p android-apk --no-daemon assembleRelease
 
-      - name: Prepare download
-        run: cp android-apk/app/build/outputs/apk/release/app-release.apk MindDeck.apk
+      - name: Prepare and verify download
+        run: |
+          cp android-apk/app/build/outputs/apk/release/app-release.apk MindDeck.apk
+          "${ANDROID_HOME}/build-tools/35.0.0/apksigner" verify --verbose MindDeck.apk
 
-      - name: Verify APK signature
-        run: "${ANDROID_HOME}/build-tools/35.0.0/apksigner verify --verbose MindDeck.apk"
+      - name: Publish direct MindDeck download
+        run: |
+          cp MindDeck.apk static/MindDeck.apk
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add static/MindDeck.apk
+          git commit -m "Publish MindDeck Android v1.3.0"
+          git push
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MindDeck-Android
+          name: MindDeck-Android-v1.3.0
           path: MindDeck.apk
           retention-days: 90
 
-      - name: Publish direct APK download
+      - name: Publish release backup
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create minddeck-android-v1.2.0 MindDeck.apk \
-            --title "MindDeck Android v1.2.0" \
-            --notes "Installable Android APK for MindDeck. A fresh installation requires login again; normal reopening preserves the session." \
+          gh release create minddeck-android-v1.3.0 MindDeck.apk \
+            --title "MindDeck Android v1.3.0" \
+            --notes "Native Android focus-timer notification, direct APK download, and refreshed MindDeck experience." \
             --latest
