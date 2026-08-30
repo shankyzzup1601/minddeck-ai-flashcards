@@ -58,8 +58,19 @@ class MindDeckSecurityTests(unittest.TestCase):
 
     def test_service_worker_does_not_cache_auth_or_fresh_install_navigation(self):
         worker = Path("static/sw.js").read_text(encoding="utf-8")
-        self.assertIn('url.pathname === "/" && !url.search', worker)
-        self.assertIn("response.ok && isCleanHome", worker)
+        self.assertNotIn('cache.put("/"', worker)
+        self.assertNotIn('caches.match("/")', worker)
+        self.assertNotIn('client.navigate(', worker)
+        self.assertIn('!url.pathname.startsWith("/static/")', worker)
+
+    def test_inline_styles_have_response_csp_nonce(self):
+        response = self.client.get("/", base_url=self.base_url)
+        policy = response.headers["Content-Security-Policy"]
+        nonce = re.search(r"'nonce-([^']+)'", policy).group(1)
+        styles = re.findall(r"<style\b([^>]*)>", response.get_data(as_text=True))
+        self.assertTrue(styles)
+        for attributes in styles:
+            self.assertIn(f'nonce="{nonce}"', attributes)
 
     def test_fresh_android_install_renders_home_and_clears_session(self):
         self.client.set_cookie("__Host-minddeck_access", "a" * 128, domain="minddeck.test")
@@ -86,7 +97,7 @@ class MindDeckSecurityTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(
             response.headers["Location"],
-            "https://github.com/shankyzzup1601/minddeck-ai-flashcards/releases/download/minddeck-android-v1.2.0/MindDeck.apk",
+            "/static/MindDeck.apk?v=1.2.0",
         )
 
     def test_android_asset_links_verify_published_apk(self):

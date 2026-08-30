@@ -1,6 +1,5 @@
-const CACHE_NAME = "minddeck-shell-v49";
+const CACHE_NAME = "minddeck-shell-v50";
 const SHELL = [
-  "/",
   "/static/app.js?v=39",
   "/static/mcq-test.js?v=4",
   "/static/mcq-test.css?v=4",
@@ -26,8 +25,6 @@ self.addEventListener("activate", (event) => {
     caches.keys()
       .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
-      .then(() => self.clients.matchAll({ type: "window", includeUncontrolled: true }))
-      .then((clients) => Promise.all(clients.map((client) => client.navigate(client.url).catch(() => {}))))
   );
 });
 
@@ -39,18 +36,12 @@ self.addEventListener("fetch", (event) => {
   if (event.request.mode === "navigate") {
     event.respondWith(
       fetch(event.request)
-        .then((response) => {
-          const isCleanHome = url.pathname === "/" && !url.search;
-          if (response.ok && isCleanHome) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put("/", copy)).catch(() => {});
-          }
-          return response;
-        })
-        .catch(async () => (await caches.match("/")) || caches.match("/static/offline.html"))
+        .catch(() => caches.match("/static/offline.html"))
     );
     return;
   }
+  // Never cache authentication responses, downloads, or personalized HTML.
+  if (!url.pathname.startsWith("/static/") || url.pathname.endsWith(".apk")) return;
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const refreshed = fetch(event.request).then((response) => {
