@@ -25,6 +25,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Fetch and verify complete signed APK
+        run: |
+          curl -L --fail --retry 3 \
+            https://github.com/shankyzzup1601/minddeck-ai-flashcards/releases/download/minddeck-android-v1.1.0/MindDeck.apk \
+            -o apk-download-site/MindDeck.apk
+          test "$(stat -c%s apk-download-site/MindDeck.apk)" -eq 3676243
+          echo "afce9158701e6eb33429141aa81e1f4806c2757cb1d66282ae049edb46b39007  apk-download-site/MindDeck.apk" | sha256sum -c -
       - uses: actions/configure-pages@v5
         with:
           enablement: true
