@@ -809,6 +809,35 @@ class MindDeckSecurityTests(unittest.TestCase):
         cookies = "\n".join(response.headers.getlist("Set-Cookie"))
         self.assertGreaterEqual(cookies.count("Max-Age=0"), 2)
 
+    def test_fresh_android_install_clears_existing_browser_session(self):
+        self.client.set_cookie("__Host-minddeck_access", "a" * 128, domain="minddeck.test")
+        self.client.set_cookie("__Host-minddeck_refresh", "r" * 64, domain="minddeck.test")
+        response = self.client.get(
+            "/api/auth/app/fresh-install",
+            base_url=self.base_url,
+            headers={
+                "User-Agent": "MindDeck Android Trusted Web Activity",
+                "Sec-Fetch-Site": "none",
+                "X-Forwarded-Proto": "https",
+            },
+        )
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["Location"], "/?fresh-install=complete")
+        cookies = "\n".join(response.headers.getlist("Set-Cookie"))
+        self.assertGreaterEqual(cookies.count("Max-Age=0"), 3)
+
+    def test_fresh_install_reset_rejects_cross_site_browser_requests(self):
+        response = self.client.get(
+            "/api/auth/app/fresh-install",
+            base_url=self.base_url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Linux; Android 15)",
+                "Sec-Fetch-Site": "cross-site",
+                "X-Forwarded-Proto": "https",
+            },
+        )
+        self.assertEqual(response.status_code, 403)
+
     def test_mutating_requests_require_csrf_and_same_origin(self):
         _home, csrf = self.home()
         missing = self.client.post(

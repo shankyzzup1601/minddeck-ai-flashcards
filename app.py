@@ -1185,6 +1185,19 @@ def auth_signout():
     return response
 
 
+@app.get("/api/auth/app/fresh-install")
+def auth_app_fresh_install():
+    """Require authentication again after the Android APK is reinstalled."""
+    fetch_site = request.headers.get("Sec-Fetch-Site", "").lower()
+    user_agent = request.headers.get("User-Agent", "")
+    if "Android" not in user_agent or fetch_site not in {"none", "same-origin"}:
+        return jsonify(error="This reset is available only during Android app launch."), 403
+    response = redirect("/?fresh-install=complete", code=303)
+    clear_auth_cookies(response)
+    clear_oauth_cookie(response)
+    return response
+
+
 @app.get("/api/deck")
 def cloud_deck():
     if not auth_ready():
