@@ -1958,10 +1958,7 @@ def health():
 @app.get("/download/MindDeck.apk")
 def download_android_apk():
     """Keep one clean URL while the static APK host serves the file directly."""
-    response = redirect(
-        "https://shankyzzup1601.github.io/minddeck-ai-flashcards/MindDeck.apk?v=1.2.0",
-        code=302,
-    )
+    response = redirect("/static/MindDeck.apk?v=1.2.0", code=302)
     response.headers["Cache-Control"] = "no-store, max-age=0"
     response.headers["Pragma"] = "no-cache"
     return response

@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -32,6 +32,14 @@ jobs:
             -o apk-download-site/MindDeck.apk
           test "$(stat -c%s apk-download-site/MindDeck.apk)" -eq 3676255
           echo "a0467a6b55da182d1abb0bc1aa360d4577ae6f7f5d196259457c9ef3fef6aa14  apk-download-site/MindDeck.apk" | sha256sum -c -
+      - name: Publish APK on the MindDeck domain
+        run: |
+          cp apk-download-site/MindDeck.apk static/MindDeck.apk
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add static/MindDeck.apk
+          git diff --cached --quiet || git commit -m "Host verified APK directly on MindDeck"
+          git push
       - uses: actions/configure-pages@v5
         with:
           enablement: true
