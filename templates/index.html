@@ -943,6 +943,7 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 /* END MOBILE PREMIUM POLISH */
 </style>
 <link rel="stylesheet" href="/static/mobile-reference.css?v=12">
+<link rel="stylesheet" href="/static/mcq-test.css?v=1">
 </head>
 <body data-workspace="home">
 <div id="splash-screen" role="dialog" aria-modal="true" aria-label="MindDeck is loading">
@@ -1645,6 +1646,23 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
 </div>
 </article>
 <article class="panel" id="studyPanel">
+<section class="mcqTestCenter" id="mcqTestCenter" aria-label="Class 12 MCQ test center">
+<div class="mcqLaunch" id="mcqLaunch">
+<span class="mcqEyebrow">CLASS 12 · FULL MOCK TEST</span><h2>Test your exam readiness.</h2>
+<p>180 stream-specific MCQs with 2 minutes per question and a 360-minute full-paper timer.</p>
+<div class="mcqPaperMeta"><div><strong id="mcqStreamName">PCB</strong><small>Selected stream</small></div><div><strong>180</strong><small>Questions</small></div><div><strong>360 min</strong><small>Exam time</small></div></div>
+<div class="mcqSections" id="mcqSections"></div>
+<button class="mcqPrimary" id="mcqStart" type="button">Start full test →</button>
+</div>
+<div class="mcqExam" id="mcqExam" hidden>
+<header class="mcqExamHeader"><div><small id="mcqSubject">Physics</small><strong id="mcqNumber">Question 1 of 180</strong></div><div class="mcqTimers"><span><small>QUESTION</small><b id="mcqQuestionTime">02:00</b></span><span><small>FULL TEST</small><b id="mcqExamTime">360:00</b></span></div></header>
+<progress id="mcqProgress" max="180" value="1"></progress>
+<article class="mcqQuestionCard"><span id="mcqQuestionTag">PHYSICS · Q1</span><h2 id="mcqQuestionText"></h2><div class="mcqOptions" id="mcqOptions"></div></article>
+<div class="mcqExamActions"><button id="mcqPrev" type="button">← Previous</button><button id="mcqPaletteToggle" type="button">Question palette</button><button id="mcqNext" type="button">Next →</button></div>
+<div class="mcqPalette" id="mcqPalette" hidden><div><strong>Question palette</strong><button id="mcqPaletteClose" type="button">×</button></div><section id="mcqPaletteGrid"></section><button class="mcqSubmit" id="mcqSubmit" type="button">Submit test</button></div>
+</div>
+<div class="mcqResult" id="mcqResult" hidden><span>TEST COMPLETE</span><h2 id="mcqScore">0 / 180</h2><p id="mcqResultCopy"></p><div id="mcqBreakdown"></div><button class="mcqPrimary" id="mcqRestart" type="button">Take another test</button></div>
+</section>
 <div class="phead">
 <h3>Study your cards</h3>
 <span>Press Space to show the answer</span>
@@ -2035,6 +2053,7 @@ body:before{background:radial-gradient(circle,#ffffff16 1px,transparent 1.5px);b
   signInText.addEventListener("click", () => enterApp("signin"));
 })();
 </script>
-<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=35"></script>
+<script nonce="{{ csp_nonce }}" type="module" src="/static/app.js?v=36"></script>
+<script nonce="{{ csp_nonce }}" type="module" src="/static/mcq-test.js?v=1"></script>
 </body>
 </html>
