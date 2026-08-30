@@ -181,6 +181,9 @@ test("Google sign-in returns from Chrome to the installed app", () => {
   assert.match(app, /new BroadcastChannel\("minddeck-google-auth-v1"\)/);
   assert.match(app, /apiPost\("\/api\/auth\/google\/start", \{ popup: popupFlow \}\)/);
   assert.match(app, /authWindow\.location\.replace\(authorizationUrl\.href\)/);
+  assert.match(app, /await loadAccount\(\)/);
+  assert.match(app, /if \(authState\.user\) await finishPopupSignIn\("ok"\)/);
+  assert.doesNotMatch(app, /finishPopupSignIn\("error"\)[\s\S]{0,80}1_800/);
   assert.match(app, /authResult === "error" && authState\.user/);
 });
 
