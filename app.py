@@ -1960,7 +1960,7 @@ def download_android_apk():
     """Keep one clean first-party URL while the release host serves APK bytes."""
     return redirect(
         "https://github.com/shankyzzup1601/minddeck-ai-flashcards/releases/"
-        "download/minddeck-android-v1.1.0/MindDeck.apk",
+        "download/minddeck-android-v1.2.0/MindDeck.apk",
         code=302,
     )
 
