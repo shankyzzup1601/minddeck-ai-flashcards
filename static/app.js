@@ -4345,16 +4345,6 @@ loadAccount()
   })
   .finally(loadTimerState);
 if ("serviceWorker" in navigator) {
-  const shellRefreshKey = "minddeck-shell-v38-refreshed";
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
-    try {
-      if (sessionStorage.getItem(shellRefreshKey)) return;
-      sessionStorage.setItem(shellRefreshKey, "1");
-    } catch {
-      // Reloading once is still safe when session storage is unavailable.
-    }
-    window.location.reload();
-  });
   window.addEventListener("load", () => {
     navigator.serviceWorker
       .register("/static/sw.js?v=38", { scope: "/", updateViaCache: "none" })
