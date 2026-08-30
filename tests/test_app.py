@@ -14,6 +14,11 @@ import app as minddeck
 
 
 class MindDeckSecurityTests(unittest.TestCase):
+    def test_fresh_install_flag_is_consumed_once_in_the_browser(self):
+        template = Path("templates/index.html").read_text(encoding="utf-8")
+        self.assertIn('cleanUrl.searchParams.delete("fresh-install")', template)
+        self.assertIn("window.history.replaceState", template)
+
     def test_mobile_account_name_is_stable_while_auth_state_loads(self):
         script = Path("static/app.js").read_text(encoding="utf-8")
         self.assertIn('ACCOUNT_NAME_STORE = "minddeck-last-account-name-v1"', script)
