@@ -168,6 +168,7 @@ let studyStats = defaultStudyStats();
 let plannerTasks = [];
 let timerState = defaultTimerState();
 let timerInterval = null;
+let timerNotificationSecond = null;
 let activeTheme = THEMES[0].key;
 let currentImageUrl = "";
 let hintStep = 0;
@@ -1598,6 +1599,60 @@ function startTimerTicker() {
   timerInterval = timerState.running ? window.setInterval(updateTimerFromClock, 250) : null;
 }
 
+async function closeTimerNotification() {
+  if (!("serviceWorker" in navigator)) return;
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const notifications = await registration.getNotifications({ tag: "minddeck-live-timer" });
+    notifications.forEach((notification) => notification.close());
+  } catch {
+    // Closing the notification is best effort.
+  }
+}
+
+async function syncTimerNotification(force = false) {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  if (!timerState.running && !force) return;
+  if (!force && timerNotificationSecond === timerState.remaining) return;
+  timerNotificationSecond = timerState.remaining;
+  const config = TIMER_MODES[timerState.mode] || TIMER_MODES.focus;
+  const time = formatTimer(timerState.remaining);
+  const title = timerState.running ? `${config.label} · ${time}` : `${config.label} paused · ${time}`;
+  const body = timerState.running ? "MindDeck is keeping your session on track." : "Open MindDeck when you are ready to continue.";
+  try {
+    if ("serviceWorker" in navigator) {
+      const registration = await navigator.serviceWorker.ready;
+      await registration.showNotification(title, {
+        body,
+        tag: "minddeck-live-timer",
+        renotify: false,
+        silent: true,
+        requireInteraction: true,
+        timestamp: timerState.endAt || Date.now(),
+        icon: "/static/minddeck-icon.svg?v=2",
+        badge: "/static/minddeck-icon.svg?v=2",
+        data: { url: "/", timer: true },
+      });
+    } else {
+      new Notification(title, { body, tag: "minddeck-live-timer", silent: true });
+    }
+  } catch {
+    // The on-screen timer continues even if the browser blocks live updates.
+  }
+}
+
+async function enableTimerNotification() {
+  if (!("Notification" in window)) return;
+  let permission = Notification.permission;
+  if (permission === "default") permission = await Notification.requestPermission();
+  updateNotificationPermissionUI();
+  if (permission === "granted") {
+    saveNotificationState({ ...notificationState(), enabled: true, enabledAt: Date.now() });
+    timerNotificationSecond = null;
+    syncTimerNotification(true);
+  }
+}
+
 function loadTimerState() {
   window.clearInterval(timerInterval);
   timerInterval = null;
@@ -1659,6 +1714,12 @@ function completeTimer() {
   storeTimerState();
   if (config.isFocus) recordFocusSession(timerState.duration);
   else renderStudyWidgets();
+  timerNotificationSecond = null;
+  showStudyNotification(
+    config.isFocus ? "Focus session complete ✨" : "Break complete",
+    config.isFocus ? "Your focused minutes were saved to MindDeck." : "Ready for your next focus session?",
+    "minddeck-live-timer"
+  );
   toast(config.isFocus ? `${config.label} complete · progress saved` : "Break complete · ready to focus");
 }
 
@@ -1669,7 +1730,10 @@ function updateTimerFromClock() {
     Math.max(0, Math.ceil((timerState.endAt - Date.now()) / 1000))
   );
   if (timerState.remaining === 0) completeTimer();
-  else renderStudyWidgets();
+  else {
+    renderStudyWidgets();
+    syncTimerNotification();
+  }
 }
 
 function toggleTimer() {
@@ -1681,11 +1745,13 @@ function toggleTimer() {
     timerState.running = false;
     timerState.endAt = 0;
     startTimerTicker();
+    syncTimerNotification(true);
   } else {
     if (timerState.remaining <= 0) timerState.remaining = timerState.duration;
     timerState.running = true;
     timerState.endAt = Date.now() + timerState.remaining * 1000;
     startTimerTicker();
+    enableTimerNotification();
   }
   storeTimerState();
   renderStudyWidgets();
@@ -1697,6 +1763,8 @@ function resetTimer() {
   startTimerTicker();
   storeTimerState();
   renderStudyWidgets();
+  timerNotificationSecond = null;
+  closeTimerNotification();
 }
 
 function selectTimerMode(mode) {
@@ -1705,6 +1773,8 @@ function selectTimerMode(mode) {
   startTimerTicker();
   storeTimerState();
   renderStudyWidgets();
+  timerNotificationSecond = null;
+  closeTimerNotification();
 }
 
 function changeDailyGoal(delta) {
@@ -4507,7 +4577,7 @@ loadAccount()
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("/static/sw.js?v=47", { scope: "/", updateViaCache: "none" })
+      .register("/static/sw.js?v=48", { scope: "/", updateViaCache: "none" })
       .then((registration) => registration.update())
       .catch(() => {});
   });
