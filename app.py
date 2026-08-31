@@ -1965,6 +1965,7 @@ def download_android_apk():
 
 
 @app.get("/static/MindDeck-Android.apk")
+@app.get("/api/download")
 def direct_android_download():
     """Serve the APK as an attachment, including HEAD and resumable byte ranges."""
     return send_from_directory(
@@ -2043,7 +2044,7 @@ def secure_response(response):
         response.headers["Cache-Control"] = "no-cache"
         response.headers["Service-Worker-Allowed"] = "/"
 
-    if request.path in {"/static/MindDeck.apk", "/static/MindDeck-Android.apk"} and response.status_code in {200, 206, 304}:
+    if request.path in {"/static/MindDeck.apk", "/static/MindDeck-Android.apk", "/api/download"} and response.status_code in {200, 206, 304}:
         response.headers["Content-Type"] = "application/vnd.android.package-archive"
         response.headers["Content-Disposition"] = 'attachment; filename="MindDeck-Android.apk"'
         response.headers["Cache-Control"] = "no-store, no-transform"

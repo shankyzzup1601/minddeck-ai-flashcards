@@ -102,7 +102,7 @@ class MindDeckSecurityTests(unittest.TestCase):
 
     def test_direct_apk_download_headers_bytes_and_resume(self):
         apk = Path("static/MindDeck.apk").read_bytes()
-        for path in ("/static/MindDeck.apk", "/static/MindDeck-Android.apk"):
+        for path in ("/static/MindDeck.apk", "/static/MindDeck-Android.apk", "/api/download"):
             response = self.client.get(path, base_url=self.base_url)
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.data, apk)
