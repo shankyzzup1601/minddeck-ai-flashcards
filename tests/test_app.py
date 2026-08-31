@@ -162,6 +162,10 @@ class MindDeckSecurityTests(unittest.TestCase):
         )
         self.assertEqual(statement["target"]["package_name"], "com.minddeck.app")
         self.assertIn(
+            "B8:BC:65:E4:27:B0:47:9C:F1:29:1D:A5:89:B5:56:05:AF:AA:54:62:F0:77:BD:51:F1:A9:98:DE:83:DC:36:2A",
+            statement["target"]["sha256_cert_fingerprints"],
+        )
+        self.assertIn(
             "72:97:3B:C1:B0:FF:5B:24:99:B1:11:85:C6:0A:FD:64:0A:45:35:39:34:35:6F:F4:C6:AC:7D:9B:95:F3:FA:F7",
             statement["target"]["sha256_cert_fingerprints"],
         )
