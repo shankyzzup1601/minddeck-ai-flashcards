@@ -5,13 +5,30 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Rule
 import org.junit.Test
+import org.junit.After
+import org.junit.rules.TestName
+import androidx.lifecycle.ViewModelProvider
+import android.graphics.Bitmap
+import java.io.File
 import org.junit.Assert.*
 
 class NativeUiTest {
     @get:Rule val compose=createAndroidComposeRule<MainActivity>()
+    @get:Rule val testName=TestName()
+    @After fun captureUiForReview() {
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val folder=File(context.getExternalFilesDir(null),"screenshots").apply {mkdirs()}
+        InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()?.let { bitmap ->
+            File(folder,"${testName.methodName}.png").outputStream().use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
+            bitmap.recycle()
+        }
+    }
     private fun onboard() {
-        compose.waitUntil(20000) {compose.onAllNodesWithText("Let's begin  →").fetchSemanticsNodes().isNotEmpty() || compose.onAllNodesWithText("Home").fetchSemanticsNodes().isNotEmpty()}
-        if(compose.onAllNodesWithText("Let's begin  →").fetchSemanticsNodes().isNotEmpty()) compose.onNodeWithText("Let's begin  →").performScrollTo().performClick()
+        compose.waitUntil(20000) {compose.onAllNodesWithText("A calmer way\nto study.").fetchSemanticsNodes().isNotEmpty() || compose.onAllNodesWithText("Home").fetchSemanticsNodes().isNotEmpty()}
+        if(compose.onAllNodesWithText("A calmer way\nto study.").fetchSemanticsNodes().isNotEmpty()) {
+            compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Let's begin  →"))
+            compose.onNodeWithText("Let's begin  →").performClick()
+        }
         compose.onNodeWithText("Home").assertExists()
     }
     @Test fun navigationAndRecreationRemainUsable() {
@@ -24,8 +41,10 @@ class NativeUiTest {
     }
     @Test fun timerPauseResumeAndRecreate() {
         onboard();compose.onNodeWithText("Focus",useUnmergedTree=true).performClick()
-        compose.onNodeWithText("Start focus").performScrollTo().performClick()
-        compose.waitUntil(5000) { compose.onAllNodesWithText("24:59").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Start focus"))
+        compose.onNodeWithText("Start focus").performClick()
+        val model=ViewModelProvider(compose.activity)[StudyViewModel::class.java]
+        compose.waitUntil(5000) { model.state.value.timer.remaining < 1500 }
         compose.onNodeWithText("Pause session").performScrollTo().performClick()
         compose.onNodeWithText("Resume session").assertExists()
         compose.activityRule.scenario.recreate()

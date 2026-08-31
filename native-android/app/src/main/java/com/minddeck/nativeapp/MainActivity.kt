@@ -262,7 +262,7 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {"Physics"
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(22.dp),verticalArrangement=Arrangement.spacedBy(26.dp),horizontalAlignment=Alignment.CenterHorizontally) {
         item {PageHeader("Find your focus","One task is enough for now.")}
         item {Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {listOf(10,25,50).forEach {minutes -> FilterChip(selected=timer.duration==minutes*60,onClick={if(timer.running||timer.paused) reset=true else vm.resetTimer(minutes)},label={Text("$minutes min")},enabled=!timer.running&&!timer.paused)}}}
-        item {Box(Modifier.fillMaxWidth().aspectRatio(1f).padding(20.dp),contentAlignment=Alignment.Center) {
+        item {Box(Modifier.widthIn(max=280.dp).fillMaxWidth().aspectRatio(1f).padding(20.dp),contentAlignment=Alignment.Center) {
             CircularProgressIndicator(progress={(timer.duration-timer.remaining).toFloat()/timer.duration},modifier=Modifier.fillMaxSize(),color=Lime,trackColor=Panel,strokeWidth=8.dp)
             Column(horizontalAlignment=Alignment.CenterHorizontally) {Text("%02d:%02d".format(timer.remaining/60,timer.remaining%60),fontSize=54.sp,fontWeight=FontWeight.Light);Text(when {timer.running->"FOCUSING";timer.paused->"PAUSED";timer.remaining==0->"COMPLETE";else->"READY WHEN YOU ARE"},fontSize=12.sp,letterSpacing=2.sp,color=Muted,modifier=Modifier.padding(top=10.dp))}
         }}

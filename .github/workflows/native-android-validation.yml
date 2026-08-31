@@ -40,7 +40,7 @@ jobs:
     timeout-minutes: 35
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 5
       matrix:
         round: [1, 2, 3, 4, 5]
     steps:
@@ -69,7 +69,10 @@ jobs:
             if [ '${{ matrix.round }}' = '3' ]; then adb shell svc wifi disable; adb shell svc data disable; fi
             if [ '${{ matrix.round }}' = '4' ]; then adb shell settings put system accelerometer_rotation 0; adb shell settings put system user_rotation 1; fi
             if [ '${{ matrix.round }}' = '5' ]; then adb shell settings put global always_finish_activities 1; fi
-            gradle -p native-android connectedDebugAndroidTest
+            result=0
+            gradle -p native-android connectedDebugAndroidTest || result=$?
+            adb pull /sdcard/Android/data/com.minddeck.nativeapp/files/screenshots native-android/app/build/reports/screenshots || true
+            exit "$result"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
