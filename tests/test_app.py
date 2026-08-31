@@ -76,7 +76,7 @@ class MindDeckSecurityTests(unittest.TestCase):
         self.client.set_cookie("__Host-minddeck_access", "a" * 128, domain="minddeck.test")
         self.client.set_cookie("__Host-minddeck_refresh", "r" * 64, domain="minddeck.test")
         response = self.client.get(
-            "/?fresh-install=android-v2",
+            "/?fresh-install=android-v3",
             base_url=self.base_url,
             headers={
                 "User-Agent": "Mozilla/5.0 (Linux; Android 15) MindDeck",

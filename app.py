@@ -889,7 +889,7 @@ def unlocked_provider() -> str | None:
 def home():
     g.csp_nonce = secrets.token_urlsafe(18)
     fresh_android_install = (
-        request.args.get("fresh-install") == "android-v2"
+        request.args.get("fresh-install") in {"android-v2", "android-v3"}
         and "Android" in request.headers.get("User-Agent", "")
     )
     existing_csrf = request.cookies.get(csrf_cookie_name(), "")
