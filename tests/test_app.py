@@ -121,6 +121,25 @@ class MindDeckSecurityTests(unittest.TestCase):
             self.assertEqual(partial.headers["Content-Range"], f"bytes 100-199/{len(apk)}")
             partial.close()
 
+    def test_download_api_missing_file_returns_json(self):
+        with patch.object(minddeck.os.path, "isfile", return_value=False):
+            response = self.client.get("/api/download", base_url=self.base_url)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json, {"error": "APK not found"})
+
+    def test_download_api_hides_internal_error_details(self):
+        with patch.object(minddeck.os.path, "isfile", return_value=True), patch.object(
+            minddeck, "send_file", side_effect=OSError("private filesystem detail")
+        ), self.assertLogs(minddeck.app.logger, level="ERROR"):
+            response = self.client.get("/api/download", base_url=self.base_url)
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json, {"error": "APK download temporarily unavailable"})
+
+    def test_download_api_keeps_invalid_range_status(self):
+        response = self.client.get("/api/download", base_url=self.base_url,
+                                   headers={"Range": "bytes=999999999-"})
+        self.assertEqual(response.status_code, 416)
+
     def test_android_asset_links_verify_published_apk(self):
         response = self.client.get(
             "/.well-known/assetlinks.json",

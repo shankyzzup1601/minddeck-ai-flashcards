@@ -13,7 +13,7 @@ from collections import defaultdict, deque
 from datetime import datetime, timezone
 from urllib.parse import urlencode, urlparse
 
-from flask import Flask, g, jsonify, make_response, redirect, render_template, request, send_from_directory
+from flask import Flask, g, jsonify, make_response, redirect, render_template, request, send_file
 from werkzeug.security import check_password_hash
 
 app = Flask(__name__)
@@ -1968,12 +1968,21 @@ def download_android_apk():
 @app.get("/api/download")
 def direct_android_download():
     """Serve the APK as an attachment, including HEAD and resumable byte ranges."""
-    return send_from_directory(
-        app.static_folder, "MindDeck.apk",
-        mimetype="application/vnd.android.package-archive",
-        as_attachment=True, download_name="MindDeck-Android.apk",
-        conditional=True, max_age=0,
-    )
+    apk_path = os.path.join(os.path.dirname(__file__), "static", "MindDeck.apk")
+    try:
+        if not os.path.isfile(apk_path):
+            return jsonify(error="APK not found"), 404
+        return send_file(
+            apk_path,
+            mimetype="application/vnd.android.package-archive",
+            as_attachment=True, download_name="MindDeck.apk",
+            conditional=True, max_age=0,
+        )
+    except FileNotFoundError:
+        return jsonify(error="APK not found"), 404
+    except OSError:
+        app.logger.exception("APK download failed")
+        return jsonify(error="APK download temporarily unavailable"), 500
 
 
 @app.get("/.well-known/assetlinks.json")
@@ -2046,7 +2055,8 @@ def secure_response(response):
 
     if request.path in {"/static/MindDeck.apk", "/static/MindDeck-Android.apk", "/api/download"} and response.status_code in {200, 206, 304}:
         response.headers["Content-Type"] = "application/vnd.android.package-archive"
-        response.headers["Content-Disposition"] = 'attachment; filename="MindDeck-Android.apk"'
+        filename = "MindDeck.apk" if request.path == "/api/download" else "MindDeck-Android.apk"
+        response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
         response.headers["Cache-Control"] = "no-store, no-transform"
 
     if https_request:
