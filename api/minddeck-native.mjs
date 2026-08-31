@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { getVercelOidcToken } from '@vercel/oidc';
 
 export const config = { maxDuration: 60 };

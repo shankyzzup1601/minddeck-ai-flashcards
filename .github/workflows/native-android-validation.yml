@@ -2,8 +2,11 @@ name: Native Android validation (no publication)
 on:
   push:
     branches: ['native/android-v1']
-    paths: ['native-android/**', 'api/minddeck-native.mjs', '.github/workflows/native-android-validation.yml']
+    paths: ['native-android/**', 'api/minddeck-native.mjs', 'tests/native-backend.test.mjs', '.github/workflows/native-android-validation.yml']
   workflow_dispatch:
+concurrency:
+  group: native-validation-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -20,6 +23,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
+          cache-read-only: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install --ignore-scripts && node --test tests/native-backend.test.mjs
       - run: gradle -p native-android --no-daemon assembleDebug assembleDebugAndroidTest testDebugUnitTest lintDebug
       - uses: actions/upload-artifact@v4
         if: always()
@@ -27,6 +35,7 @@ jobs:
           name: native-validation-reports
           path: native-android/app/build/reports/
   rough-situations:
+    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 35
     strategy:
@@ -43,6 +52,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
+          cache-read-only: false
       - name: Enable KVM for test emulator
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules

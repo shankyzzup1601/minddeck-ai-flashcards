@@ -6,6 +6,8 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.SystemBarStyle
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -45,13 +47,13 @@ private val Panel=Color(0xFF1B2028)
 private val Lime=Color(0xFFCEEFA0)
 private val Lavender=Color(0xFFCDBCFB)
 private val Muted=Color(0xFFA7ADB8)
-private val theme=darkColorScheme(primary=Lime,onPrimary=Ink,secondary=Lavender,background=Ink,surface=Panel,onSurface=Color(0xFFF3F4F6),onBackground=Color(0xFFF3F4F6),surfaceVariant=Color(0xFF242B35),onSurfaceVariant=Muted)
+private val MindDeckColors=darkColorScheme(primary=Lime,onPrimary=Ink,secondary=Lavender,background=Ink,surface=Panel,onSurface=Color(0xFFF3F4F6),onBackground=Color(0xFFF3F4F6),surfaceVariant=Color(0xFF242B35),onSurfaceVariant=Muted)
 
 class MainActivity: ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(statusBarStyle=SystemBarStyle.dark(0xFF101318.toInt()),navigationBarStyle=SystemBarStyle.dark(0xFF101318.toInt()))
-        setContent { MaterialTheme(colorScheme=theme) { MindDeckApp(this) } }
+        setContent { MaterialTheme(colorScheme=MindDeckColors) { MindDeckApp(this) } }
     }
 }
 
@@ -60,6 +62,7 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var composer by rememberSaveable { mutableStateOf(false) }
+    var composerSubject by rememberSaveable { mutableStateOf("") }
     var studyDeck by rememberSaveable { mutableStateOf<String?>(null) }
     var manual by rememberSaveable { mutableStateOf(false) }
     var profileEdit by rememberSaveable { mutableStateOf(false) }
@@ -113,10 +116,10 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
     ) { insets ->
         Box(Modifier.fillMaxSize().padding(insets)) {
             when {
-                composer -> Composer(state,vm,onBack={composer=false},onComplete={composer=false;tab=1},onSignIn={signIn()})
+                composer -> Composer(state,vm,composerSubject,onBack={composer=false},onComplete={composer=false;tab=1},onSignIn={signIn()})
                 studyDeck!=null -> StudyScreen(studyDeck!!,state,vm) {studyDeck=null}
-                tab==0 -> HomeScreen(state,onCreate={composer=true},onStudy={tab=1},onFocus={tab=2},onAccount={tab=3})
-                tab==1 -> LibraryScreen(state,vm,onCreate={composer=true},onManual={manual=true},onStudy={studyDeck=it})
+                tab==0 -> HomeScreen(state,onCreate={composerSubject="";composer=true},onSubject={composerSubject=it;composer=true},onStudy={tab=1},onFocus={tab=2},onAccount={tab=3})
+                tab==1 -> LibraryScreen(state,vm,onCreate={composerSubject="";composer=true},onManual={manual=true},onStudy={studyDeck=it})
                 tab==2 -> FocusScreen(state,vm)
                 else -> AccountScreen(state,signingIn,onSignIn={signIn()},onSignOut={vm.signOut()},onEdit={profileEdit=true},onRetry={vm.refreshConfig()})
             }
@@ -142,7 +145,7 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
 @Composable private fun Metric(value: String,label: String,modifier: Modifier=Modifier) {
     Column(modifier.background(Panel,RoundedCornerShape(18.dp)).padding(16.dp)) {Text(value,fontSize=26.sp,fontWeight=FontWeight.Bold);Text(label,color=Muted,fontSize=13.sp)}
 }
-@Composable private fun HomeScreen(state: StudyUiState,onCreate: () -> Unit,onStudy: () -> Unit,onFocus: () -> Unit,onAccount: () -> Unit) {
+@Composable private fun HomeScreen(state: StudyUiState,onCreate: () -> Unit,onSubject: (String) -> Unit,onStudy: () -> Unit,onFocus: () -> Unit,onAccount: () -> Unit) {
     val due=state.cards.count {it.due <= System.currentTimeMillis()}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(22.dp),verticalArrangement=Arrangement.spacedBy(24.dp)) {
         item { Row(verticalAlignment=Alignment.CenterVertically) {
@@ -158,7 +161,7 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
         item { Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {Metric("${state.cards.size}","Saved cards",Modifier.weight(1f));Metric("${state.focusSeconds/60}","Focus minutes",Modifier.weight(1f))} }
         item {Section("Your subjects","${state.profile.classLevel} · ${state.profile.stream}")}
         items(subjectsFor(state.profile.stream)) { subject ->
-            Row(Modifier.fillMaxWidth().clickable(onClick=onCreate).padding(vertical=4.dp),verticalAlignment=Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().clickable {onSubject(subject)}.padding(vertical=4.dp),verticalAlignment=Alignment.CenterVertically) {
                 Box(Modifier.size(48.dp).background(Lavender.copy(alpha=.12f),RoundedCornerShape(16.dp)),contentAlignment=Alignment.Center) {Icon(subjectIcon(subject),null,tint=Lavender)}
                 Column(Modifier.weight(1f).padding(horizontal=16.dp)) {Text(subject,fontSize=17.sp,fontWeight=FontWeight.SemiBold);Text("${state.cards.count {it.subject==subject}} saved cards",color=Muted,fontSize=13.sp)}
                 Icon(Icons.Rounded.ChevronRight,"Create $subject cards",tint=Muted)
@@ -190,9 +193,9 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {"Physics"
     delete?.let { title -> AlertDialog(onDismissRequest={delete=null},title={Text("Delete this deck?")},text={Text("This removes “$title” from this account on this device. It cannot be undone.")},confirmButton={TextButton(onClick={vm.deleteDeck(title);delete=null}){Text("Delete")}},dismissButton={TextButton(onClick={delete=null}){Text("Keep deck")}}) }
 }
 
-@Composable private fun Composer(state: StudyUiState,vm: StudyViewModel,onBack: () -> Unit,onComplete: () -> Unit,onSignIn: () -> Unit) {
+@Composable private fun Composer(state: StudyUiState,vm: StudyViewModel,initialSubject: String,onBack: () -> Unit,onComplete: () -> Unit,onSignIn: () -> Unit) {
     val subjects=subjectsFor(state.profile.stream)
-    var subject by rememberSaveable {mutableStateOf(subjects.first())}
+    var subject by rememberSaveable(initialSubject) {mutableStateOf(initialSubject.takeIf {it in subjects} ?: subjects.first())}
     var chapter by rememberSaveable {mutableStateOf("")}
     var notes by rememberSaveable {mutableStateOf("")}
     var useNotes by rememberSaveable {mutableStateOf(false)}
@@ -286,5 +289,6 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {"Physics"
 }
 @Composable private fun ManualCardDialog(profile: Profile,vm: StudyViewModel,onDismiss: () -> Unit) {
     var front by rememberSaveable {mutableStateOf("")};var back by rememberSaveable {mutableStateOf("")};var title by rememberSaveable {mutableStateOf("")}
-    AlertDialog(onDismissRequest=onDismiss,title={Text("Add a revision card")},text={Column(verticalArrangement=Arrangement.spacedBy(12.dp)){OutlinedTextField(title,{title=it.take(120)},label={Text("Deck title")});OutlinedTextField(front,{front=it.take(1000)},label={Text("Question")},maxLines=4);OutlinedTextField(back,{back=it.take(3000)},label={Text("Answer")},maxLines=5)}},confirmButton={TextButton(enabled=front.isNotBlank()&&back.isNotBlank(),onClick={vm.addCard(title,subjectsFor(profile.stream).first(),front,back);onDismiss()}){Text("Save card")}},dismissButton={TextButton(onClick=onDismiss){Text("Cancel")}})
+    var subject by rememberSaveable {mutableStateOf(subjectsFor(profile.stream).first())}
+    AlertDialog(onDismissRequest=onDismiss,title={Text("Add a revision card")},text={Column(Modifier.heightIn(max=420.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)){SelectField("Subject",subject,subjectsFor(profile.stream)){subject=it};OutlinedTextField(title,{title=it.take(120)},label={Text("Deck title")});OutlinedTextField(front,{front=it.take(1000)},label={Text("Question")},maxLines=4);OutlinedTextField(back,{back=it.take(3000)},label={Text("Answer")},maxLines=5)}},confirmButton={TextButton(enabled=front.isNotBlank()&&back.isNotBlank(),onClick={vm.addCard(title,subject,front,back);onDismiss()}){Text("Save card")}},dismissButton={TextButton(onClick=onDismiss){Text("Cancel")}})
 }

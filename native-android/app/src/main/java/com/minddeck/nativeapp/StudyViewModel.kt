@@ -96,7 +96,17 @@ class StudyViewModel(application: Application): AndroidViewModel(application) {
         try { return api.request(body,user.accessToken) }
         catch(e: ApiFailure) {
             if(e.status != 401) throw e
-            user=api.session(api.request(JSONObject().put("action","refresh").put("refreshToken",user.refreshToken)))
+            try {
+                user=api.session(api.request(JSONObject().put("action","refresh").put("refreshToken",user.refreshToken)))
+            } catch(refreshError: ApiFailure) {
+                if(refreshError.status == 401) {
+                    withContext(Dispatchers.IO) { vault.clear() }
+                    mutable.update { it.copy(user=null,timer=restoreTimer("guest")) }
+                    reload()
+                    throw ApiFailure(401,"Your Google session expired. Please sign in again. Your account cards have not been deleted.")
+                }
+                throw refreshError
+            }
             withContext(Dispatchers.IO) { vault.save(user) }
             mutable.update { it.copy(user=user) }
             return api.request(body,user.accessToken)
