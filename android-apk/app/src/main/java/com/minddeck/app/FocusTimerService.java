@@ -84,13 +84,16 @@ public class FocusTimerService extends Service {
     }
 
     private Notification buildCountdown(long seconds) {
-        return baseBuilder()
+        NotificationCompat.Builder builder = baseBuilder()
             .setContentText("Stay focused — your timer is running")
             .setWhen(System.currentTimeMillis() + seconds * 1000)
-            .setUsesChronometer(true)
-            .setChronometerCountDown(true)
-            .setOngoing(true)
-            .build();
+            .setOngoing(true);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            builder.setUsesChronometer(true).setChronometerCountDown(true);
+        } else {
+            builder.setContentText("Focus session running — open MindDeck for remaining time");
+        }
+        return builder.build();
     }
 
     private Notification buildPaused(long seconds) {
