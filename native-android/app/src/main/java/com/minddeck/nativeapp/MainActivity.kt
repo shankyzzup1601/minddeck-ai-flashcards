@@ -110,7 +110,7 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
         snackbarHost={ SnackbarHost(snackbar) },
         bottomBar={ if(!composer && studyDeck==null) NavigationBar(containerColor=Ink,tonalElevation=0.dp) {
             listOf("Home" to Icons.Rounded.Home,"Library" to Icons.Rounded.AutoStories,"Focus" to Icons.Rounded.Timer,"You" to Icons.Rounded.Person).forEachIndexed { i,(label,icon) ->
-                NavigationBarItem(selected=tab==i,onClick={tab=i},icon={Icon(icon,label)},label={Text(label)},colors=NavigationBarItemDefaults.colors(indicatorColor=Panel,selectedIconColor=Lime,selectedTextColor=Lime))
+                NavigationBarItem(selected=tab==i,onClick={tab=i},icon={Icon(icon,label)},label={Text(label,fontSize=12.sp,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis,textAlign=TextAlign.Center,modifier=Modifier.widthIn(max=72.dp))},colors=NavigationBarItemDefaults.colors(indicatorColor=Panel,selectedIconColor=Lime,selectedTextColor=Lime))
             }
         } }
     ) { insets ->
