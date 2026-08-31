@@ -25,7 +25,11 @@ jobs:
         with:
           gradle-version: "8.11.1"
       - name: Compile and lint Android startup changes
-        run: gradle -p android-apk --no-daemon assembleDebug lintDebug
+        run: |
+          gradle -p android-apk --no-daemon assembleDebug lintDebug || {
+            cat android-apk/app/build/intermediates/lint_intermediate_text_report/debug/lintReportDebug/lint-results-debug.txt
+            exit 1
+          }
       - name: Require permanent release signing
         env:
           KEYSTORE: ${{ secrets.MINDDECK_KEYSTORE_BASE64 }}

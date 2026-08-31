@@ -5,6 +5,8 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.Manifest;
+import android.content.pm.PackageManager;
 import android.content.Intent;
 import android.os.Build;
 import android.os.IBinder;
@@ -42,19 +44,28 @@ public class FocusTimerService extends Service {
             return START_STICKY;
         }
         if (ACTION_PAUSE.equals(action) && seconds > 0) {
-            getSystemService(NotificationManager.class).notify(NOTIFICATION_ID, buildPaused(seconds));
+            notifyIfAllowed(buildPaused(seconds));
             return START_NOT_STICKY;
         }
         if (ACTION_COMPLETE.equals(action)) {
-            stopForeground(STOP_FOREGROUND_REMOVE);
-            getSystemService(NotificationManager.class).notify(NOTIFICATION_ID, buildComplete());
+            stopForeground(true);
+            notifyIfAllowed(buildComplete());
             stopSelf();
             return START_NOT_STICKY;
         }
-        stopForeground(STOP_FOREGROUND_REMOVE);
+        stopForeground(true);
         getSystemService(NotificationManager.class).cancel(NOTIFICATION_ID);
         stopSelf();
         return START_NOT_STICKY;
+    }
+
+    private void notifyIfAllowed(Notification notification) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        getSystemService(NotificationManager.class).notify(NOTIFICATION_ID, notification);
     }
 
     private NotificationCompat.Builder baseBuilder() {
