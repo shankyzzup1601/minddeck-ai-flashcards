@@ -116,7 +116,7 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
     ) { insets ->
         Box(Modifier.fillMaxSize().padding(insets)) {
             when {
-                composer -> Composer(state,vm,composerSubject,onBack={composer=false},onComplete={composer=false;tab=1},onSignIn={signIn()})
+                composer -> Composer(state,vm,composerSubject,onBack={composer=false},onComplete={if(composer){composer=false;tab=1}},onSignIn={signIn()})
                 studyDeck!=null -> StudyScreen(studyDeck!!,state,vm) {studyDeck=null}
                 tab==0 -> HomeScreen(state,onCreate={composerSubject="";composer=true},onSubject={composerSubject=it;composer=true},onStudy={tab=1},onFocus={tab=2},onAccount={tab=3})
                 tab==1 -> LibraryScreen(state,vm,onCreate={composerSubject="";composer=true},onManual={manual=true},onStudy={studyDeck=it})
