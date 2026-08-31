@@ -66,7 +66,7 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
     var studyDeck by rememberSaveable { mutableStateOf<String?>(null) }
     var manual by rememberSaveable { mutableStateOf(false) }
     var profileEdit by rememberSaveable { mutableStateOf(false) }
-    var signingIn by rememberSaveable { mutableStateOf(false) }
+    var signingIn by remember { mutableStateOf(false) }
     val scope=rememberCoroutineScope()
     val snackbar=remember { SnackbarHostState() }
     LaunchedEffect(state.error,state.info) {
