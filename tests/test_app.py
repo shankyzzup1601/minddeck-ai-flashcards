@@ -116,6 +116,14 @@ class MindDeckSecurityTests(unittest.TestCase):
             self.assertEqual(int(head.headers["Content-Length"]), len(apk))
             head.close()
             partial = self.client.get(path, base_url=self.base_url, headers={"Range": "bytes=100-199"})
+            if path == "/api/download":
+                self.assertEqual(partial.status_code, 200)
+                self.assertEqual(partial.data, apk)
+                self.assertNotIn("Content-Range", partial.headers)
+                self.assertEqual(partial.headers["Cache-Control"], "no-cache, no-store, must-revalidate")
+                self.assertEqual(partial.headers["Pragma"], "no-cache")
+                partial.close()
+                continue
             self.assertEqual(partial.status_code, 206)
             self.assertEqual(partial.data, apk[100:200])
             self.assertEqual(partial.headers["Content-Range"], f"bytes 100-199/{len(apk)}")
@@ -128,17 +136,18 @@ class MindDeckSecurityTests(unittest.TestCase):
         self.assertEqual(response.json, {"error": "APK not found"})
 
     def test_download_api_hides_internal_error_details(self):
-        with patch.object(minddeck.os.path, "isfile", return_value=True), patch.object(
-            minddeck, "send_file", side_effect=OSError("private filesystem detail")
+        with patch.object(minddeck.os.path, "isfile", return_value=True), patch(
+            "builtins.open", side_effect=OSError("private filesystem detail")
         ), self.assertLogs(minddeck.app.logger, level="ERROR"):
             response = self.client.get("/api/download", base_url=self.base_url)
         self.assertEqual(response.status_code, 500)
         self.assertEqual(response.json, {"error": "APK download temporarily unavailable"})
 
-    def test_download_api_keeps_invalid_range_status(self):
+    def test_download_api_ignores_ranges_for_full_buffered_response(self):
         response = self.client.get("/api/download", base_url=self.base_url,
                                    headers={"Range": "bytes=999999999-"})
-        self.assertEqual(response.status_code, 416)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, Path("static/MindDeck.apk").read_bytes())
 
     def test_android_asset_links_verify_published_apk(self):
         response = self.client.get(
