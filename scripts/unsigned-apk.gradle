@@ -1,0 +1,4 @@
+// Only used by the separate unsigned-artifact workflow.
+gradle.projectsEvaluated {
+    gradle.rootProject.project(':app').android.buildTypes.release.signingConfig = null
+}
