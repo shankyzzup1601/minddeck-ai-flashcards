@@ -80,7 +80,7 @@ class StudyViewModel(application: Application): AndroidViewModel(application) {
     fun signIn(idToken: String, nonce: String) = task {
         val session = api.session(api.request(JSONObject().put("action","signIn").put("idToken",idToken).put("nonce",nonce)))
         withContext(Dispatchers.IO) { vault.save(session) }
-        mutable.update { it.copy(user=session,timer=restoreTimer(session.id),info="Signed in securely. Your study space is ready.") }
+        mutable.update { it.copy(user=session,cards=emptyList(),focusSeconds=0,timer=restoreTimer(session.id),info="Signed in securely. Your study space is ready.") }
         reload()
     }
     fun signOut() = task {
@@ -88,7 +88,7 @@ class StudyViewModel(application: Application): AndroidViewModel(application) {
         // Clearing local credentials succeeds even when the server cannot be reached.
         if(user != null) runCatching { api.request(JSONObject().put("action","signOut"),user.accessToken) }
         withContext(Dispatchers.IO) { vault.clear() }
-        mutable.update { it.copy(user=null,timer=restoreTimer("guest"),info="Signed out. Account cards stay private on this device.") }
+        mutable.update { it.copy(user=null,cards=emptyList(),focusSeconds=0,timer=restoreTimer("guest"),info="Signed out. Account cards stay private on this device.") }
         reload()
     }
     private suspend fun authenticatedRequest(body: JSONObject): JSONObject {
@@ -101,7 +101,7 @@ class StudyViewModel(application: Application): AndroidViewModel(application) {
             } catch(refreshError: ApiFailure) {
                 if(refreshError.status == 401) {
                     withContext(Dispatchers.IO) { vault.clear() }
-                    mutable.update { it.copy(user=null,timer=restoreTimer("guest")) }
+                    mutable.update { it.copy(user=null,cards=emptyList(),focusSeconds=0,timer=restoreTimer("guest")) }
                     reload()
                     throw ApiFailure(401,"Your Google session expired. Please sign in again. Your account cards have not been deleted.")
                 }
