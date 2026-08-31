@@ -1,0 +1,27 @@
+{
+  "name": "minddeck-ai-desktop",
+  "version": "1.0.0",
+  "description": "MindDeck AI desktop app",
+  "main": "main.js",
+  "scripts": {
+    "dist:win": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^32.1.2",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "app.minddeck.desktop",
+    "productName": "MindDeck AI",
+    "win": {
+      "target": "nsis",
+      "artifactName": "MindDeck-AI-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}
