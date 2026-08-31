@@ -64,15 +64,7 @@ jobs:
           arch: x86_64
           profile: pixel_2
           disable-animations: true
-          script: |
-            if [ '${{ matrix.round }}' = '2' ]; then adb shell settings put system font_scale 1.5; fi
-            if [ '${{ matrix.round }}' = '3' ]; then adb shell svc wifi disable; adb shell svc data disable; fi
-            if [ '${{ matrix.round }}' = '4' ]; then adb shell settings put system accelerometer_rotation 0; adb shell settings put system user_rotation 1; fi
-            if [ '${{ matrix.round }}' = '5' ]; then adb shell settings put global always_finish_activities 1; fi
-            result=0
-            gradle -p native-android connectedDebugAndroidTest || result=$?
-            adb pull /sdcard/Android/data/com.minddeck.nativeapp/files/screenshots native-android/app/build/reports/screenshots || true
-            exit "$result"
+          script: bash native-android/run-device-tests.sh '${{ matrix.round }}'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
