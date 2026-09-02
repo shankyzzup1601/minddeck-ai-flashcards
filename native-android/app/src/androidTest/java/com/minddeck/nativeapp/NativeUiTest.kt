@@ -39,6 +39,19 @@ class NativeUiTest {
         compose.activityRule.scenario.recreate()
         compose.onNodeWithText("Home").assertExists()
     }
+    @Test fun primaryActionsRemainReachableOnLongPages() {
+        onboard()
+        compose.onNodeWithText("Library",useUnmergedTree=true).performClick()
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("✨  Create with AI"))
+        compose.onNodeWithText("✨  Create with AI").assertIsDisplayed().performClick()
+        compose.onNodeWithText("Create a deck").assertExists()
+        val primaryAction=hasText("Continue with Google") or hasText("Create revision cards")
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(primaryAction)
+        compose.onNode(primaryAction).assertIsDisplayed()
+        compose.onNodeWithContentDescription("Go back").performClick()
+        compose.onNodeWithText("Library",useUnmergedTree=true).assertExists()
+    }
+
     @Test fun timerPauseResumeAndRecreate() {
         onboard();compose.onNodeWithText("Focus",useUnmergedTree=true).performClick()
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Start focus"))
