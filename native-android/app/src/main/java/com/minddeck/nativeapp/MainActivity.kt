@@ -70,7 +70,11 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
     val scope=rememberCoroutineScope()
     val snackbar=remember { SnackbarHostState() }
     LaunchedEffect(state.error,state.info) {
-        (state.error ?: state.info)?.let { snackbar.showSnackbar(it,duration=SnackbarDuration.Long); vm.clearMessage() }
+        val message=state.error ?: state.info
+        if(message!=null) {
+            snackbar.showSnackbar(message,duration=if(state.error!=null) SnackbarDuration.Long else SnackbarDuration.Short)
+            vm.clearMessage()
+        }
     }
     BackHandler(composer || studyDeck != null || tab != 0) { when { composer -> composer=false; studyDeck != null -> studyDeck=null; else -> tab=0 } }
     fun signIn() {
@@ -107,7 +111,7 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
     }
     Scaffold(
         containerColor=Ink,
-        snackbarHost={ SnackbarHost(snackbar) },
+        snackbarHost={ SnackbarHost(snackbar,modifier=Modifier.padding(horizontal=12.dp,vertical=8.dp)) },
         bottomBar={ if(!composer && studyDeck==null) NavigationBar(containerColor=Ink,tonalElevation=0.dp) {
             listOf("Home" to Icons.Rounded.Home,"Library" to Icons.Rounded.AutoStories,"Focus" to Icons.Rounded.Timer,"You" to Icons.Rounded.Person).forEachIndexed { i,(label,icon) ->
                 NavigationBarItem(selected=tab==i,onClick={tab=i},icon={Icon(icon,label)},label={Text(label,fontSize=12.sp,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis,textAlign=TextAlign.Center,modifier=Modifier.widthIn(max=72.dp))},colors=NavigationBarItemDefaults.colors(indicatorColor=Panel,selectedIconColor=Lime,selectedTextColor=Lime))
@@ -129,15 +133,18 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
 }
 
 @Composable private fun PageHeader(title: String,subtitle: String?=null,back: (() -> Unit)?=null,action: (@Composable () -> Unit)?=null) {
-    Row(Modifier.fillMaxWidth().padding(bottom=8.dp),verticalAlignment=Alignment.CenterVertically) {
-        if(back!=null) IconButton(onClick=back) {Icon(Icons.Rounded.ArrowBack,"Go back")}
-        Column(Modifier.weight(1f)) { Text(title,fontSize=26.sp,fontWeight=FontWeight.Bold); subtitle?.let {Text(it,color=Muted,fontSize=14.sp,modifier=Modifier.padding(top=4.dp))} }
+    Row(Modifier.fillMaxWidth().padding(bottom=8.dp),verticalAlignment=Alignment.Top) {
+        if(back!=null) IconButton(onClick=back,modifier=Modifier.padding(end=8.dp)) {Icon(Icons.Rounded.ArrowBack,"Go back")}
+        Column(Modifier.weight(1f).padding(top=if(back!=null) 6.dp else 0.dp)) {
+            Text(title,fontSize=26.sp,lineHeight=32.sp,fontWeight=FontWeight.Bold)
+            subtitle?.let {Text(it,color=Muted,fontSize=14.sp,lineHeight=20.sp,modifier=Modifier.padding(top=4.dp))}
+        }
         action?.invoke()
     }
 }
-@Composable private fun Pill(text: String,color: Color=Lime) { Surface(color=color.copy(alpha=.12f),shape=RoundedCornerShape(50)) { Text(text,color=color,fontSize=12.sp,fontWeight=FontWeight.SemiBold,modifier=Modifier.padding(horizontal=12.dp,vertical=7.dp)) } }
+@Composable private fun Pill(text: String,color: Color=Lime) { Surface(color=color.copy(alpha=.12f),shape=RoundedCornerShape(50)) { Text(text,color=color,fontSize=12.sp,lineHeight=16.sp,fontWeight=FontWeight.SemiBold,modifier=Modifier.padding(horizontal=12.dp,vertical=7.dp)) } }
 @Composable private fun ActionButton(text: String,onClick: () -> Unit,modifier: Modifier=Modifier,enabled: Boolean=true) {
-    Button(onClick=onClick,enabled=enabled,modifier=modifier.fillMaxWidth().heightIn(min=54.dp),shape=RoundedCornerShape(16.dp)) {Text(text,fontSize=16.sp,fontWeight=FontWeight.Bold,textAlign=TextAlign.Center)}
+    Button(onClick=onClick,enabled=enabled,modifier=modifier.fillMaxWidth().heightIn(min=56.dp),shape=RoundedCornerShape(16.dp),contentPadding=PaddingValues(horizontal=20.dp,vertical=14.dp)) {Text(text,fontSize=16.sp,lineHeight=22.sp,fontWeight=FontWeight.Bold,textAlign=TextAlign.Center)}
 }
 @Composable private fun Section(title: String,subtitle: String?=null) {
     Column {Text(title,fontSize=20.sp,fontWeight=FontWeight.Bold); subtitle?.let {Text(it,color=Muted,fontSize=14.sp,modifier=Modifier.padding(top=4.dp))}}
@@ -147,7 +154,7 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
 }
 @Composable private fun HomeScreen(state: StudyUiState,onCreate: () -> Unit,onSubject: (String) -> Unit,onStudy: () -> Unit,onFocus: () -> Unit,onAccount: () -> Unit) {
     val due=state.cards.count {it.due <= System.currentTimeMillis()}
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(22.dp),verticalArrangement=Arrangement.spacedBy(24.dp)) {
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=22.dp,top=22.dp,end=22.dp,bottom=40.dp),verticalArrangement=Arrangement.spacedBy(24.dp)) {
         item { Row(verticalAlignment=Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) { Text("MINDDECK",color=Lime,fontSize=12.sp,letterSpacing=3.sp,fontWeight=FontWeight.Bold); Text("Hello, ${state.user?.name?.substringBefore(' ') ?: state.profile.name.substringBefore(' ')}",fontSize=26.sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(top=6.dp)) }
             FilledTonalIconButton(onClick=onAccount,modifier=Modifier.size(48.dp)) {Icon(Icons.Rounded.Person,"Your account")}
@@ -161,7 +168,7 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
         item { Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {Metric("${state.cards.size}","Saved cards",Modifier.weight(1f));Metric("${state.focusSeconds/60}","Focus minutes",Modifier.weight(1f))} }
         item {Section("Your subjects","${state.profile.classLevel} · ${state.profile.stream}")}
         items(subjectsFor(state.profile.stream)) { subject ->
-            Row(Modifier.fillMaxWidth().clickable {onSubject(subject)}.padding(vertical=4.dp),verticalAlignment=Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().heightIn(min=64.dp).clickable {onSubject(subject)}.padding(vertical=6.dp),verticalAlignment=Alignment.CenterVertically) {
                 Box(Modifier.size(48.dp).background(Lavender.copy(alpha=.12f),RoundedCornerShape(16.dp)),contentAlignment=Alignment.Center) {Icon(subjectIcon(subject),null,tint=Lavender)}
                 Column(Modifier.weight(1f).padding(horizontal=16.dp)) {Text(subject,fontSize=17.sp,fontWeight=FontWeight.SemiBold);Text("${state.cards.count {it.subject==subject}} saved cards",color=Muted,fontSize=13.sp)}
                 Icon(Icons.Rounded.ChevronRight,"Create $subject cards",tint=Muted)
@@ -178,7 +185,7 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {"Physics"
     var search by rememberSaveable {mutableStateOf("")}
     var delete by rememberSaveable {mutableStateOf<String?>(null)}
     val decks=state.cards.groupBy {it.deck}.map {(title,cards)->DeckSummary(title,cards.first().subject,cards.size,cards.count {it.due<=System.currentTimeMillis()})}.filter {it.title.contains(search,true)||it.subject.contains(search,true)}
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(22.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=22.dp,top=22.dp,end=22.dp,bottom=128.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
         item {PageHeader("Your library","Small decks. Lasting knowledge.")}
         item {ActionButton("✨  Create with AI",onCreate)}
         item {OutlinedTextField(value=search,onValueChange={search=it},label={Text("Search your decks")},leadingIcon={Icon(Icons.Rounded.Search,null)},modifier=Modifier.fillMaxWidth(),singleLine=true,shape=RoundedCornerShape(16.dp))}
@@ -201,9 +208,9 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {"Physics"
     var useNotes by rememberSaveable {mutableStateOf(false)}
     val chapters=vm.chapters(subject)
     LaunchedEffect(subject,state.profile.classLevel) {if(chapter !in chapters) chapter=chapters.firstOrNull().orEmpty()}
-    LazyColumn(Modifier.fillMaxSize().imePadding(),contentPadding=PaddingValues(22.dp),verticalArrangement=Arrangement.spacedBy(20.dp)) {
+    LazyColumn(Modifier.fillMaxSize().imePadding(),contentPadding=PaddingValues(start=22.dp,top=22.dp,end=22.dp,bottom=48.dp),verticalArrangement=Arrangement.spacedBy(20.dp)) {
         item {PageHeader("Create a deck","AI does the drafting. You do the learning.",onBack)}
-        item {Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {FilterChip(selected=!useNotes,onClick={useNotes=false},label={Text("Ready syllabus")});FilterChip(selected=useNotes,onClick={useNotes=true},label={Text("My notes")})}}
+        item {FlowRow(horizontalArrangement=Arrangement.spacedBy(10.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {FilterChip(selected=!useNotes,onClick={useNotes=false},label={Text("Ready syllabus")});FilterChip(selected=useNotes,onClick={useNotes=true},label={Text("My notes")})}}
         item {Pill("${state.profile.classLevel} · ${state.profile.stream}",Lavender)}
         item {SelectField("Subject",subject,subjects) {subject=it}}
         if(useNotes) item {OutlinedTextField(value=notes,onValueChange={notes=it.take(12000)},label={Text("Paste your study notes")},supportingText={Text("${notes.length}/12000 · Sent to MindDeck's AI service when you create.")},modifier=Modifier.fillMaxWidth().heightIn(min=220.dp),minLines=7,shape=RoundedCornerShape(18.dp))}
@@ -222,7 +229,7 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {"Physics"
 @Composable private fun SelectField(label: String,value: String,options: List<String>,onChange: (String)->Unit) {
     var expanded by remember {mutableStateOf(false)}
     ExposedDropdownMenuBox(expanded=expanded,onExpandedChange={expanded=it}) {
-        OutlinedTextField(value=value,onValueChange={},readOnly=true,label={Text(label)},trailingIcon={ExposedDropdownMenuDefaults.TrailingIcon(expanded)},modifier=Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),shape=RoundedCornerShape(16.dp))
+        OutlinedTextField(value=value,onValueChange={},readOnly=true,label={Text(label)},trailingIcon={ExposedDropdownMenuDefaults.TrailingIcon(expanded)},modifier=Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth().heightIn(min=56.dp),shape=RoundedCornerShape(16.dp))
         ExposedDropdownMenu(expanded=expanded,onDismissRequest={expanded=false}) { options.forEach { option -> DropdownMenuItem(text={Text(option)},onClick={onChange(option);expanded=false}) } }
     }
 }
@@ -245,7 +252,7 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {"Physics"
     var reveal by rememberSaveable {mutableStateOf(false)}
     val cards=state.cards.filter {it.deck==deck}
     val card=cards.firstOrNull {it.id !in reviewedIds}
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(22.dp),verticalArrangement=Arrangement.spacedBy(24.dp)) {
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=22.dp,top=22.dp,end=22.dp,bottom=48.dp),verticalArrangement=Arrangement.spacedBy(24.dp)) {
         item {PageHeader("Study session",deck,onBack)}
         item {LinearProgressIndicator(progress={if(cards.isEmpty()) 1f else reviewedIds.size.toFloat()/cards.size},modifier=Modifier.fillMaxWidth(),color=Lime);Text("${reviewedIds.size} of ${cards.size} reviewed",color=Muted,modifier=Modifier.padding(top=10.dp))}
         if(card==null) item {Column(Modifier.fillMaxWidth().padding(vertical=50.dp),horizontalAlignment=Alignment.CenterHorizontally) {Icon(Icons.Rounded.CheckCircle,null,tint=Lime,modifier=Modifier.size(64.dp));Text("Session complete",fontSize=28.sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(vertical=18.dp));Text("Your review progress is saved.",color=Muted);Spacer(Modifier.height(28.dp));ActionButton("Back to library",onBack)}}
@@ -259,9 +266,9 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {"Physics"
 @Composable private fun FocusScreen(state: StudyUiState,vm: StudyViewModel) {
     val timer=state.timer
     var reset by remember {mutableStateOf(false)}
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(22.dp),verticalArrangement=Arrangement.spacedBy(26.dp),horizontalAlignment=Alignment.CenterHorizontally) {
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=22.dp,top=22.dp,end=22.dp,bottom=48.dp),verticalArrangement=Arrangement.spacedBy(26.dp),horizontalAlignment=Alignment.CenterHorizontally) {
         item {PageHeader("Find your focus","One task is enough for now.")}
-        item {Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {listOf(10,25,50).forEach {minutes -> FilterChip(selected=timer.duration==minutes*60,onClick={if(timer.running||timer.paused) reset=true else vm.resetTimer(minutes)},label={Text("$minutes min")},enabled=!timer.running&&!timer.paused)}}}
+        item {FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {listOf(10,25,50).forEach {minutes -> FilterChip(selected=timer.duration==minutes*60,onClick={if(timer.running||timer.paused) reset=true else vm.resetTimer(minutes)},label={Text("$minutes min")},enabled=!timer.running&&!timer.paused)}}}
         item {Box(Modifier.widthIn(max=280.dp).fillMaxWidth().aspectRatio(1f).padding(20.dp),contentAlignment=Alignment.Center) {
             CircularProgressIndicator(progress={(timer.duration-timer.remaining).toFloat()/timer.duration},modifier=Modifier.fillMaxSize(),color=Lime,trackColor=Panel,strokeWidth=8.dp)
             Column(horizontalAlignment=Alignment.CenterHorizontally) {Text("%02d:%02d".format(timer.remaining/60,timer.remaining%60),fontSize=54.sp,fontWeight=FontWeight.Light);Text(when {timer.running->"FOCUSING";timer.paused->"PAUSED";timer.remaining==0->"COMPLETE";else->"READY WHEN YOU ARE"},fontSize=12.sp,letterSpacing=2.sp,color=Muted,modifier=Modifier.padding(top=10.dp))}
@@ -275,7 +282,7 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {"Physics"
 }
 @Composable private fun AccountScreen(state: StudyUiState,signingIn: Boolean,onSignIn: () -> Unit,onSignOut: () -> Unit,onEdit: () -> Unit,onRetry: () -> Unit) {
     var logout by remember {mutableStateOf(false)}
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(22.dp),verticalArrangement=Arrangement.spacedBy(22.dp)) {
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=22.dp,top=22.dp,end=22.dp,bottom=48.dp),verticalArrangement=Arrangement.spacedBy(22.dp)) {
         item {PageHeader("Your space","Built around the way you learn.")}
         item {Row(verticalAlignment=Alignment.CenterVertically) {Box(Modifier.size(64.dp).background(Lavender,CircleShape),contentAlignment=Alignment.Center){Text((state.user?.name ?: state.profile.name).take(1).uppercase(),color=Ink,fontSize=26.sp,fontWeight=FontWeight.Bold)};Column(Modifier.padding(start=16.dp)){Text(state.user?.name ?: state.profile.name,fontSize=23.sp,fontWeight=FontWeight.Bold);Text("${state.profile.classLevel} · ${state.profile.stream}",color=Muted)}}}
         item {OutlinedButton(onClick=onEdit,modifier=Modifier.fillMaxWidth()){Text("Edit study profile")}}
