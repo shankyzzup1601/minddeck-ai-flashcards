@@ -26,20 +26,36 @@ async function supabase(path,{token,body,method='POST'}={}) {
   return upstream(`${url}${path}`,{method,headers:{apikey:key,Authorization:`Bearer ${token||key}`,'Content-Type':'application/json'},...(body ? {body:JSON.stringify(body)} : {})});
 }
 async function geminiGenerate(key,prompt) {
-  const listed=await upstream('https://generativelanguage.googleapis.com/v1beta/models?pageSize=100',{method:'GET',headers:{'x-goog-api-key':key}},15000);
+  const listed=await upstream('https://generativelanguage.googleapis.com/v1beta/models?pageSize=100',{method:'GET',headers:{'x-goog-api-key':key}},10000);
   if(!listed.response.ok) return listed;
   const models=Array.isArray(listed.data?.models)?listed.data.models:[];
   const available=models
     .filter(model=>Array.isArray(model.supportedGenerationMethods)&&model.supportedGenerationMethods.includes('generateContent'))
     .map(model=>String(model.name||'').replace(/^models\//,''))
-    .filter(Boolean);
+    .filter(name=>name&&!/image|live|audio|tts|preview|experimental/i.test(name));
   const configured=(process.env.GEMINI_MODEL||'').trim();
-  const preferred=[configured,'gemini-3.7-flash','gemini-3.6-flash','gemini-3.5-flash-lite','gemini-3.5-flash','gemini-2.5-flash-lite','gemini-2.5-flash'].filter(Boolean);
-  const model=preferred.find(name=>available.includes(name))
-    || available.find(name=>/flash-lite/i.test(name)&&!/image|live|audio|tts|preview/i.test(name))
-    || available.find(name=>/flash/i.test(name)&&!/image|live|audio|tts|preview/i.test(name));
-  if(!model) throw new Failure(503,'No compatible free Gemini text model is available for this API key.');
-  return upstream(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',headers:{'x-goog-api-key':key,'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:.2,maxOutputTokens:5000,responseMimeType:'application/json'}})},45000);
+  const preferred=[configured,'gemini-2.5-flash-lite','gemini-2.5-flash']
+    .filter((name,index,list)=>name&&available.includes(name)&&list.indexOf(name)===index);
+  const fallbacks=available
+    .filter(name=>/flash-lite|flash/i.test(name)&&!preferred.includes(name))
+    .slice(0,2);
+  const candidates=[...preferred,...fallbacks].slice(0,2);
+  if(!candidates.length) throw new Failure(503,'No compatible free Gemini text model is available for this API key.');
+  let lastResult;
+  for(const model of candidates) {
+    try {
+      const result=await upstream(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',headers:{'x-goog-api-key':key,'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:.2,maxOutputTokens:2500,responseMimeType:'application/json'}})},22000);
+      lastResult=result;
+      if(result.response.ok) return result;
+      if(![429,500,502,503,504].includes(result.response.status)) return result;
+      console.warn('Gemini model attempt failed',{model,status:result.response.status});
+    } catch(error) {
+      if(!(error instanceof Failure)||error.status!==502) throw error;
+      console.warn('Gemini model attempt timed out',{model});
+    }
+  }
+  if(lastResult) return lastResult;
+  throw new Failure(502,'AI service timed out. Please try again.');
 }
 function safeSession(data) {
   // Supabase refresh tokens are currently 12 characters. Validate their shape
