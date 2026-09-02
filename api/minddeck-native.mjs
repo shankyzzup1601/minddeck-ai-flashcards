@@ -34,7 +34,7 @@ async function geminiGenerate(key,prompt) {
     .map(model=>String(model.name||'').replace(/^models\//,''))
     .filter(name=>name&&!/image|live|audio|tts|preview|experimental/i.test(name));
   const configured=(process.env.GEMINI_MODEL||'').trim();
-  const preferred=[configured,'gemini-2.5-flash-lite','gemini-2.5-flash']
+  const preferred=[configured,'gemini-3.5-flash-lite','gemini-3.5-flash']
     .filter((name,index,list)=>name&&available.includes(name)&&list.indexOf(name)===index);
   const fallbacks=available
     .filter(name=>/flash-lite|flash/i.test(name)&&!preferred.includes(name))
@@ -48,7 +48,7 @@ async function geminiGenerate(key,prompt) {
       const result=await upstream(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',headers:{'x-goog-api-key':key,'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:.2,maxOutputTokens:1800,responseMimeType:'application/json'}})},48000);
       lastResult=result;
       if(result.response.ok) return result;
-      if(![429,500,502,503,504].includes(result.response.status)) return result;
+      if(![404,429,500,502,503,504].includes(result.response.status)) return result;
       console.warn('Gemini model attempt failed',{model,status:result.response.status});
     } catch(error) {
       if(!(error instanceof Failure)||error.status!==502) throw error;
