@@ -6,8 +6,8 @@ android {
         applicationId = "com.minddeck.nativeapp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0-preview"
+        versionCode = 2
+        versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         val apiBaseUrl = providers.gradleProperty("minddeckApiBaseUrl")
             .getOrElse("https://minddeck-ai-flashcards.vercel.app/api/minddeck-native")
