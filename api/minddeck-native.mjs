@@ -26,7 +26,10 @@ async function supabase(path,{token,body,method='POST'}={}) {
   return upstream(`${url}${path}`,{method,headers:{apikey:key,Authorization:`Bearer ${token||key}`,'Content-Type':'application/json'},...(body ? {body:JSON.stringify(body)} : {})});
 }
 function safeSession(data) {
-  if(!data?.user?.id || !bounded(data.access_token,32,16384) || !bounded(data.refresh_token,16,4096)) throw new Failure(502,'Sign-in did not return a valid session. Please retry.');
+  // Supabase refresh tokens are currently 12 characters. Validate their shape
+  // without rejecting a legitimate session solely because they are shorter
+  // than an access token.
+  if(!data?.user?.id || !bounded(data.access_token,32,16384) || !bounded(data.refresh_token,12,4096)) throw new Failure(502,'Sign-in did not return a valid session. Please retry.');
   return {access_token:data.access_token,refresh_token:data.refresh_token,user:{id:data.user.id,name:String(data.user.user_metadata?.full_name||data.user.user_metadata?.name||'Student').slice(0,80)}};
 }
 async function identity(request) {
@@ -65,7 +68,7 @@ async function generate(body,user) {
     if(result.response.status===429) throw new Failure(429,'AI is busy. Please wait a moment before retrying.');
     throw new Failure(502,'AI could not finish this request. Please try again.');
   }
-  let parsed; try {parsed=JSON.parse(result.data.choices[0].message.content.replace(/^```json\s*|\s*```$/g,''));} catch {throw new Failure(502,'AI returned an unreadable answer. Existing decks were not changed.');}
+  let parsed; try {parsed=JSON.parse(result.data.choices[0].message.content.replace(/^\`\`\`json\s*|\s*\`\`\`$/g,''));} catch {throw new Failure(502,'AI returned an unreadable answer. Existing decks were not changed.');}
   const cards=Array.isArray(parsed.cards)?parsed.cards.filter(c=>bounded(c?.front,1,1000)&&bounded(c?.back,1,3000)).slice(0,20):[];
   if(!cards.length) throw new Failure(502,'AI returned no usable cards. Please retry.');
   return {cards:cards.map(({front,back})=>({front,back}))};
@@ -89,7 +92,7 @@ export default async function handler(request,response) {
       return response.status(200).json(safeSession(result.data));
     }
     if(body.action==='refresh') {
-      if(!bounded(body.refreshToken,16,4096)) throw new Failure(400,'Invalid session.');
+      if(!bounded(body.refreshToken,12,4096)) throw new Failure(400,'Invalid session.');
       const result=await supabase('/auth/v1/token?grant_type=refresh_token',{body:{refresh_token:body.refreshToken}});
       if(!result.response.ok) throw new Failure(401,'Your session expired. Please sign in again.');
       return response.status(200).json(safeSession(result.data));
