@@ -48,7 +48,8 @@ class NativeUiTest {
         val primaryAction=hasText("Continue with Google") or hasText("Create revision cards")
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(primaryAction)
         compose.onNode(primaryAction).assertIsDisplayed()
-        compose.onNodeWithContentDescription("Go back").performClick()
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasContentDescription("Go back"))
+        compose.onNodeWithContentDescription("Go back").assertIsDisplayed().performClick()
         compose.onNodeWithText("Library",useUnmergedTree=true).assertExists()
     }
 
