@@ -73,6 +73,24 @@ test('provider refusal is surfaced without exposing provider credentials',async(
   try {const result=await invoke({action:'generate',subject:'Physics',classLevel:'Class 12',chapter:'Electric Charges'},{authorization:'Bearer '+'x'.repeat(50)});assert.equal(result.code,503);assert.match(result.body.error,/refused access/);assert.doesNotMatch(JSON.stringify(result.body),/test-private|secret provider/);}
   finally {globalThis.fetch=original;}
 });
+test('direct Gemini key stays server-side and returns structured cards',async()=>{
+  process.env.GEMINI_API_KEY='server-only-gemini-key';
+  const original=globalThis.fetch;
+  globalThis.fetch=async(url,options)=>{
+    if(url.endsWith('/auth/v1/user')) return new Response(JSON.stringify({id:'test-user'}),{status:200});
+    if(url.includes('/rpc/')) return new Response('true',{status:200});
+    assert.match(url,/generativelanguage\.googleapis\.com/);
+    assert.equal(options.headers['x-goog-api-key'],'server-only-gemini-key');
+    assert.doesNotMatch(url,/server-only-gemini-key/);
+    return new Response(JSON.stringify({candidates:[{content:{parts:[{text:JSON.stringify({cards:[{front:'What is a semiconductor?',back:'A material with conductivity between a conductor and an insulator.'}]})}]}}]}),{status:200});
+  };
+  try {
+    const result=await invoke({action:'generate',subject:'Physics',classLevel:'Class 12',chapter:'Semiconductor Electronics'},{authorization:'Bearer '+'x'.repeat(50)});
+    assert.equal(result.code,200);
+    assert.equal(result.body.cards.length,1);
+    assert.doesNotMatch(JSON.stringify(result.body),/server-only-gemini-key/);
+  } finally {globalThis.fetch=original;}
+});
 test('malformed generated cards are rejected rather than replacing a deck',async()=>{
   process.env.AI_GATEWAY_API_KEY='test-private-ai-key';
   const original=globalThis.fetch;
