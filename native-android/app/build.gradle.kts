@@ -9,7 +9,9 @@ android {
         versionCode = 1
         versionName = "1.0.0-preview"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("String", "API_BASE_URL", "\"https://minddeck-ai-flashcards.vercel.app/api/minddeck-native\"")
+        val apiBaseUrl = providers.gradleProperty("minddeckApiBaseUrl")
+            .getOrElse("https://minddeck-ai-flashcards.vercel.app/api/minddeck-native")
+        buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
     }
     signingConfigs {
         create("nativeRelease") {
