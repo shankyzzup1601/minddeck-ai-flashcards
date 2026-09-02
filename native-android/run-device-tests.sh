@@ -18,7 +18,7 @@ adb logcat -c
 adb shell am instrument -w -r com.minddeck.nativeapp.test/androidx.test.runner.AndroidJUnitRunner | tee "$reports/instrumentation.txt"
 adb pull /sdcard/Android/data/com.minddeck.nativeapp/files/screenshots "$reports/screenshots" || true
 # Android's instrumentation command may exit zero even when tests fail.
-grep -Eq '^OK \(5 tests\)' "$reports/instrumentation.txt"
+grep -Eq '^OK \(6 tests\)' "$reports/instrumentation.txt"
 if [ "$round" = 5 ]; then
   for attempt in 1 2 3 4 5; do
     adb shell am force-stop com.minddeck.nativeapp
