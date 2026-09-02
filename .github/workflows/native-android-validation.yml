@@ -31,8 +31,7 @@ jobs:
       - run: gradle -p native-android --no-daemon assembleDebug assembleDebugAndroidTest testDebugUnitTest lintDebug
       - name: Package unsigned Preview release for controlled signing
         run: |
-          gradle -p native-android --no-daemon assembleRelease \\
-            -PminddeckApiBaseUrl=https://minddeck-ai-flashcards-git-native-android-v1-shankyzzup1601.vercel.app/api/minddeck-native
+          gradle -p native-android --no-daemon assembleRelease -PminddeckApiBaseUrl=https://minddeck-ai-flashcards-git-native-android-v1-shankyzzup1601.vercel.app/api/minddeck-native
           mkdir -p native-preview-package
           cp native-android/app/build/outputs/apk/release/app-release-unsigned.apk native-preview-package/
           cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" native-preview-package/
