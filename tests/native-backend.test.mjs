@@ -82,6 +82,7 @@ test('direct Gemini key stays server-side and returns structured cards',async()=
     assert.match(url,/generativelanguage\.googleapis\.com/);
     assert.equal(options.headers['x-goog-api-key'],'server-only-gemini-key');
     assert.doesNotMatch(url,/server-only-gemini-key/);
+    if(url.includes('/v1beta/models?pageSize=')) return new Response(JSON.stringify({models:[{name:'models/gemini-3.5-flash-lite',supportedGenerationMethods:['generateContent']}]}),{status:200});
     return new Response(JSON.stringify({candidates:[{content:{parts:[{text:JSON.stringify({cards:[{front:'What is a semiconductor?',back:'A material with conductivity between a conductor and an insulator.'}]})}]}}]}),{status:200});
   };
   try {
