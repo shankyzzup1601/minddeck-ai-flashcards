@@ -38,13 +38,14 @@ async function geminiGenerate(key,prompt) {
     .filter((name,index,list)=>name&&available.includes(name)&&list.indexOf(name)===index);
   const fallbacks=available
     .filter(name=>/flash-lite|flash/i.test(name)&&!preferred.includes(name))
+    .sort((a,b)=>Number(/flash-lite/i.test(b))-Number(/flash-lite/i.test(a)))
     .slice(0,2);
   const candidates=[...preferred,...fallbacks].slice(0,2);
   if(!candidates.length) throw new Failure(503,'No compatible free Gemini text model is available for this API key.');
   let lastResult;
   for(const model of candidates) {
     try {
-      const result=await upstream(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',headers:{'x-goog-api-key':key,'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:.2,maxOutputTokens:2500,responseMimeType:'application/json'}})},22000);
+      const result=await upstream(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',headers:{'x-goog-api-key':key,'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:.2,maxOutputTokens:1800,responseMimeType:'application/json'}})},48000);
       lastResult=result;
       if(result.response.ok) return result;
       if(![429,500,502,503,504].includes(result.response.status)) return result;
