@@ -24,7 +24,14 @@ android {
             }
         }
     }
-    buildTypes { release { isMinifyEnabled = false; signingConfig = signingConfigs.getByName("nativeRelease") } }
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            if (System.getenv("MINDDECK_NATIVE_KEYSTORE") != null) {
+                signingConfig = signingConfigs.getByName("nativeRelease")
+            }
+        }
+    }
     buildFeatures { compose = true; buildConfig = true }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
