@@ -30,6 +30,20 @@ test('Google ID tokens and nonce are verified upstream; failure returns no sessi
   try {const result=await invoke({action:'signIn',idToken:'t'.repeat(150),nonce:'n'.repeat(64)});assert.equal(result.code,401);assert.equal(result.body.access_token,undefined);}
   finally {globalThis.fetch=original;}
 });
+test('valid Supabase sessions with 12-character refresh tokens are accepted',async()=>{
+  const original=globalThis.fetch;
+  globalThis.fetch=async()=>new Response(JSON.stringify({
+    access_token:'a'.repeat(64),
+    refresh_token:'r'.repeat(12),
+    user:{id:'test-user',user_metadata:{name:'Student'}}
+  }),{status:200});
+  try {
+    const result=await invoke({action:'signIn',idToken:'t'.repeat(150),nonce:'n'.repeat(64)});
+    assert.equal(result.code,200);
+    assert.equal(result.body.refresh_token.length,12);
+    assert.equal(result.body.user.id,'test-user');
+  } finally {globalThis.fetch=original;}
+});
 test('oversized notes are refused before quota or AI requests',async()=>{
   const original=globalThis.fetch;let calls=0;
   globalThis.fetch=async()=>{calls++;return new Response(JSON.stringify({id:'test-user'}),{status:200});};
