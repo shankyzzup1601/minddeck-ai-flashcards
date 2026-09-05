@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: ['native/android-v1']
-    paths: ['.github/workflows/publish-native-android.yml']
+    paths: ['native-android/**', '.github/workflows/publish-native-android.yml']
 
 permissions:
   contents: read
