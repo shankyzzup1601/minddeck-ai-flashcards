@@ -175,7 +175,7 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
         item {Section("Your subjects","${state.profile.classLevel} · ${state.profile.stream}")}
         items(subjectsFor(state.profile.stream)) { subject ->
             Row(Modifier.fillMaxWidth().heightIn(min=64.dp).clickable {onSubject(subject)}.padding(vertical=6.dp),verticalAlignment=Alignment.CenterVertically) {
-                Box(Modifier.size(52.dp).background(Brush.linearGradient(listOf(Lavender.copy(alpha=.22f),Lime.copy(alpha=.08f))),RoundedCornerShape(18.dp)),contentAlignment=Alignment.Center) {Icon(subjectIcon(subject),null,tint=Lavender)}
+                Box(Modifier.size(52.dp).background(Brush.linearGradient(listOf(subjectAccent(subject).copy(alpha=.22f),subjectAccent(subject).copy(alpha=.05f))),RoundedCornerShape(18.dp)),contentAlignment=Alignment.Center) {Icon(subjectIcon(subject),null,tint=subjectAccent(subject))}
                 Column(Modifier.weight(1f).padding(horizontal=16.dp)) {Text(subject,fontSize=17.sp,fontWeight=FontWeight.SemiBold);Text("${state.cards.count {it.subject==subject}} saved cards",color=Muted,fontSize=13.sp)}
                 Icon(Icons.Rounded.ChevronRight,"Create $subject cards",tint=Muted)
             }
@@ -184,6 +184,13 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
             Row(Modifier.fillMaxWidth().padding(20.dp),verticalAlignment=Alignment.CenterVertically) {Icon(Icons.Rounded.Timer,null,tint=Lime);Column(Modifier.weight(1f).padding(start=16.dp)){Text("Make room for focus",fontWeight=FontWeight.Bold);Text("One task. One calm session.",color=Muted,fontSize=13.sp)};Icon(Icons.Rounded.ArrowForward,null)}
         } }
     }
+}
+private fun subjectAccent(subject: String): Color = when(subject) {
+    "Physics" -> Color(0xFFAECFFF)
+    "Chemistry" -> Color(0xFFD5B9FF)
+    "Biology" -> Lime
+    "Mathematics" -> Color(0xFFFFCF9D)
+    else -> Lavender
 }
 private fun subjectIcon(subject: String): ImageVector = when(subject) {"Physics" -> Icons.Rounded.Bolt;"Chemistry" -> Icons.Rounded.Science;"Biology" -> Icons.Rounded.Eco;"Mathematics" -> Icons.Rounded.Calculate;else -> Icons.Rounded.MenuBook}
 
@@ -197,8 +204,8 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {"Physics"
         item {OutlinedTextField(value=search,onValueChange={search=it},label={Text("Search your decks")},leadingIcon={Icon(Icons.Rounded.Search,null)},modifier=Modifier.fillMaxWidth(),singleLine=true,shape=RoundedCornerShape(16.dp))}
         if(decks.isEmpty()) item {Column(Modifier.fillMaxWidth().padding(vertical=36.dp),horizontalAlignment=Alignment.CenterHorizontally) {Icon(Icons.Rounded.AutoStories,null,tint=Lavender,modifier=Modifier.size(60.dp));Spacer(Modifier.height(16.dp));Text(if(search.isBlank()) "Your first deck starts here" else "No matching decks",fontSize=20.sp,fontWeight=FontWeight.Bold);Text("Create from a chapter, or add a card yourself.",color=Muted,textAlign=TextAlign.Center,modifier=Modifier.padding(vertical=10.dp));TextButton(onClick=onManual){Text("＋ Add a card manually")}}}
         items(decks,key={it.title}) { deck -> Card(shape=RoundedCornerShape(26.dp),colors=CardDefaults.cardColors(containerColor=PanelElevated),border=BorderStroke(1.dp,Hairline)) {Column(Modifier.padding(20.dp)) {
-            Row(verticalAlignment=Alignment.CenterVertically) {Pill(deck.subject,Lavender);Spacer(Modifier.weight(1f));IconButton(onClick={delete=deck.title},enabled=!state.busy) {Icon(Icons.Rounded.DeleteOutline,"Delete ${deck.title}",tint=Muted)}}
-            Text(deck.title,fontSize=22.sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(vertical=12.dp));Text("${deck.count} cards  ·  ${deck.due} due now",color=Muted)
+            Row(verticalAlignment=Alignment.CenterVertically) {Box(Modifier.size(40.dp).background(subjectAccent(deck.subject).copy(alpha=.12f),RoundedCornerShape(14.dp)),contentAlignment=Alignment.Center) {Icon(subjectIcon(deck.subject),null,tint=subjectAccent(deck.subject),modifier=Modifier.size(22.dp))};Spacer(Modifier.width(10.dp));Pill(deck.subject,subjectAccent(deck.subject));Spacer(Modifier.weight(1f));IconButton(onClick={delete=deck.title},enabled=!state.busy) {Icon(Icons.Rounded.DeleteOutline,"Delete ${deck.title}",tint=Muted)}}
+            Text(deck.title,fontSize=23.sp,lineHeight=29.sp,letterSpacing=(-.3).sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(top=18.dp,bottom=12.dp));FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {Pill("${deck.count} cards",Muted);Pill(if(deck.due>0) "${deck.due} due now" else "All caught up",if(deck.due>0) Lime else subjectAccent(deck.subject))}
             Spacer(Modifier.height(16.dp));ActionButton("Study deck  →",{onStudy(deck.title)})
         }} }
         if(decks.isNotEmpty()) item {OutlinedButton(onClick=onManual,modifier=Modifier.fillMaxWidth()){Text("＋ Add a card manually")}}
@@ -221,7 +228,7 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {"Physics"
         item {SelectField("Subject",subject,subjects) {subject=it}}
         if(useNotes) item {OutlinedTextField(value=notes,onValueChange={notes=it.take(12000)},label={Text("Paste your study notes")},supportingText={Text("${notes.length}/12000 · Sent to MindDeck's AI service when you create.")},modifier=Modifier.fillMaxWidth().heightIn(min=220.dp),minLines=7,shape=RoundedCornerShape(18.dp))}
         else item {SelectField("Chapter",chapter,chapters) {chapter=it}}
-        item {Card(colors=CardDefaults.cardColors(containerColor=PanelElevated),shape=RoundedCornerShape(24.dp),border=BorderStroke(1.dp,Hairline)) {Column(Modifier.padding(20.dp)) {Icon(Icons.Rounded.AutoAwesome,null,tint=Lavender);Text("15 clear revision cards",fontSize=20.sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(vertical=10.dp));Text("Questions and answers focused on your selected topic. New cards are added without replacing your existing decks.",color=Muted,fontSize=14.sp)}}}
+        item {Card(colors=CardDefaults.cardColors(containerColor=PanelElevated),shape=RoundedCornerShape(24.dp),border=BorderStroke(1.dp,Hairline)) {Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {Box(Modifier.size(44.dp).background(Lavender.copy(alpha=.12f),RoundedCornerShape(14.dp)),contentAlignment=Alignment.Center){Icon(Icons.Rounded.AutoAwesome,null,tint=Lavender)};Text("15 clear revision cards",fontSize=19.sp,lineHeight=25.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))};Text("Focused questions. Clear answers. Ready for your next review.",color=Muted,fontSize=14.sp,lineHeight=21.sp);HorizontalDivider(color=Hairline);Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {Icon(Icons.Rounded.CheckCircle,null,tint=Lime,modifier=Modifier.size(16.dp));Text("Your existing decks stay safe.",color=Muted,fontSize=12.sp,lineHeight=18.sp)}}}}
         item {
             if(state.user==null) ActionButton("Continue with Google",onSignIn,enabled=!state.busy)
             else ActionButton(if(state.busy) "Creating your cards…" else "Create revision cards",{vm.generate(subject,if(useNotes) "" else chapter,if(useNotes) notes else "",onComplete)},enabled=!state.busy && (if(useNotes) notes.trim().length>=30 else chapter.isNotBlank()))
@@ -277,7 +284,7 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {"Physics"
         item {FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {listOf(10,25,50).forEach {minutes -> FilterChip(selected=timer.duration==minutes*60,onClick={if(timer.running||timer.paused) reset=true else vm.resetTimer(minutes)},label={Text("$minutes min")},enabled=!timer.running&&!timer.paused)}}}
         item {Box(Modifier.widthIn(max=300.dp).fillMaxWidth().aspectRatio(1f).background(Brush.radialGradient(listOf(Lavender.copy(alpha=.13f),Color.Transparent)),CircleShape).padding(24.dp),contentAlignment=Alignment.Center) {
             CircularProgressIndicator(progress={(timer.duration-timer.remaining).toFloat()/timer.duration},modifier=Modifier.fillMaxSize(),color=Lime,trackColor=PanelElevated,strokeWidth=10.dp)
-            Column(horizontalAlignment=Alignment.CenterHorizontally) {Text("%02d:%02d".format(timer.remaining/60,timer.remaining%60),fontSize=56.sp,letterSpacing=(-1).sp,fontWeight=FontWeight.Light);Text(when {timer.running->"FOCUSING";timer.paused->"PAUSED";timer.remaining==0->"COMPLETE";else->"READY WHEN YOU ARE"},fontSize=12.sp,letterSpacing=2.sp,color=Muted,modifier=Modifier.padding(top=10.dp))}
+            Column(horizontalAlignment=Alignment.CenterHorizontally) {Text("%02d:%02d".format(timer.remaining/60,timer.remaining%60),fontSize=40.sp,letterSpacing=(-1).sp,fontWeight=FontWeight.Light);Text(when {timer.running->"FOCUSING";timer.paused->"PAUSED";timer.remaining==0->"COMPLETE";else->"READY WHEN YOU ARE"},fontSize=11.sp,lineHeight=16.sp,textAlign=TextAlign.Center,letterSpacing=1.sp,color=Muted,modifier=Modifier.padding(top=10.dp,horizontal=14.dp))}
         }}
         item {ActionButton(when {timer.running->"Pause session";timer.paused->"Resume session";timer.remaining==0->"Start another session";else->"Start focus"},{vm.timerToggle()})}
         item {OutlinedButton(onClick={reset=true},modifier=Modifier.fillMaxWidth().heightIn(min=50.dp)){Text("Reset timer")}}
@@ -290,7 +297,7 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {"Physics"
     var logout by remember {mutableStateOf(false)}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=22.dp,top=22.dp,end=22.dp,bottom=48.dp),verticalArrangement=Arrangement.spacedBy(22.dp)) {
         item {PageHeader("Your space","Built around the way you learn.")}
-        item {Row(verticalAlignment=Alignment.CenterVertically) {Box(Modifier.size(64.dp).background(Lavender,CircleShape),contentAlignment=Alignment.Center){Text((state.user?.name ?: state.profile.name).take(1).uppercase(),color=Ink,fontSize=26.sp,fontWeight=FontWeight.Bold)};Column(Modifier.padding(start=16.dp)){Text(state.user?.name ?: state.profile.name,fontSize=23.sp,fontWeight=FontWeight.Bold);Text("${state.profile.classLevel} · ${state.profile.stream}",color=Muted)}}}
+        item {Row(verticalAlignment=Alignment.CenterVertically) {Box(Modifier.size(64.dp).background(Lavender,CircleShape),contentAlignment=Alignment.Center){Text((state.user?.name ?: state.profile.name).take(1).uppercase(),color=Ink,fontSize=26.sp,fontWeight=FontWeight.Bold)};Column(Modifier.weight(1f).padding(start=16.dp)){Text(state.user?.name ?: state.profile.name,fontSize=23.sp,fontWeight=FontWeight.Bold);Text("${state.profile.classLevel} · ${state.profile.stream}",color=Muted)}}}
         item {OutlinedButton(onClick=onEdit,modifier=Modifier.fillMaxWidth()){Text("Edit study profile")}}
         item {Card(shape=RoundedCornerShape(26.dp),colors=CardDefaults.cardColors(containerColor=PanelElevated),border=BorderStroke(1.dp,Hairline)) {Column(Modifier.padding(22.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){Icon(Icons.Rounded.VerifiedUser,null,tint=Lime);Text(if(state.user!=null) "Google account connected" else "Secure Google sign-in",fontSize=21.sp,fontWeight=FontWeight.Bold);Text(if(state.user!=null) "Your login tokens are encrypted using Android Keystore. Your email is not displayed on the dashboard." else "Use Google's account chooser to enable online AI. MindDeck never asks for your Google password.",color=Muted,fontSize=14.sp);if(state.user==null) ActionButton(if(signingIn||state.busy) "Signing in…" else "Continue with Google",onSignIn,enabled=!signingIn&&!state.busy) else OutlinedButton(onClick={logout=true},enabled=!state.busy,modifier=Modifier.fillMaxWidth()){Text("Sign out")}}}}
         item {Section("Connection status")}
