@@ -3,6 +3,14 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class StudyModelsTest {
+    @Test fun pauseBeforeFirstTickIsStillPaused() {
+        val timer=TimerState(1500,1500,0,"started-session")
+        assertTrue(timer.paused)
+        assertEquals(1500,timer.secondsAt(Long.MAX_VALUE))
+    }
+    @Test fun freshTimerIsNotPaused() {
+        assertFalse(TimerState().paused)
+    }
     @Test fun deadlineSurvivesLongBackgroundTime() {
         val timer=TimerState(1500,1500,2000000,"test")
         assertEquals(500,timer.secondsAt(1500000))
