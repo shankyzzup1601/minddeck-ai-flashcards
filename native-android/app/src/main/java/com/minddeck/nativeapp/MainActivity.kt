@@ -61,7 +61,7 @@ private val Lavender=Color(0xFF7752B5)
 private val Peach=Color(0xFFF6A24B)
 private val Muted=Color(0xFF69667A)
 private val Hairline=Color(0xFFE3DEEF)
-private val Aurora=Brush.linearGradient(listOf(Color(0xFF8657DB),Color(0xFFC16BC4),Peach))
+private val Aurora=Brush.linearGradient(listOf(Color(0xFF7349CC),Color(0xFFA34391),Color(0xFFB35C22)))
 private val MindDeckColors=lightColorScheme(primary=Lime,onPrimary=Color.White,secondary=Lavender,onSecondary=Color.White,background=Paper,surface=Panel,onSurface=Ink,onBackground=Ink,surfaceVariant=PanelElevated,onSurfaceVariant=Muted,outline=Hairline)
 
 class MainActivity: ComponentActivity() {
