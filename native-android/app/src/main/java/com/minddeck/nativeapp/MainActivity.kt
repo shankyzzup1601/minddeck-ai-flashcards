@@ -8,6 +8,13 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.SystemBarStyle
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.BorderStroke
@@ -44,19 +51,23 @@ import kotlinx.coroutines.launch
 import java.security.MessageDigest
 import java.security.SecureRandom
 
-private val Ink=Color(0xFF090C12)
-private val Panel=Color(0xFF151A24)
-private val PanelElevated=Color(0xFF1C2330)
-private val Lime=Color(0xFFD6FF9F)
-private val Lavender=Color(0xFFC9B7FF)
-private val Muted=Color(0xFF9FA8B8)
-private val Hairline=Color(0xFF2A3342)
-private val MindDeckColors=darkColorScheme(primary=Lime,onPrimary=Ink,secondary=Lavender,onSecondary=Ink,background=Ink,surface=Panel,onSurface=Color(0xFFF7F8FA),onBackground=Color(0xFFF7F8FA),surfaceVariant=PanelElevated,onSurfaceVariant=Muted,outline=Hairline)
+private val Ink=Color(0xFF171B2E)
+private val Paper=Color(0xFFF5F3FA)
+private val Panel=Color.White
+private val PanelElevated=Color(0xFFEFECF6)
+private val Navy=Color(0xFF111D32)
+private val Lime=Color(0xFF7349CC)
+private val Lavender=Color(0xFF7752B5)
+private val Peach=Color(0xFFF6A24B)
+private val Muted=Color(0xFF69667A)
+private val Hairline=Color(0xFFE3DEEF)
+private val Aurora=Brush.linearGradient(listOf(Color(0xFF8657DB),Color(0xFFC16BC4),Peach))
+private val MindDeckColors=lightColorScheme(primary=Lime,onPrimary=Color.White,secondary=Lavender,onSecondary=Color.White,background=Paper,surface=Panel,onSurface=Ink,onBackground=Ink,surfaceVariant=PanelElevated,onSurfaceVariant=Muted,outline=Hairline)
 
 class MainActivity: ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge(statusBarStyle=SystemBarStyle.dark(0xFF090C12.toInt()),navigationBarStyle=SystemBarStyle.dark(0xFF090C12.toInt()))
+        enableEdgeToEdge(statusBarStyle=SystemBarStyle.light(0xFFF5F3FA.toInt(),0xFFF5F3FA.toInt()),navigationBarStyle=SystemBarStyle.light(0xFFF5F3FA.toInt(),0xFFF5F3FA.toInt()))
         setContent { MaterialTheme(colorScheme=MindDeckColors) { MindDeckApp(this) } }
     }
 }
@@ -106,7 +117,7 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
         }
     }
     if(state.loading) {
-        Surface(Modifier.fillMaxSize(),color=Ink) { Box(contentAlignment=Alignment.Center) { Column(horizontalAlignment=Alignment.CenterHorizontally) { Icon(Icons.Rounded.AutoStories,"MindDeck",tint=Lime,modifier=Modifier.size(60.dp)); Spacer(Modifier.height(20.dp)); CircularProgressIndicator() } } }
+        Surface(Modifier.fillMaxSize(),color=Paper) { Box(contentAlignment=Alignment.Center) { Column(horizontalAlignment=Alignment.CenterHorizontally) { Icon(Icons.Rounded.AutoStories,"MindDeck",tint=Lime,modifier=Modifier.size(60.dp)); Spacer(Modifier.height(20.dp)); CircularProgressIndicator() } } }
         return
     }
     if(!state.profile.complete || profileEdit) {
@@ -114,13 +125,13 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
         return
     }
     Scaffold(
-        containerColor=Ink,
+        containerColor=Paper,
         snackbarHost={
             SnackbarHost(snackbar,modifier=Modifier.padding(horizontal=16.dp,vertical=8.dp)) { data ->
                 Snackbar(
                     modifier=Modifier.fillMaxWidth(),
                     shape=RoundedCornerShape(20.dp),
-                    containerColor=PanelElevated,
+                    containerColor=Navy,
                     contentColor=Color(0xFFF7F8FA),
                     dismissAction={IconButton(onClick={data.dismiss()}) {Icon(Icons.Rounded.Close,"Dismiss message",tint=Muted)}}
                 ) {
@@ -131,8 +142,8 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
                 }
             }
         },
-        bottomBar={ if(!composer && studyDeck==null) Surface(color=Panel,shape=RoundedCornerShape(topStart=28.dp,topEnd=28.dp),border=BorderStroke(1.dp,Hairline)) {
-            NavigationBar(containerColor=Color.Transparent,tonalElevation=0.dp) {
+        bottomBar={ if(!composer && studyDeck==null) Surface(modifier=Modifier.padding(horizontal=16.dp,vertical=8.dp),color=Panel,shape=RoundedCornerShape(28.dp),shadowElevation=8.dp,border=BorderStroke(1.dp,Hairline)) {
+            NavigationBar(containerColor=Color.Transparent,tonalElevation=0.dp,windowInsets=WindowInsets.navigationBars) {
                 listOf("Home" to Icons.Rounded.Home,"Library" to Icons.Rounded.AutoStories,"Focus" to Icons.Rounded.Timer,"You" to Icons.Rounded.Person).forEachIndexed { i,(label,icon) ->
                     NavigationBarItem(selected=tab==i,onClick={tab=i},icon={Icon(icon,label)},label={Text(label,fontSize=12.sp,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis,textAlign=TextAlign.Center,modifier=Modifier.widthIn(max=72.dp))},colors=NavigationBarItemDefaults.colors(indicatorColor=Lime.copy(alpha=.14f),selectedIconColor=Lime,selectedTextColor=Lime,unselectedIconColor=Muted,unselectedTextColor=Muted))
                 }
@@ -157,7 +168,7 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
     Row(Modifier.fillMaxWidth().padding(bottom=8.dp),verticalAlignment=Alignment.Top) {
         if(back!=null) IconButton(onClick=back,modifier=Modifier.padding(end=8.dp)) {Icon(Icons.Rounded.ArrowBack,"Go back")}
         Column(Modifier.weight(1f).padding(top=if(back!=null) 6.dp else 0.dp)) {
-            Text(title,fontSize=28.sp,lineHeight=34.sp,fontWeight=FontWeight.Bold,letterSpacing=(-.4).sp)
+            Text(title,fontSize=28.sp,lineHeight=34.sp,fontWeight=FontWeight.SemiBold,letterSpacing=(-.8).sp)
             subtitle?.let {Text(it,color=Muted,fontSize=15.sp,lineHeight=22.sp,modifier=Modifier.padding(top=5.dp))}
         }
         action?.invoke()
@@ -165,7 +176,7 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
 }
 @Composable private fun Pill(text: String,color: Color=Lime) { Surface(color=color.copy(alpha=.10f),shape=RoundedCornerShape(50),border=BorderStroke(1.dp,color.copy(alpha=.24f))) { Text(text,color=color,fontSize=12.sp,lineHeight=16.sp,letterSpacing=.4.sp,fontWeight=FontWeight.SemiBold,modifier=Modifier.padding(horizontal=13.dp,vertical=7.dp)) } }
 @Composable private fun ActionButton(text: String,onClick: () -> Unit,modifier: Modifier=Modifier,enabled: Boolean=true) {
-    Button(onClick=onClick,enabled=enabled,modifier=modifier.fillMaxWidth().heightIn(min=58.dp),shape=RoundedCornerShape(20.dp),colors=ButtonDefaults.buttonColors(containerColor=Lime,contentColor=Ink,disabledContainerColor=Lime.copy(alpha=.28f),disabledContentColor=Ink.copy(alpha=.55f)),elevation=ButtonDefaults.buttonElevation(defaultElevation=0.dp,pressedElevation=0.dp),contentPadding=PaddingValues(horizontal=22.dp,vertical=15.dp)) {Text(text,fontSize=16.sp,lineHeight=22.sp,fontWeight=FontWeight.Bold,textAlign=TextAlign.Center)}
+    Button(onClick=onClick,enabled=enabled,modifier=modifier.fillMaxWidth().heightIn(min=56.dp).clip(RoundedCornerShape(18.dp)).background(if(enabled) Aurora else Brush.linearGradient(listOf(Hairline,Hairline))),shape=RoundedCornerShape(18.dp),colors=ButtonDefaults.buttonColors(containerColor=Color.Transparent,contentColor=Color.White,disabledContainerColor=Color.Transparent,disabledContentColor=Muted),contentPadding=PaddingValues(horizontal=20.dp,vertical=15.dp)) {Text(text,fontSize=15.sp,lineHeight=21.sp,fontWeight=FontWeight.SemiBold,textAlign=TextAlign.Center)}
 }
 @Composable private fun Section(title: String,subtitle: String?=null) {
     Column {Text(title,fontSize=20.sp,fontWeight=FontWeight.Bold); subtitle?.let {Text(it,color=Muted,fontSize=14.sp,modifier=Modifier.padding(top=4.dp))}}
@@ -175,36 +186,46 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
 }
 @Composable private fun HomeScreen(state: StudyUiState,onCreate: () -> Unit,onSubject: (String) -> Unit,onStudy: () -> Unit,onFocus: () -> Unit,onAccount: () -> Unit) {
     val due=state.cards.count {it.due <= System.currentTimeMillis()}
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=22.dp,top=22.dp,end=22.dp,bottom=40.dp),verticalArrangement=Arrangement.spacedBy(24.dp)) {
-        item { Row(verticalAlignment=Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) { Text("MINDDECK",color=Lime,fontSize=12.sp,letterSpacing=3.sp,fontWeight=FontWeight.Bold); Text("Hello, ${state.user?.name?.substringBefore(' ') ?: state.profile.name.substringBefore(' ')}",fontSize=26.sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(top=6.dp)) }
-            FilledTonalIconButton(onClick=onAccount,modifier=Modifier.size(48.dp)) {Icon(Icons.Rounded.Person,"Your account")}
-        } }
-        item { Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF26352E),Color(0xFF20263A),Color(0xFF2B2440))),RoundedCornerShape(32.dp)).padding(26.dp)) {
-            Pill("YOUR NEXT SMALL WIN")
-            Text("Less cramming.\nMore remembering.",fontSize=32.sp,lineHeight=38.sp,fontWeight=FontWeight.Bold,letterSpacing=(-.6).sp,modifier=Modifier.padding(top=22.dp,bottom=13.dp))
-            Text(if(due>0) "$due cards are ready for a fresh look." else "Turn a chapter into a study session that sticks.",color=Color(0xFFC7D1C8),fontSize=15.sp)
-            Spacer(Modifier.height(22.dp)); ActionButton(if(due>0) "Review your cards  →" else "Create your first AI deck  →",if(due>0) onStudy else onCreate)
-        } }
-        item { Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {Metric("${state.cards.size}","Saved cards",Modifier.weight(1f));Metric("${state.focusSeconds/60}","Focus minutes",Modifier.weight(1f))} }
-        item {Section("Your subjects","${state.profile.classLevel} · ${state.profile.stream}")}
-        items(subjectsFor(state.profile.stream)) { subject ->
-            Row(Modifier.fillMaxWidth().heightIn(min=64.dp).clickable {onSubject(subject)}.padding(vertical=6.dp),verticalAlignment=Alignment.CenterVertically) {
-                Box(Modifier.size(52.dp).background(Brush.linearGradient(listOf(subjectAccent(subject).copy(alpha=.22f),subjectAccent(subject).copy(alpha=.05f))),RoundedCornerShape(18.dp)),contentAlignment=Alignment.Center) {Icon(subjectIcon(subject),null,tint=subjectAccent(subject))}
-                Column(Modifier.weight(1f).padding(horizontal=16.dp)) {Text(subject,fontSize=17.sp,fontWeight=FontWeight.SemiBold);Text("${state.cards.count {it.subject==subject}} saved cards",color=Muted,fontSize=13.sp)}
-                Icon(Icons.Rounded.ChevronRight,"Create $subject cards",tint=Muted)
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=20.dp,top=20.dp,end=20.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(20.dp)) {
+        item {Row(verticalAlignment=Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {Text("M I N D D E C K",color=Ink,fontSize=17.sp,fontWeight=FontWeight.SemiBold);Text("FOCUS · LEARN · EVOLVE",color=Muted,fontSize=9.sp,letterSpacing=1.5.sp,modifier=Modifier.padding(top=4.dp))}
+            FilledTonalIconButton(onClick=onAccount,modifier=Modifier.size(46.dp),colors=IconButtonDefaults.filledTonalIconButtonColors(containerColor=Color.White,contentColor=Lime)){Icon(Icons.Rounded.Person,"Your account")}
+        }}
+        item {Text("Your space, ${state.user?.name?.substringBefore(' ') ?: state.profile.name.substringBefore(' ')}.",fontSize=15.sp,color=Muted)}
+        item {Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp))) {
+            Image(painterResource(R.drawable.focus_city),null,Modifier.matchParentSize(),contentScale=ContentScale.Crop)
+            Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.White.copy(alpha=.46f),Color.Transparent,Navy.copy(alpha=.94f)))))
+            Column(Modifier.padding(22.dp)) {
+                Text("“",fontSize=48.sp,lineHeight=48.sp,color=Lime,fontWeight=FontWeight.Bold)
+                Text("FOCUS CREATES\nCLARITY.",fontSize=30.sp,lineHeight=36.sp,fontWeight=FontWeight.Bold,color=Ink,letterSpacing=(-.8).sp)
+                Text("CLARITY CREATES",fontSize=22.sp,lineHeight=30.sp,fontWeight=FontWeight.SemiBold,color=Ink,modifier=Modifier.padding(top=4.dp))
+                Text("PROGRESS.",fontSize=30.sp,lineHeight=36.sp,fontWeight=FontWeight.Bold,color=Color(0xFFA84F21))
+                Text("ONE CHAPTER. ONE SMALL WIN.",fontSize=10.sp,letterSpacing=1.sp,color=Ink,modifier=Modifier.padding(top=14.dp))
+                Spacer(Modifier.height(105.dp))
+                Surface(onClick=if(due>0) onStudy else onCreate,color=Navy.copy(alpha=.93f),shape=RoundedCornerShape(50)) {Row(Modifier.fillMaxWidth().padding(start=18.dp,end=8.dp,top=8.dp,bottom=8.dp),verticalAlignment=Alignment.CenterVertically) {Text(if(due>0) "$due cards ready to review" else "What's your priority today?",fontSize=13.sp,color=Color.White,modifier=Modifier.weight(1f));Box(Modifier.size(38.dp).background(Aurora,CircleShape),contentAlignment=Alignment.Center){Icon(Icons.Rounded.ArrowForward,null,tint=Color.White,modifier=Modifier.size(20.dp))}}}
+                Spacer(Modifier.height(12.dp))
+                Surface(onClick=onFocus,color=Navy,shape=RoundedCornerShape(18.dp),border=BorderStroke(1.dp,Color.White.copy(alpha=.12f))) {Column(Modifier.fillMaxWidth().padding(16.dp)) {Text("FOCUS SESSION",color=Color.White.copy(alpha=.8f),fontSize=10.sp,letterSpacing=1.sp);Row(verticalAlignment=Alignment.CenterVertically) {Text("%02d:%02d".format(state.timer.remaining/60,state.timer.remaining%60),fontSize=31.sp,fontWeight=FontWeight.Light,color=Color.White,modifier=Modifier.weight(1f));Box(Modifier.size(44.dp).background(Aurora,CircleShape),contentAlignment=Alignment.Center){Icon(Icons.Rounded.PlayArrow,null,tint=Color.White)}};Text("Make time for deeper learning",fontSize=11.sp,color=Color(0xFFBFC5D7));Spacer(Modifier.height(12.dp));Box(Modifier.fillMaxWidth().height(3.dp).background(Aurora,RoundedCornerShape(3.dp)))}}
             }
-        }
-        item { OutlinedCard(onClick=onFocus,shape=RoundedCornerShape(22.dp),border=BorderStroke(1.dp,Hairline),colors=CardDefaults.outlinedCardColors(containerColor=Panel.copy(alpha=.72f))) {
-            Row(Modifier.fillMaxWidth().padding(20.dp),verticalAlignment=Alignment.CenterVertically) {Icon(Icons.Rounded.Timer,null,tint=Lime);Column(Modifier.weight(1f).padding(start=16.dp)){Text("Make room for focus",fontWeight=FontWeight.Bold);Text("One task. One calm session.",color=Muted,fontSize=13.sp)};Icon(Icons.Rounded.ArrowForward,null)}
-        } }
+        }}
+        item {Section("Study overview","Your progress, at your pace")}
+        item {Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {Metric("${state.cards.size}","Saved cards",Modifier.weight(1f));Metric("${state.focusSeconds/60}","Focus minutes",Modifier.weight(1f))}}
+        item {Surface(color=Navy,shape=RoundedCornerShape(22.dp)) {Row(Modifier.fillMaxWidth().padding(20.dp),verticalAlignment=Alignment.CenterVertically) {
+            val ready=state.cards.size-due
+            Box(Modifier.size(88.dp),contentAlignment=Alignment.Center) {CircularProgressIndicator(progress={if(state.cards.isEmpty()) 0f else ready.toFloat()/state.cards.size},modifier=Modifier.fillMaxSize(),color=Color(0xFFB287EC),trackColor=Color(0xFF34415A),strokeWidth=7.dp);Column(horizontalAlignment=Alignment.CenterHorizontally){Text("$ready",color=Color.White,fontSize=26.sp);Text("NOT DUE",color=Color(0xFFBDC3D5),fontSize=8.sp)}}
+            Column(Modifier.weight(1f).padding(start=20.dp)) {Text("REVIEW BALANCE",color=Color.White,fontSize=11.sp,letterSpacing=1.sp);Text("$due due now",color=Color(0xFFFFB570),fontSize=20.sp,fontWeight=FontWeight.SemiBold,modifier=Modifier.padding(top=10.dp));Text("${state.cards.size} cards in your library",color=Color(0xFFBDC3D5),fontSize=12.sp,modifier=Modifier.padding(top=4.dp))}
+        }}}
+        item {Section("Your subjects","${state.profile.classLevel} · ${state.profile.stream}")}
+        items(subjectsFor(state.profile.stream).chunked(2)) { pair -> Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {pair.forEach {subject ->
+            Surface(onClick={onSubject(subject)},modifier=Modifier.weight(1f),color=Color.White,shape=RoundedCornerShape(20.dp),border=BorderStroke(1.dp,Hairline)) {Column(Modifier.padding(16.dp)) {Box(Modifier.size(42.dp).background(subjectAccent(subject).copy(alpha=.12f),RoundedCornerShape(14.dp)),contentAlignment=Alignment.Center){Icon(subjectIcon(subject),null,tint=subjectAccent(subject))};Text(subject,fontSize=15.sp,fontWeight=FontWeight.SemiBold,modifier=Modifier.padding(top=16.dp));Text("${state.cards.count {it.subject==subject}} saved cards",color=Muted,fontSize=11.sp,modifier=Modifier.padding(top=4.dp));Icon(Icons.Rounded.ArrowForward,"Create $subject cards",tint=subjectAccent(subject),modifier=Modifier.align(Alignment.End).padding(top=10.dp).size(18.dp))}}
+        };if(pair.size==1) Spacer(Modifier.weight(1f))}}
+        item {Surface(color=Navy,shape=RoundedCornerShape(22.dp)) {Row(Modifier.fillMaxWidth().padding(22.dp),verticalAlignment=Alignment.CenterVertically) {Text("“",fontSize=46.sp,color=Color(0xFFBC91F1));Column(Modifier.weight(1f).padding(start=12.dp)){Text("Small progress is still progress.",color=Color.White,fontSize=17.sp,lineHeight=24.sp);Text("YOUR DAILY REMINDER",fontSize=9.sp,color=Color(0xFFBEC4D8),letterSpacing=1.sp,modifier=Modifier.padding(top=12.dp))}}}}
     }
 }
 private fun subjectAccent(subject: String): Color = when(subject) {
-    "Physics" -> Color(0xFFAECFFF)
-    "Chemistry" -> Color(0xFFD5B9FF)
-    "Biology" -> Lime
-    "Mathematics" -> Color(0xFFFFCF9D)
+    "Physics" -> Color(0xFF3978BC)
+    "Chemistry" -> Color(0xFF8556BD)
+    "Biology" -> Color(0xFF25866B)
+    "Mathematics" -> Color(0xFFB67327)
     else -> Lavender
 }
 private fun subjectIcon(subject: String): ImageVector = when(subject) {"Physics" -> Icons.Rounded.Bolt;"Chemistry" -> Icons.Rounded.Science;"Biology" -> Icons.Rounded.Eco;"Mathematics" -> Icons.Rounded.Calculate;else -> Icons.Rounded.MenuBook}
@@ -215,13 +236,13 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {"Physics"
     val decks=state.cards.groupBy {it.deck}.map {(title,cards)->DeckSummary(title,cards.first().subject,cards.size,cards.count {it.due<=System.currentTimeMillis()})}.filter {it.title.contains(search,true)||it.subject.contains(search,true)}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=22.dp,top=22.dp,end=22.dp,bottom=40.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
         item {PageHeader("Your library","Small decks. Lasting knowledge.")}
-        item {ActionButton("✨  Create with AI",onCreate)}
+        item {Surface(color=Navy,shape=RoundedCornerShape(24.dp)) {Column(Modifier.padding(20.dp)) {Text("BUILD YOUR KNOWLEDGE",fontSize=10.sp,letterSpacing=1.5.sp,color=Color(0xFFCFBAF2));Text("A little today.\nA lot remembered.",fontSize=25.sp,lineHeight=31.sp,color=Color.White,fontWeight=FontWeight.SemiBold,modifier=Modifier.padding(vertical=14.dp));ActionButton("✨  Create with AI",onCreate)}}}
         item {OutlinedTextField(value=search,onValueChange={search=it},label={Text("Search your decks")},leadingIcon={Icon(Icons.Rounded.Search,null)},modifier=Modifier.fillMaxWidth(),singleLine=true,shape=RoundedCornerShape(16.dp))}
         if(decks.isEmpty()) item {Column(Modifier.fillMaxWidth().padding(vertical=36.dp),horizontalAlignment=Alignment.CenterHorizontally) {Icon(Icons.Rounded.AutoStories,null,tint=Lavender,modifier=Modifier.size(60.dp));Spacer(Modifier.height(16.dp));Text(if(search.isBlank()) "Your first deck starts here" else "No matching decks",fontSize=20.sp,fontWeight=FontWeight.Bold);Text("Create from a chapter, or add a card yourself.",color=Muted,textAlign=TextAlign.Center,modifier=Modifier.padding(vertical=10.dp));TextButton(onClick=onManual){Text("＋ Add a card manually")}}}
-        items(decks,key={it.title}) { deck -> Card(shape=RoundedCornerShape(26.dp),colors=CardDefaults.cardColors(containerColor=PanelElevated),border=BorderStroke(1.dp,Hairline)) {Column(Modifier.padding(20.dp)) {
+        items(decks,key={it.title}) { deck -> Card(shape=RoundedCornerShape(26.dp),colors=CardDefaults.cardColors(containerColor=Color.White),border=BorderStroke(1.dp,Hairline)) {Column(Modifier.padding(20.dp)) {
             Row(verticalAlignment=Alignment.CenterVertically) {Box(Modifier.size(40.dp).background(subjectAccent(deck.subject).copy(alpha=.12f),RoundedCornerShape(14.dp)),contentAlignment=Alignment.Center) {Icon(subjectIcon(deck.subject),null,tint=subjectAccent(deck.subject),modifier=Modifier.size(22.dp))};Spacer(Modifier.width(10.dp));Pill(deck.subject,subjectAccent(deck.subject));Spacer(Modifier.weight(1f));IconButton(onClick={delete=deck.title},enabled=!state.busy) {Icon(Icons.Rounded.DeleteOutline,"Delete ${deck.title}",tint=Muted)}}
             Text(deck.title,fontSize=23.sp,lineHeight=29.sp,letterSpacing=(-.3).sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(top=18.dp,bottom=12.dp));FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {Pill("${deck.count} cards",Muted);Pill(if(deck.due>0) "${deck.due} due now" else "All caught up",if(deck.due>0) Lime else subjectAccent(deck.subject))}
-            Spacer(Modifier.height(16.dp));ActionButton("Study deck  →",{onStudy(deck.title)})
+            Spacer(Modifier.height(16.dp));Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {Text("Ready for a fresh look?",color=Muted,fontSize=12.sp,modifier=Modifier.weight(1f));FilledTonalButton(onClick={onStudy(deck.title)},colors=ButtonDefaults.filledTonalButtonColors(containerColor=PanelElevated,contentColor=Lime)){Text("Study deck  →",fontSize=13.sp)}}
         }} }
         if(decks.isNotEmpty()) item {OutlinedButton(onClick=onManual,modifier=Modifier.fillMaxWidth()){Text("＋ Add a card manually")}}
     }
@@ -239,7 +260,7 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {"Physics"
     LazyColumn(Modifier.fillMaxSize().imePadding(),contentPadding=PaddingValues(start=22.dp,top=22.dp,end=22.dp,bottom=48.dp),verticalArrangement=Arrangement.spacedBy(20.dp)) {
         item {PageHeader("Create a deck","AI does the drafting. You do the learning.",onBack)}
         item {FlowRow(horizontalArrangement=Arrangement.spacedBy(10.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {FilterChip(selected=!useNotes,onClick={useNotes=false},label={Text("Ready syllabus")});FilterChip(selected=useNotes,onClick={useNotes=true},label={Text("My notes")})}}
-        item {Pill("${state.profile.classLevel} · ${state.profile.stream}",Lavender)}
+        item {Surface(color=Navy,shape=RoundedCornerShape(22.dp)) {Row(Modifier.fillMaxWidth().padding(18.dp),verticalAlignment=Alignment.CenterVertically){Box(Modifier.size(44.dp).background(Aurora,RoundedCornerShape(14.dp)),contentAlignment=Alignment.Center){Icon(Icons.Rounded.AutoAwesome,null,tint=Color.White)};Column(Modifier.weight(1f).padding(start=14.dp)){Text("YOUR NEXT DISCOVERY",color=Color(0xFFD4BFF6),fontSize=10.sp,letterSpacing=1.sp);Text("${state.profile.classLevel} · ${state.profile.stream}",color=Color.White,fontSize=17.sp,modifier=Modifier.padding(top=5.dp))}}}}
         item {SelectField("Subject",subject,subjects) {subject=it}}
         if(useNotes) item {OutlinedTextField(value=notes,onValueChange={notes=it.take(12000)},label={Text("Paste your study notes")},supportingText={Text("${notes.length}/12000 · Sent to MindDeck's AI service when you create.")},modifier=Modifier.fillMaxWidth().heightIn(min=220.dp),minLines=7,shape=RoundedCornerShape(18.dp))}
         else item {SelectField("Chapter",chapter,chapters) {chapter=it}}
@@ -249,7 +270,7 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {"Physics"
             else ActionButton(if(state.busy) "Creating your cards…" else "Create revision cards",{vm.generate(subject,if(useNotes) "" else chapter,if(useNotes) notes else "",onComplete)},enabled=!state.busy && (if(useNotes) notes.trim().length>=30 else chapter.isNotBlank()))
         }
         if(state.busy) item {LinearProgressIndicator(Modifier.fillMaxWidth());Text("This can take up to a minute. You can go back without losing saved cards.",color=Muted,fontSize=13.sp,modifier=Modifier.padding(top=12.dp))}
-        item {Text("AI may make mistakes. Verify formulas and exam facts with your textbook. No AI keys are stored in this APK.",color=Muted,fontSize=12.sp)}
+        item {Text("AI may make mistakes. Verify formulas and exam facts with your textbook. ",color=Muted,fontSize=12.sp)}
     }
 }
 
@@ -265,7 +286,7 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {"Physics"
     var name by rememberSaveable {mutableStateOf(if(profile.name=="Student") "" else profile.name)}
     var cls by rememberSaveable {mutableStateOf(profile.classLevel)}
     var stream by rememberSaveable {mutableStateOf(profile.stream)}
-    Surface(Modifier.fillMaxSize(),color=Ink) {LazyColumn(Modifier.safeDrawingPadding().imePadding(),contentPadding=PaddingValues(28.dp),verticalArrangement=Arrangement.spacedBy(22.dp)) {
+    Surface(Modifier.fillMaxSize(),color=Paper) {LazyColumn(Modifier.safeDrawingPadding().imePadding(),contentPadding=PaddingValues(28.dp),verticalArrangement=Arrangement.spacedBy(22.dp)) {
         item {Spacer(Modifier.height(28.dp));Icon(Icons.Rounded.AutoStories,"MindDeck",tint=Lime,modifier=Modifier.size(58.dp));Text("A calmer way\nto study.",fontSize=36.sp,lineHeight=42.sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(top=26.dp));Text("Make MindDeck yours. Choose your class and stream so you only see relevant subjects.",fontSize=16.sp,color=Muted,modifier=Modifier.padding(top=14.dp))}
         item {OutlinedTextField(value=name,onValueChange={name=it.take(60)},label={Text("What should we call you?")},singleLine=true,modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(16.dp))}
         item {SelectField("Class",cls,listOf("Class 11","Class 12")){cls=it}}
@@ -297,10 +318,11 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {"Physics"
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=22.dp,top=22.dp,end=22.dp,bottom=48.dp),verticalArrangement=Arrangement.spacedBy(26.dp),horizontalAlignment=Alignment.CenterHorizontally) {
         item {PageHeader("Find your focus","One task is enough for now.")}
         item {FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {listOf(10,25,50).forEach {minutes -> FilterChip(selected=timer.duration==minutes*60,onClick={if(timer.running||timer.paused) reset=true else vm.resetTimer(minutes)},label={Text("$minutes min")},enabled=!timer.running&&!timer.paused)}}}
-        item {Box(Modifier.widthIn(max=300.dp).fillMaxWidth().aspectRatio(1f).background(Brush.radialGradient(listOf(Lavender.copy(alpha=.13f),Color.Transparent)),CircleShape).padding(24.dp),contentAlignment=Alignment.Center) {
-            CircularProgressIndicator(progress={(timer.duration-timer.remaining).toFloat()/timer.duration},modifier=Modifier.fillMaxSize(),color=Lime,trackColor=PanelElevated,strokeWidth=10.dp)
-            Column(horizontalAlignment=Alignment.CenterHorizontally) {Text("%02d:%02d".format(timer.remaining/60,timer.remaining%60),fontSize=40.sp,letterSpacing=(-1).sp,fontWeight=FontWeight.Light);Text(when {timer.running->"FOCUSING";timer.paused->"PAUSED";timer.remaining==0->"COMPLETE";else->"READY WHEN YOU ARE"},fontSize=11.sp,lineHeight=16.sp,textAlign=TextAlign.Center,letterSpacing=1.sp,color=Muted,modifier=Modifier.padding(horizontal=14.dp).padding(top=10.dp))}
-        }}
+        item {Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Navy,Color(0xFF27324A))),RoundedCornerShape(28.dp)).padding(22.dp),horizontalAlignment=Alignment.CenterHorizontally) {Text("FIND YOUR FLOW",color=Color(0xFFCAC2DF),fontSize=10.sp,letterSpacing=2.sp);Spacer(Modifier.height(20.dp));Box(Modifier.widthIn(max=280.dp).fillMaxWidth().aspectRatio(1f).padding(12.dp),contentAlignment=Alignment.Center) {
+            Canvas(Modifier.fillMaxSize()) {val radius=size.minDimension*.49f;for(i in 0 until 60){val angle=Math.toRadians(i*6.0);val long=i%5==0;val inner=radius-(if(long) 10.dp.toPx() else 4.dp.toPx());drawLine(Color.White.copy(alpha=if(long) .4f else .16f),Offset(center.x+inner*kotlin.math.sin(angle).toFloat(),center.y-inner*kotlin.math.cos(angle).toFloat()),Offset(center.x+radius*kotlin.math.sin(angle).toFloat(),center.y-radius*kotlin.math.cos(angle).toFloat()),2.dp.toPx(),StrokeCap.Round)}}
+            CircularProgressIndicator(progress={(timer.duration-timer.remaining).toFloat()/timer.duration},modifier=Modifier.fillMaxSize().padding(20.dp),color=Color(0xFFB583ED),trackColor=Color(0xFF39435C),strokeWidth=6.dp)
+            Column(horizontalAlignment=Alignment.CenterHorizontally) {Text("%02d:%02d".format(timer.remaining/60,timer.remaining%60),fontSize=40.sp,letterSpacing=(-1).sp,fontWeight=FontWeight.Light,color=Color.White);Text(when {timer.running->"FOCUSING";timer.paused->"PAUSED";timer.remaining==0->"COMPLETE";else->"READY WHEN YOU ARE"},fontSize=11.sp,lineHeight=16.sp,textAlign=TextAlign.Center,letterSpacing=1.sp,color=Color(0xFFC8C4D6),modifier=Modifier.padding(horizontal=14.dp).padding(top=10.dp))}
+        };Spacer(Modifier.height(14.dp));Box(Modifier.fillMaxWidth().height(3.dp).background(Aurora,RoundedCornerShape(3.dp)))}}
         item {ActionButton(when {timer.running->"Pause session";timer.paused->"Resume session";timer.remaining==0->"Start another session";else->"Start focus"},{vm.timerToggle()})}
         item {OutlinedButton(onClick={reset=true},modifier=Modifier.fillMaxWidth().heightIn(min=50.dp)){Text("Reset timer")}}
         item {Text("Your timer keeps time when you leave. Come back to see your progress. Completion notifications aren’t available yet.",color=Muted,fontSize=14.sp,textAlign=TextAlign.Center)}
@@ -327,3 +349,4 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {"Physics"
     var subject by rememberSaveable {mutableStateOf(subjectsFor(profile.stream).first())}
     AlertDialog(onDismissRequest=onDismiss,title={Text("Add a revision card")},text={Column(Modifier.heightIn(max=420.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)){SelectField("Subject",subject,subjectsFor(profile.stream)){subject=it};OutlinedTextField(title,{title=it.take(120)},label={Text("Deck title")});OutlinedTextField(front,{front=it.take(1000)},label={Text("Question")},maxLines=4);OutlinedTextField(back,{back=it.take(3000)},label={Text("Answer")},maxLines=5)}},confirmButton={TextButton(enabled=front.isNotBlank()&&back.isNotBlank(),onClick={vm.addCard(title,subject,front,back);onDismiss()}){Text("Save card")}},dismissButton={TextButton(onClick=onDismiss){Text("Cancel")}})
 }
+

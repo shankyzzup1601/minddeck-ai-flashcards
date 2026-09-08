@@ -15,11 +15,13 @@ import org.junit.Assert.*
 class NativeUiTest {
     @get:Rule val compose=createAndroidComposeRule<MainActivity>()
     @get:Rule val testName=TestName()
-    @After fun captureUiForReview() {
+    @After fun captureUiForReview() { captureScreen(testName.methodName) }
+    private fun captureScreen(name: String) {
+        compose.waitForIdle()
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         val folder=File(context.getExternalFilesDir(null),"screenshots").apply {mkdirs()}
         InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()?.let { bitmap ->
-            File(folder,"${testName.methodName}.png").outputStream().use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
+            File(folder,"${name}.png").outputStream().use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
             bitmap.recycle()
         }
     }
@@ -34,7 +36,7 @@ class NativeUiTest {
     @Test fun navigationAndRecreationRemainUsable() {
         onboard()
         repeat(3) {
-            listOf("Library","Focus","You","Home").forEach { label -> compose.onNodeWithText(label,useUnmergedTree=true).performClick() }
+            listOf("Library","Focus","You","Home").forEach { label -> compose.onNodeWithText(label,useUnmergedTree=true).performClick(); if(it==0) captureScreen("screen-$label") }
         }
         compose.activityRule.scenario.recreate()
         compose.onNodeWithText("Home").assertExists()
