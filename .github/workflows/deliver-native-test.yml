@@ -1,0 +1,49 @@
+name: Deliver signed native test APK
+on:
+  workflow_dispatch:
+  push:
+    branches: ['native/android-v1']
+    paths: ['.github/workflows/deliver-native-test.yml']
+permissions:
+  contents: write
+  actions: read
+jobs:
+  deliver:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Verify source build
+        run: |
+          gh api repos/$GH_REPO/actions/runs/34207677090 > source-run.json
+          python3 - <<'PY'
+          import json
+          r=json.load(open('source-run.json'))
+          assert r['conclusion']=='success'
+          assert r['head_sha']=='d8a62b637a200ba86f17953ddaddafb17f114169'
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: MindDeck-Native-signed-candidate
+          run-id: 34207677090
+          github-token: ${{ github.token }}
+      - name: Verify APK checksum and recorded certificate
+        run: |
+          sha256sum --check MindDeck-Native.apk.sha256
+          test -s MindDeck-Native.apk
+          grep -qi 'Signer #1 certificate SHA-1 digest: 43599f2f20e3edfb30a253d1aa92d61ba96f5341' native-signer.txt
+          unzip -t MindDeck-Native.apk
+      - name: Deliver test download
+        run: |
+          cat > release-notes.md <<'EOF'
+          Signed native Android test build for installation and end-to-end verification.
+          
+          Includes UI, timer, local sign-out and response-handling fixes. Automated tests have passing evidence across five configurations; the offline job encountered an emulator-shutdown stall.
+          
+          Google sign-in and live card generation are NOT yet verified in this APK. Backend source fixes also require separate deployment verification. This is not a production-ready release and does not replace the landing-page download.
+          
+          Download MindDeck-Native.apk directly below. Do not uninstall an existing app or delete saved study data to resolve installation errors; report the error instead.
+          EOF
+          gh release create minddeck-native-test-20260908 MindDeck-Native.apk MindDeck-Native.apk.sha256 --target d8a62b637a200ba86f17953ddaddafb17f114169 --prerelease --latest=false --title "MindDeck Native — test APK" --notes-file release-notes.md
