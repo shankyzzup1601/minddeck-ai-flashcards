@@ -45,10 +45,20 @@ jobs:
           test -s MindDeck-Native.apk
           grep -qi 'Signer #1 certificate SHA-1 digest: 43599f2f20e3edfb30a253d1aa92d61ba96f5341' native-signer.txt
           unzip -t MindDeck-Native.apk
+      - name: Verify release contains the tested app source
+        run: |
+          gh api "repos/$GH_REPO/compare/4e0d4fb2b4dff84f7f0198eef1c99f8c85e61de7...$GITHUB_SHA" > comparison.json
+          python3 - <<'PY'
+          import json
+          r=json.load(open('comparison.json'))
+          assert r['status'] in ('ahead', 'identical')
+          assert all(f['filename']=='.github/workflows/deliver-native-test.yml' for f in r['files'])
+          PY
       - name: Deliver test download
         run: |
           cat > release-notes.md <<'EOF'
           Signed native Android test build for installation and end-to-end verification.
+          APK source: 4e0d4fb2b4dff84f7f0198eef1c99f8c85e61de7. The release tag includes delivery-workflow changes only.
           
           Includes compact dark dismissible notifications, shorter save messages, tighter library spacing and clearer account/timer text. All five automated device-test rounds passed for this exact UI revision.
           
@@ -56,4 +66,11 @@ jobs:
           
           Download MindDeck-Native.apk directly below. Do not uninstall an existing app or delete saved study data to resolve installation errors; report the error instead.
           EOF
-          gh release create minddeck-native-test-ui1 MindDeck-Native.apk MindDeck-Native.apk.sha256 --target 4e0d4fb2b4dff84f7f0198eef1c99f8c85e61de7 --prerelease --latest=false --title "MindDeck Native — test APK" --notes-file release-notes.md
+          gh release create minddeck-native-test-ui1 MindDeck-Native.apk MindDeck-Native.apk.sha256 --target "$GITHUB_SHA" --prerelease --latest=false --title "MindDeck Native — test APK" --notes-file release-notes.md
+      - name: Verify published download
+        run: |
+          mkdir downloaded-release
+          gh release download minddeck-native-test-ui1 --pattern 'MindDeck-Native.apk*' --dir downloaded-release
+          cmp MindDeck-Native.apk.sha256 downloaded-release/MindDeck-Native.apk.sha256
+          cd downloaded-release
+          sha256sum --check MindDeck-Native.apk.sha256
