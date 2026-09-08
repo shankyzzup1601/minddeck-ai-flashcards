@@ -106,3 +106,34 @@ test('simulated successful AI response returns only valid study content',async()
   try {const result=await invoke({action:'generate',subject:'Physics',classLevel:'Class 12',chapter:'Electric Charges'},{authorization:'Bearer '+'x'.repeat(50)});assert.equal(result.code,200);assert.deepEqual(Object.keys(result.body.cards[0]).sort(),['back','front']);}
   finally {globalThis.fetch=original;}
 });
+
+test('slow account checks exhaust the shared deadline before AI starts',async()=>{
+  const original=globalThis.fetch, clock=Date.now;
+  let elapsed=0, calls=0;
+  Date.now=()=>clock()+elapsed;
+  globalThis.fetch=async()=>{calls++;elapsed=56000;return new Response(JSON.stringify({id:'test-user'}));};
+  try {
+    const result=await invoke({action:'generate',subject:'Physics',classLevel:'Class 12',chapter:'Electric Charges'},{authorization:'Bearer '+'x'.repeat(50)});
+    assert.equal(result.code,504);assert.equal(calls,1);
+  } finally {globalThis.fetch=original;Date.now=clock;}
+});
+test('interrupted response bodies return a controlled connectivity error',async()=>{
+  const original=globalThis.fetch;
+  globalThis.fetch=async()=>({text:async()=>{throw new Error('private socket diagnostic');}});
+  try {
+    const result=await invoke({action:'generate'},{authorization:'Bearer '+'x'.repeat(50)});
+    assert.equal(result.code,502);assert.match(result.body.error,/Could not reach/);
+    assert.doesNotMatch(JSON.stringify(result.body),/private socket/);
+  } finally {globalThis.fetch=original;}
+});
+test('blank and duplicate generated questions are removed',async()=>{
+  process.env.AI_GATEWAY_API_KEY='test-private-ai-key';
+  delete process.env.GEMINI_API_KEY;
+  const original=globalThis.fetch;
+  globalThis.fetch=async(url)=>url.endsWith('/auth/v1/user')?new Response(JSON.stringify({id:'test-user'})):url.includes('/rpc/')?new Response('true'):new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({cards:[{front:'  ',back:'answer'},{front:' What is charge? ',back:' A property. '},{front:'what is charge?',back:'Duplicate.'}]})}}]}));
+  try {
+    const result=await invoke({action:'generate',subject:'Physics',classLevel:'Class 12',chapter:'Electric Charges'},{authorization:'Bearer '+'x'.repeat(50)});
+    assert.equal(result.code,200);
+    assert.deepEqual(result.body.cards,[{front:'What is charge?',back:'A property.'}]);
+  } finally {globalThis.fetch=original;}
+});
