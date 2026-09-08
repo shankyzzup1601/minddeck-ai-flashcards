@@ -74,9 +74,9 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
     val scope=rememberCoroutineScope()
     val snackbar=remember { SnackbarHostState() }
     LaunchedEffect(state.error,state.info) {
-        val message=state.error ?: state.info
+        val message=state.error ?: state.info?.substringBefore(". AI can make mistakes")
         if(message!=null) {
-            snackbar.showSnackbar(message,duration=if(state.error!=null) SnackbarDuration.Long else SnackbarDuration.Short)
+            snackbar.showSnackbar(message,withDismissAction=true,duration=if(state.error!=null) SnackbarDuration.Long else SnackbarDuration.Short)
             vm.clearMessage()
         }
     }
@@ -115,7 +115,22 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
     }
     Scaffold(
         containerColor=Ink,
-        snackbarHost={ SnackbarHost(snackbar,modifier=Modifier.padding(horizontal=12.dp,vertical=8.dp)) },
+        snackbarHost={
+            SnackbarHost(snackbar,modifier=Modifier.padding(horizontal=16.dp,vertical=8.dp)) { data ->
+                Snackbar(
+                    modifier=Modifier.fillMaxWidth(),
+                    shape=RoundedCornerShape(20.dp),
+                    containerColor=PanelElevated,
+                    contentColor=Color(0xFFF7F8FA),
+                    dismissAction={IconButton(onClick={data.dismiss()}) {Icon(Icons.Rounded.Close,"Dismiss message",tint=Muted)}}
+                ) {
+                    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                        Icon(if(state.error!=null) Icons.Rounded.Info else Icons.Rounded.CheckCircle,null,tint=if(state.error!=null) Lavender else Lime,modifier=Modifier.size(20.dp))
+                        Text(data.visuals.message,fontSize=14.sp,lineHeight=20.sp)
+                    }
+                }
+            }
+        },
         bottomBar={ if(!composer && studyDeck==null) Surface(color=Panel,shape=RoundedCornerShape(topStart=28.dp,topEnd=28.dp),border=BorderStroke(1.dp,Hairline)) {
             NavigationBar(containerColor=Color.Transparent,tonalElevation=0.dp) {
                 listOf("Home" to Icons.Rounded.Home,"Library" to Icons.Rounded.AutoStories,"Focus" to Icons.Rounded.Timer,"You" to Icons.Rounded.Person).forEachIndexed { i,(label,icon) ->
@@ -198,7 +213,7 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {"Physics"
     var search by rememberSaveable {mutableStateOf("")}
     var delete by rememberSaveable {mutableStateOf<String?>(null)}
     val decks=state.cards.groupBy {it.deck}.map {(title,cards)->DeckSummary(title,cards.first().subject,cards.size,cards.count {it.due<=System.currentTimeMillis()})}.filter {it.title.contains(search,true)||it.subject.contains(search,true)}
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=22.dp,top=22.dp,end=22.dp,bottom=128.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=22.dp,top=22.dp,end=22.dp,bottom=40.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
         item {PageHeader("Your library","Small decks. Lasting knowledge.")}
         item {ActionButton("✨  Create with AI",onCreate)}
         item {OutlinedTextField(value=search,onValueChange={search=it},label={Text("Search your decks")},leadingIcon={Icon(Icons.Rounded.Search,null)},modifier=Modifier.fillMaxWidth(),singleLine=true,shape=RoundedCornerShape(16.dp))}
@@ -288,7 +303,7 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {"Physics"
         }}
         item {ActionButton(when {timer.running->"Pause session";timer.paused->"Resume session";timer.remaining==0->"Start another session";else->"Start focus"},{vm.timerToggle()})}
         item {OutlinedButton(onClick={reset=true},modifier=Modifier.fillMaxWidth().heightIn(min=50.dp)){Text("Reset timer")}}
-        item {Text("The deadline is saved when you leave the app. Return to see the correct remaining time. This preview does not send background completion notifications.",color=Muted,fontSize=14.sp,textAlign=TextAlign.Center)}
+        item {Text("Your timer keeps time when you leave. Come back to see your progress. Completion notifications aren’t available yet.",color=Muted,fontSize=14.sp,textAlign=TextAlign.Center)}
         item {Metric("${state.focusSeconds/60} minutes","Total completed focus",Modifier.fillMaxWidth())}
     }
     if(reset) AlertDialog(onDismissRequest={reset=false},title={Text("Reset this session?")},text={Text("Unfinished time will not count as a completed focus session.")},confirmButton={TextButton(onClick={vm.resetTimer();reset=false}){Text("Reset")}},dismissButton={TextButton(onClick={reset=false}){Text("Keep going")}})
@@ -299,11 +314,11 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {"Physics"
         item {PageHeader("Your space","Built around the way you learn.")}
         item {Row(verticalAlignment=Alignment.CenterVertically) {Box(Modifier.size(64.dp).background(Lavender,CircleShape),contentAlignment=Alignment.Center){Text((state.user?.name ?: state.profile.name).take(1).uppercase(),color=Ink,fontSize=26.sp,fontWeight=FontWeight.Bold)};Column(Modifier.weight(1f).padding(start=16.dp)){Text(state.user?.name ?: state.profile.name,fontSize=23.sp,fontWeight=FontWeight.Bold);Text("${state.profile.classLevel} · ${state.profile.stream}",color=Muted)}}}
         item {OutlinedButton(onClick=onEdit,modifier=Modifier.fillMaxWidth()){Text("Edit study profile")}}
-        item {Card(shape=RoundedCornerShape(26.dp),colors=CardDefaults.cardColors(containerColor=PanelElevated),border=BorderStroke(1.dp,Hairline)) {Column(Modifier.padding(22.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){Icon(Icons.Rounded.VerifiedUser,null,tint=Lime);Text(if(state.user!=null) "Google account connected" else "Secure Google sign-in",fontSize=21.sp,fontWeight=FontWeight.Bold);Text(if(state.user!=null) "Your login tokens are encrypted using Android Keystore. Your email is not displayed on the dashboard." else "Use Google's account chooser to enable online AI. MindDeck never asks for your Google password.",color=Muted,fontSize=14.sp);if(state.user==null) ActionButton(if(signingIn||state.busy) "Signing in…" else "Continue with Google",onSignIn,enabled=!signingIn&&!state.busy) else OutlinedButton(onClick={logout=true},enabled=!state.busy,modifier=Modifier.fillMaxWidth()){Text("Sign out")}}}}
+        item {Card(shape=RoundedCornerShape(26.dp),colors=CardDefaults.cardColors(containerColor=PanelElevated),border=BorderStroke(1.dp,Hairline)) {Column(Modifier.padding(22.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){Icon(Icons.Rounded.VerifiedUser,null,tint=Lime);Text(if(state.user!=null) "Google account connected" else "Secure Google sign-in",fontSize=21.sp,fontWeight=FontWeight.Bold);Text(if(state.user!=null) "You’re ready to create AI decks. Your saved cards stay on this device." else "Connect your Google account to turn chapters and notes into revision cards.",color=Muted,fontSize=14.sp);if(state.user==null) ActionButton(if(signingIn||state.busy) "Signing in…" else "Continue with Google",onSignIn,enabled=!signingIn&&!state.busy) else OutlinedButton(onClick={logout=true},enabled=!state.busy,modifier=Modifier.fillMaxWidth()){Text("Sign out")}}}}
         item {Section("Connection status")}
-        item {Text(if(state.serverOnline) "Native backend reachable. AI generation is verified only when a request succeeds." else "Native backend not connected. Local study remains available.",color=Muted);TextButton(onClick=onRetry,enabled=!state.configLoading){Text(if(state.configLoading) "Checking…" else "Check connection")}}
-        if(state.serverClientId.isBlank()) item {Text("Google login setup is pending for this build. The owner must configure the Google client ID and register this APK's signing certificate.",color=Lavender,fontSize=14.sp)}
-        item {HorizontalDivider(color=Hairline);Text("MindDeck Native · ${BuildConfig.VERSION_NAME}\nA real Android app. No WebView. No browser shell.\nCards are saved on this device; cloud deck sync is not included in this preview.",color=Muted,fontSize=12.sp,modifier=Modifier.padding(top=20.dp))}
+        item {Text(if(state.serverOnline) "Online service connected." else "You’re offline or the service is unavailable. Saved cards are still available.",color=Muted);TextButton(onClick=onRetry,enabled=!state.configLoading){Text(if(state.configLoading) "Checking…" else "Check connection")}}
+        if(state.serverClientId.isBlank()) item {Text("Google sign-in is temporarily unavailable. Check the connection and try again.",color=Lavender,fontSize=14.sp)}
+        item {HorizontalDivider(color=Hairline);Text("MindDeck Native · ${BuildConfig.VERSION_NAME}\nMade for calmer study.\nCards are stored on this device. Cloud sync isn’t available yet.",color=Muted,fontSize=12.sp,modifier=Modifier.padding(top=20.dp))}
     }
     if(logout) AlertDialog(onDismissRequest={logout=false},title={Text("Sign out?")},text={Text("Your account's saved cards will be hidden until you sign in again. This does not delete your account.")},confirmButton={TextButton(onClick={onSignOut();logout=false}){Text("Sign out")}},dismissButton={TextButton(onClick={logout=false}){Text("Cancel")}})
 }
