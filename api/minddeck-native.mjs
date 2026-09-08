@@ -1,7 +1,9 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
 import { getVercelOidcToken } from '@vercel/oidc';
 
 export const config = { maxDuration: 60 };
+const requestDeadline = new AsyncLocalStorage();
 const SUBJECTS = new Set(['Physics','Chemistry','Biology','Mathematics','Accountancy','Business Studies','Economics','Entrepreneurship']);
 class Failure extends Error { constructor(status,message) { super(message); this.status=status; } }
 const bounded = (value,min,max) => typeof value==='string' && value.length>=min && value.length<=max;
@@ -13,10 +15,13 @@ function settings() {
   return {url:url.replace(/\/$/,''),key};
 }
 async function upstream(url,options,timeout=12000) {
-  let response;
-  try { response=await fetch(url,{...options,redirect:'error',cache:'no-store',signal:AbortSignal.timeout(timeout)}); }
-  catch { throw new Failure(502,'Could not reach the online service. Please try again.'); }
-  const text=await response.text();
+  const remaining=(requestDeadline.getStore() ?? (Date.now()+55000))-Date.now();
+  if(remaining<=0) throw new Failure(504,'The online service took too long. Please try again. Your saved cards are safe.');
+  let response, text;
+  try {
+    response=await fetch(url,{...options,redirect:'error',cache:'no-store',signal:AbortSignal.timeout(Math.min(timeout,remaining))});
+    text=await response.text();
+  } catch { throw new Failure(502,'Could not reach the online service. Please try again.'); }
   if(text.length>1000000) throw new Failure(502,'Online service returned an oversized response.');
   let data; try { data=JSON.parse(text); } catch { data={}; }
   return {response,data};
@@ -41,11 +46,11 @@ async function geminiGenerate(key,prompt) {
     .sort((a,b)=>Number(/flash-lite/i.test(b))-Number(/flash-lite/i.test(a)))
     .slice(0,2);
   const candidates=[...preferred,...fallbacks].slice(0,2);
-  if(!candidates.length) throw new Failure(503,'No compatible free Gemini text model is available for this API key.');
+  if(!candidates.length) throw new Failure(503,'No compatible Gemini text model is available for this API key.');
   let lastResult;
   for(const model of candidates) {
     try {
-      const result=await upstream(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',headers:{'x-goog-api-key':key,'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:.2,maxOutputTokens:1800,responseMimeType:'application/json'}})},48000);
+      const result=await upstream(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',headers:{'x-goog-api-key':key,'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:.2,maxOutputTokens:1800,responseMimeType:'application/json'}})},22000);
       lastResult=result;
       if(result.response.ok) return result;
       if(![404,429,500,502,503,504].includes(result.response.status)) return result;
@@ -107,11 +112,22 @@ async function generate(body,user) {
   }
   const generated=geminiKey?result.data?.candidates?.[0]?.content?.parts?.map(part=>part.text||'').join(''):result.data?.choices?.[0]?.message?.content;
   let parsed; try {parsed=JSON.parse(generated.replace(/^```json\s*|\s*```$/g,''));} catch {throw new Failure(502,'AI returned an unreadable answer. Existing decks were not changed.');}
-  const cards=Array.isArray(parsed.cards)?parsed.cards.filter(c=>bounded(c?.front,1,1000)&&bounded(c?.back,1,3000)).slice(0,20):[];
+  const seen=new Set();
+  const cards=Array.isArray(parsed?.cards)?parsed.cards
+    .filter(c=>bounded(c?.front,1,1000)&&bounded(c?.back,1,3000))
+    .map(c=>({front:c.front.trim(),back:c.back.trim()}))
+    .filter(c=>{
+      const key=c.front.toLowerCase().replace(/\s+/g,' ');
+      if(!c.front||!c.back||seen.has(key)) return false;
+      seen.add(key); return true;
+    }).slice(0,15):[];
   if(!cards.length) throw new Failure(502,'AI returned no usable cards. Please retry.');
   return {cards:cards.map(({front,back})=>({front,back}))};
 }
-export default async function handler(request,response) {
+export default function handler(request,response) {
+  return requestDeadline.run(Date.now()+55000,()=>handleRequest(request,response));
+}
+async function handleRequest(request,response) {
   response.setHeader('Cache-Control','no-store');
   response.setHeader('X-Content-Type-Options','nosniff');
   try {
