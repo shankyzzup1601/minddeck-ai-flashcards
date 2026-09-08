@@ -85,10 +85,10 @@ class StudyViewModel(application: Application): AndroidViewModel(application) {
     }
     fun signOut() = task {
         val user=mutable.value.user
-        // Clearing local credentials succeeds even when the server cannot be reached.
-        if(user != null) runCatching { api.request(JSONObject().put("action","signOut"),user.accessToken) }
+        // Hide local account data first; remote revocation must not block local sign-out.
         withContext(Dispatchers.IO) { vault.clear() }
         mutable.update { it.copy(user=null,cards=emptyList(),focusSeconds=0,timer=restoreTimer("guest"),info="Signed out. Account cards stay private on this device.") }
+        if(user != null) viewModelScope.launch { runCatching { api.request(JSONObject().put("action","signOut"),user.accessToken) } }
         reload()
     }
     private suspend fun authenticatedRequest(body: JSONObject): JSONObject {
