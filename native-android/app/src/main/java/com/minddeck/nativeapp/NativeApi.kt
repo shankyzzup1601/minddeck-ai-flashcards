@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit
 class ApiFailure(val status: Int, message: String): Exception(message)
 class NativeApi {
     private val client = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(65,TimeUnit.SECONDS)
-        .callTimeout(75,TimeUnit.SECONDS).followRedirects(false).followSslRedirects(false).build()
+        .retryOnConnectionFailure(false).callTimeout(75,TimeUnit.SECONDS).followRedirects(false).followSslRedirects(false).build()
     suspend fun config(): JSONObject = request(null)
     suspend fun request(data: JSONObject?, token: String? = null): JSONObject = withContext(Dispatchers.IO) {
         val request = Request.Builder().url(BuildConfig.API_BASE_URL).header("Accept","application/json")
@@ -20,8 +20,9 @@ class NativeApi {
         if(data != null) request.post(data.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))
         try {
             client.newCall(request.build()).execute().use { response ->
-                val body = response.body?.string().orEmpty()
-                if(body.length > 1_000_000) throw ApiFailure(502,"The response was too large. Please try a smaller chapter.")
+                val source = response.body?.source()
+                if(source?.request(1_000_001L) == true) throw ApiFailure(502,"The response was too large. Please try a smaller chapter.")
+                val body = source?.readUtf8().orEmpty()
                 val json = try { JSONObject(body) } catch (_: Exception) { throw ApiFailure(response.code,"The AI server is not ready yet. Your saved cards are still available.") }
                 if(!response.isSuccessful) throw ApiFailure(response.code,json.optString("error","The request failed. Please try again."))
                 json
