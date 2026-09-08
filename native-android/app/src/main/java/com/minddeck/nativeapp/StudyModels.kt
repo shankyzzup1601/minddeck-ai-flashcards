@@ -8,7 +8,7 @@ data class Profile(val name: String = "Student", val classLevel: String = "Class
 data class UserSession(val id: String, val name: String, val accessToken: String, val refreshToken: String)
 data class TimerState(val duration: Int = 1500, val remaining: Int = 1500, val endAt: Long = 0, val sessionId: String = "") {
     val running get() = endAt > 0
-    val paused get() = !running && remaining in 1 until duration
+    val paused get() = !running && sessionId.isNotBlank() && remaining in 1..duration
     fun secondsAt(now: Long): Int = if (running) ((max(0L, endAt - now) + 999) / 1000).toInt().coerceAtMost(duration) else remaining
 }
 object ReviewScheduler {
