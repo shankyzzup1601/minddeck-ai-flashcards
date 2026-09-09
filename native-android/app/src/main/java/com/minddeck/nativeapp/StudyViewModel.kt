@@ -18,8 +18,12 @@ data class StudyUiState(
     val profile: Profile = Profile(), val user: UserSession? = null, val cards: List<StudyCard> = emptyList(),
     val timer: TimerState = TimerState(), val focusSeconds: Int = 0, val loading: Boolean = true,
     val busy: Boolean = false, val error: String? = null, val info: String? = null,
-    val serverClientId: String = "", val serverOnline: Boolean = false, val configLoading: Boolean = false
+    val serverClientId: String = PUBLIC_GOOGLE_SERVER_CLIENT_ID, val serverOnline: Boolean = false, val configLoading: Boolean = false
 )
+
+// OAuth client IDs are public identifiers. Bundling this fallback keeps sign-in available
+// when the optional runtime configuration request is slow or temporarily unavailable.
+private const val PUBLIC_GOOGLE_SERVER_CLIENT_ID = "407603468709-bghb7s1qoin5kbr12o5bgjodemq4qjvl.apps.googleusercontent.com"
 class StudyViewModel(application: Application): AndroidViewModel(application) {
     private val store = StudyStore(application)
     private val vault = SessionVault(application)
@@ -61,8 +65,11 @@ class StudyViewModel(application: Application): AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val config=api.config()
-                mutable.update { it.copy(serverOnline=true,serverClientId=config.optString("googleClientId")) }
-            } catch (_: Exception) { mutable.update { it.copy(serverOnline=false) } }
+                val configuredClientId = config.optString("googleClientId").ifBlank { PUBLIC_GOOGLE_SERVER_CLIENT_ID }
+                mutable.update { it.copy(serverOnline=true,serverClientId=configuredClientId) }
+            } catch (_: Exception) {
+                mutable.update { it.copy(serverOnline=false,serverClientId=it.serverClientId.ifBlank { PUBLIC_GOOGLE_SERVER_CLIENT_ID }) }
+            }
             finally { mutable.update { it.copy(configLoading=false) } }
         }
     }
