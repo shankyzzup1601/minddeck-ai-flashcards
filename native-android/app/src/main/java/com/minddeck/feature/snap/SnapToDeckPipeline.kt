@@ -1,6 +1,8 @@
 package com.minddeck.feature.snap
 
+import android.content.Context
 import android.graphics.Bitmap
+import android.net.Uri
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
@@ -21,7 +23,11 @@ class MlKitOcrExtractor {
  private val recognizer=TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
  suspend fun extract(bitmap:Bitmap,rotationDegrees:Int=0):OcrDocument {
   require(bitmap.width>0 && bitmap.height>0)
-  val result=recognizer.process(InputImage.fromBitmap(bitmap,rotationDegrees)).await()
+  return recognize(InputImage.fromBitmap(bitmap,rotationDegrees))
+ }
+ suspend fun extract(context:Context,uri:Uri):OcrDocument = recognize(InputImage.fromFilePath(context,uri))
+ private suspend fun recognize(image:InputImage):OcrDocument {
+  val result=recognizer.process(image).await()
   val cleaned=result.text.replace(Regex("[ \\t]+")," ").replace(Regex("\\n{3,}"),"\\n\\n").trim()
   require(cleaned.length>=30) {"Not enough readable text. Retake the photo in brighter light and keep the page flat."}
   return OcrDocument(cleaned,result.textBlocks.size)
