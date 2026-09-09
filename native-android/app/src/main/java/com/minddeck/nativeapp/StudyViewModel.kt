@@ -115,12 +115,18 @@ class StudyViewModel(application: Application): AndroidViewModel(application) {
     fun generate(subject: String, chapter: String, notes: String, onDone: () -> Unit) = task {
         require(chapter.isNotBlank() || notes.trim().length >= 30) { "Choose a chapter or paste at least 30 characters of notes." }
         val currentOwner = owner
-        val data=authenticatedRequest(JSONObject().put("action","generate").put("subject",subject).put("classLevel",mutable.value.profile.classLevel).put("chapter",chapter).put("notes",notes.trim().take(12000)))
-        val source=data.getJSONArray("cards")
         val title=if(notes.isBlank()) chapter else "My notes · $subject"
-        val cards=(0 until source.length()).map { source.getJSONObject(it) }.map {
-            StudyCard(UUID.randomUUID().toString(),title,subject,it.getString("front").take(1000),it.getString("back").take(3000))
-        }.filter { it.front.isNotBlank() && it.back.isNotBlank() }.take(20)
+        val cards = if (mutable.value.user == null) {
+            // Offline setup stays useful: use the bundled starter bank instead of a dead AI error.
+            PracticeBank.questions.filter { it.subject == subject && (chapter.isBlank() || it.chapter == chapter) }
+                .take(15).map { StudyCard(UUID.randomUUID().toString(), title, subject, it.prompt, "${it.options[it.correct]}\\n\\n${it.explanation}") }
+        } else {
+            val data=authenticatedRequest(JSONObject().put("action","generate").put("subject",subject).put("classLevel",mutable.value.profile.classLevel).put("chapter",chapter).put("notes",notes.trim().take(12000)))
+            val source=data.getJSONArray("cards")
+            (0 until source.length()).map { source.getJSONObject(it) }.map {
+                StudyCard(UUID.randomUUID().toString(),title,subject,it.getString("front").take(1000),it.getString("back").take(3000))
+            }.filter { it.front.isNotBlank() && it.back.isNotBlank() }.take(20)
+        }
         require(cards.isNotEmpty()) { "No usable cards came back. Your existing decks have not changed." }
         withContext(Dispatchers.IO) { store.save(currentOwner,cards) }
         reload()
