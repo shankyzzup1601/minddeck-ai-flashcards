@@ -111,10 +111,10 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
     }
     BackHandler(premium || composer || studyDeck != null || tab != 0) { when { premium -> premium=false; composer -> composer=false; studyDeck != null -> studyDeck=null; else -> tab=0 } }
     fun signIn() {
-        if(signingIn || state.busy) return
+        if(signingIn) return
         if(state.serverClientId.isBlank()) {
             vm.refreshConfig()
-            vm.showError("Google sign-in is not configured for this new Android build yet. Your saved cards are available without signing in.")
+            vm.showError("Google sign-in is still preparing. Check your connection and tap Continue with Google again.")
             return
         }
         signingIn=true
@@ -130,7 +130,7 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
                     vm.signIn(GoogleIdTokenCredential.createFrom(credential.data).idToken,rawNonce)
                 } else vm.showError("Google returned an unsupported credential. Please try again.")
             } catch(_: GetCredentialCancellationException) { /* A cancelled chooser is not an error. */ }
-              catch(_: Exception) { vm.showError("Google couldn't finish sign-in. Check connectivity and this APK's OAuth certificate registration, then retry.") }
+              catch(_: Exception) { vm.showError("Google sign-in could not connect. Check mobile data or Wi-Fi, then tap Continue with Google again.") }
             finally { signingIn=false }
         }
     }
@@ -144,7 +144,7 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
         return
     }
     if(!state.profile.complete && state.user==null && !offlineSetup) {
-        WelcomeScreen(started=started,signingIn=signingIn||state.busy,error=state.error,configLoading=state.configLoading,onStart={started=true},onSignIn={signIn()},onOffline={offlineSetup=true},onBack={started=false})
+        WelcomeScreen(started=started,signingIn=signingIn,error=state.error,configLoading=state.configLoading,onStart={started=true},onSignIn={signIn()},onOffline={offlineSetup=true},onBack={started=false})
         return
     }
     if(!state.profile.complete || profileEdit) {
