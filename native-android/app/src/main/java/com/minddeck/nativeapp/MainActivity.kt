@@ -5,6 +5,9 @@ package com.minddeck.nativeapp
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.SystemBarStyle
@@ -38,6 +41,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -53,6 +57,7 @@ import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.minddeck.feature.snap.MlKitOcrExtractor
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
@@ -328,11 +333,44 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {
     var chapter by rememberSaveable {mutableStateOf("")}
     var notes by rememberSaveable {mutableStateOf("")}
     var useNotes by rememberSaveable {mutableStateOf(false)}
+    var scanning by remember {mutableStateOf(false)}
+    var scanError by remember {mutableStateOf<String?>(null)}
+    val context=LocalContext.current
+    val scope=rememberCoroutineScope()
+    val ocr=remember {MlKitOcrExtractor()}
+    DisposableEffect(ocr) {onDispose {ocr.close()}}
+    val photoPicker=rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) {uri ->
+        if(uri!=null) scope.launch {
+            scanning=true
+            scanError=null
+            try {
+                val document=ocr.extract(context,uri)
+                notes=document.text.take(12000)
+                useNotes=true
+            } catch(e:Exception) {
+                scanError=e.message ?: "MindDeck could not read this image. Try a brighter, sharper photo."
+            } finally {scanning=false}
+        }
+    }
     val chapters=vm.chapters(subject)
     LaunchedEffect(subject,state.profile.classLevel) {if(chapter !in chapters) chapter=chapters.firstOrNull().orEmpty()}
     LazyColumn(Modifier.fillMaxSize().imePadding(),contentPadding=PaddingValues(start=18.dp,top=18.dp,end=18.dp,bottom=48.dp),verticalArrangement=Arrangement.spacedBy(20.dp)) {
         item {PageHeader("Create a deck","AI does the drafting. You do the learning.",onBack)}
         item {FlowRow(horizontalArrangement=Arrangement.spacedBy(10.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {FilterChip(selected=!useNotes,onClick={useNotes=false},label={Text("Ready syllabus")});FilterChip(selected=useNotes,onClick={useNotes=true},label={Text("My notes")})}}
+        item {
+            OutlinedButton(
+                onClick={photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))},
+                enabled=!scanning && !state.busy,
+                modifier=Modifier.fillMaxWidth().heightIn(min=56.dp),
+                shape=RoundedCornerShape(18.dp)
+            ) {
+                if(scanning) CircularProgressIndicator(Modifier.size(20.dp),strokeWidth=2.dp)
+                else Icon(Icons.Rounded.DocumentScanner,null,modifier=Modifier.size(20.dp))
+                Spacer(Modifier.width(10.dp))
+                Text(if(scanning) "Reading your page…" else "Snap-to-Deck · Choose a photo")
+            }
+            scanError?.let {Text(it,color=Color(0xFFFF8FA3),fontSize=13.sp,lineHeight=18.sp,modifier=Modifier.padding(top=8.dp))}
+        }
         item {Surface(color=Navy,shape=RoundedCornerShape(22.dp)) {Row(Modifier.fillMaxWidth().padding(18.dp),verticalAlignment=Alignment.CenterVertically){Box(Modifier.size(44.dp).background(Aurora,RoundedCornerShape(14.dp)),contentAlignment=Alignment.Center){Icon(Icons.Rounded.AutoAwesome,null,tint=Color.White)};Column(Modifier.weight(1f).padding(start=14.dp)){Text("YOUR NEXT DISCOVERY",color=Lavender,fontSize=10.sp,letterSpacing=1.sp);Text("${state.profile.classLevel} · ${state.profile.stream}",color=Color.White,fontSize=17.sp,modifier=Modifier.padding(top=5.dp))}}}}
         item {SelectField("Subject",subject,subjects) {subject=it}}
         if(useNotes) item {OutlinedTextField(value=notes,onValueChange={notes=it.take(12000)},label={Text("Paste your study notes")},supportingText={Text("${notes.length}/12000 · ${if(state.user == null) "Starter cards work offline." else "AI drafting is ready."}")},modifier=Modifier.fillMaxWidth().heightIn(min=220.dp),minLines=7,shape=RoundedCornerShape(18.dp))}
