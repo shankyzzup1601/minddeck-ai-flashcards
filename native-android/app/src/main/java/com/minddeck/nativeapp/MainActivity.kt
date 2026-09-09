@@ -188,7 +188,7 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
                 premium -> PremiumScreen {premium=false}
                 composer -> Composer(state,vm,composerSubject,onBack={composer=false},onComplete={if(composer){composer=false;tab=1}},onSignIn={signIn()})
                 studyDeck!=null -> StudyScreen(studyDeck!!,state,vm) {studyDeck=null}
-                tab==0 -> HomeScreen(state,onCreate={composerSubject="";composer=true},onSubject={composerSubject=it;composer=true},onStudy={tab=1},onFocus={tab=3},onAccount={tab=4})
+                tab==0 -> ReferenceDashboard(state,onCreate={composerSubject="";composer=true},onStudy={tab=1},onFocus={tab=3},onAccount={tab=4})
                 tab==1 -> LibraryScreen(state,vm,onCreate={composerSubject="";composer=true},onManual={manual=true},onStudy={studyDeck=it})
                 tab==2 -> PracticeScreen(state)
                 tab==3 -> FocusScreen(state,vm)
