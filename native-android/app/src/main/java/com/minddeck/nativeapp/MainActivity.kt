@@ -58,17 +58,22 @@ import kotlinx.coroutines.delay
 import java.security.MessageDigest
 import java.security.SecureRandom
 
-internal val Ink=Color(0xFFEAF2FF)
-internal val Paper=Color(0xFF080D17)
-internal val Panel=Color(0xFF101B2A)
-internal val PanelElevated=Color(0xFF172438)
-internal val Navy=Color(0xFF0B1828)
-internal val Lime=Color(0xFF66E4D8)
-internal val Lavender=Color(0xFF91B9FF)
-internal val Peach=Color(0xFFFFD18C)
-internal val Muted=Color(0xFF97A9BF)
-internal val Hairline=Color(0xFF26394E)
-internal val Aurora=Brush.linearGradient(listOf(Color(0xFF08766E),Color(0xFF315EAD)))
+internal val Ink=Color(0xFFF3F5FF)
+internal val Paper=Color(0xFF060814)
+internal val Panel=Color(0xFF0D1325)
+internal val PanelElevated=Color(0xFF17203A)
+internal val Navy=Color(0xFF09172B)
+internal val Lime=Color(0xFF74F4DD)
+internal val Lavender=Color(0xFF9E8CFF)
+internal val Peach=Color(0xFFFFC27E)
+internal val Muted=Color(0xFFA2ADC5)
+internal val Hairline=Color(0xFF2A3958)
+internal val Nebula=Color(0xFF542A8F)
+internal val CosmicPink=Color(0xFFF06BCE)
+internal val ElectricBlue=Color(0xFF4779FF)
+internal val GlassGlow=Color(0xFFDEE5FF)
+internal val Aurora=Brush.linearGradient(listOf(Color(0xFF00AFA5),Color(0xFF496CF2),Color(0xFF8A55E9)))
+internal val Cosmos=Brush.linearGradient(listOf(Color(0xFF202B52),Color(0xFF111936),Color(0xFF0A1022)))
 private val MindDeckColors=darkColorScheme(primary=Lime,onPrimary=Paper,secondary=Lavender,onSecondary=Paper,background=Paper,surface=Panel,onSurface=Ink,onBackground=Ink,surfaceVariant=PanelElevated,onSurfaceVariant=Muted,outline=Hairline)
 
 class MainActivity: ComponentActivity() {
@@ -199,7 +204,13 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
 }
 @Composable internal fun Pill(text: String,color: Color=Lime) { Surface(color=color.copy(alpha=.10f),shape=RoundedCornerShape(50),border=BorderStroke(1.dp,color.copy(alpha=.24f))) { Text(text,color=color,fontSize=12.sp,lineHeight=16.sp,letterSpacing=.4.sp,fontWeight=FontWeight.SemiBold,modifier=Modifier.padding(horizontal=13.dp,vertical=7.dp)) } }
 @Composable internal fun ActionButton(text: String,onClick: () -> Unit,modifier: Modifier=Modifier,enabled: Boolean=true) {
-    Button(onClick=onClick,enabled=enabled,modifier=modifier.fillMaxWidth().heightIn(min=56.dp).clip(RoundedCornerShape(18.dp)).background(if(enabled) Aurora else Brush.linearGradient(listOf(Hairline,Hairline))),shape=RoundedCornerShape(18.dp),colors=ButtonDefaults.buttonColors(containerColor=Color.Transparent,contentColor=Color.White,disabledContainerColor=Color.Transparent,disabledContentColor=Muted),contentPadding=PaddingValues(horizontal=20.dp,vertical=15.dp)) {Text(text,fontSize=15.sp,lineHeight=21.sp,fontWeight=FontWeight.SemiBold,textAlign=TextAlign.Center)}
+    val interaction=remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val lift by animateFloatAsState(if(pressed) 5f else 0f,spring(stiffness=520f),label="button press")
+    Box(modifier.fillMaxWidth().heightIn(min=62.dp)) {
+        Box(Modifier.matchParentSize().padding(top=6.dp).clip(RoundedCornerShape(19.dp)).background(Color(0xFF16204A)).border(BorderStroke(1.dp,Lavender.copy(alpha=.28f)),RoundedCornerShape(19.dp)))
+        Button(onClick=onClick,enabled=enabled,interactionSource=interaction,modifier=Modifier.fillMaxWidth().heightIn(min=56.dp).graphicsLayer {translationY=lift;shadowElevation=if(pressed) 2f else 14f;shape=RoundedCornerShape(19.dp);clip=true}.background(if(enabled) Aurora else Brush.linearGradient(listOf(Hairline,Hairline))),shape=RoundedCornerShape(19.dp),colors=ButtonDefaults.buttonColors(containerColor=Color.Transparent,contentColor=Color.White,disabledContainerColor=Color.Transparent,disabledContentColor=Muted),contentPadding=PaddingValues(horizontal=20.dp,vertical=15.dp)) {Text(text,fontSize=15.sp,lineHeight=21.sp,fontWeight=FontWeight.Bold,textAlign=TextAlign.Center)}
+    }
 }
 @Composable internal fun Section(title: String,subtitle: String?=null) {
     Column {Text(title,fontSize=20.sp,fontWeight=FontWeight.Bold); subtitle?.let {Text(it,color=Muted,fontSize=14.sp,modifier=Modifier.padding(top=4.dp))}}
@@ -210,9 +221,12 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
 @Composable internal fun DepthCard(onClick: ()->Unit, modifier: Modifier=Modifier, content: @Composable ColumnScope.()->Unit) {
     val interaction=remember {MutableInteractionSource()}
     val pressed by interaction.collectIsPressedAsState()
-    val tilt by animateFloatAsState(if(pressed) 4f else 0f,animationSpec=spring(stiffness=380f),label="card tilt")
-    val scale by animateFloatAsState(if(pressed) .975f else 1f,animationSpec=spring(stiffness=380f),label="card depth")
-    Column(modifier.graphicsLayer {rotationX=tilt;scaleX=scale;scaleY=scale;cameraDistance=16*density}.shadow(10.dp,RoundedCornerShape(22.dp)).clip(RoundedCornerShape(22.dp)).background(Brush.linearGradient(listOf(PanelElevated,Panel))).clickable(interactionSource=interaction,indication=null,onClick=onClick).padding(18.dp),content=content)
+    val tilt by animateFloatAsState(if(pressed) 5.5f else -1.2f,animationSpec=spring(stiffness=380f),label="card tilt")
+    val scale by animateFloatAsState(if(pressed) .972f else 1f,animationSpec=spring(stiffness=380f),label="card depth")
+    Box(modifier) {
+        Box(Modifier.matchParentSize().padding(top=8.dp,start=2.dp,end=2.dp).clip(RoundedCornerShape(24.dp)).background(Color(0xFF050814)).border(BorderStroke(1.dp,ElectricBlue.copy(alpha=.18f)),RoundedCornerShape(24.dp)))
+        Column(Modifier.graphicsLayer {rotationX=tilt;rotationY=if(pressed) -1.5f else 0f;translationY=if(pressed) 5f else 0f;scaleX=scale;scaleY=scale;cameraDistance=18*density;shadowElevation=18f;shape=RoundedCornerShape(24.dp);clip=true}.background(Cosmos).border(BorderStroke(1.dp,GlassGlow.copy(alpha=.13f)),RoundedCornerShape(24.dp)).clickable(interactionSource=interaction,indication=null,onClick=onClick).padding(18.dp),content=content)
+    }
 }
 @Composable internal fun DeckSculpture(modifier: Modifier=Modifier) {
     Box(modifier.size(86.dp),contentAlignment=Alignment.Center) {
@@ -301,12 +315,11 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {"Physics"
         item {FlowRow(horizontalArrangement=Arrangement.spacedBy(10.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {FilterChip(selected=!useNotes,onClick={useNotes=false},label={Text("Ready syllabus")});FilterChip(selected=useNotes,onClick={useNotes=true},label={Text("My notes")})}}
         item {Surface(color=Navy,shape=RoundedCornerShape(22.dp)) {Row(Modifier.fillMaxWidth().padding(18.dp),verticalAlignment=Alignment.CenterVertically){Box(Modifier.size(44.dp).background(Aurora,RoundedCornerShape(14.dp)),contentAlignment=Alignment.Center){Icon(Icons.Rounded.AutoAwesome,null,tint=Color.White)};Column(Modifier.weight(1f).padding(start=14.dp)){Text("YOUR NEXT DISCOVERY",color=Lavender,fontSize=10.sp,letterSpacing=1.sp);Text("${state.profile.classLevel} · ${state.profile.stream}",color=Color.White,fontSize=17.sp,modifier=Modifier.padding(top=5.dp))}}}}
         item {SelectField("Subject",subject,subjects) {subject=it}}
-        if(useNotes) item {OutlinedTextField(value=notes,onValueChange={notes=it.take(12000)},label={Text("Paste your study notes")},supportingText={Text("${notes.length}/12000 · Sent to MindDeck's AI service when you create.")},modifier=Modifier.fillMaxWidth().heightIn(min=220.dp),minLines=7,shape=RoundedCornerShape(18.dp))}
+        if(useNotes) item {OutlinedTextField(value=notes,onValueChange={notes=it.take(12000)},label={Text("Paste your study notes")},supportingText={Text("${notes.length}/12000 · ${if(state.user == null) "Starter cards work offline." else "AI drafting is ready."}")},modifier=Modifier.fillMaxWidth().heightIn(min=220.dp),minLines=7,shape=RoundedCornerShape(18.dp))}
         else item {SelectField("Chapter",chapter,chapters) {chapter=it}}
         item {Card(colors=CardDefaults.cardColors(containerColor=PanelElevated),shape=RoundedCornerShape(24.dp),border=BorderStroke(1.dp,Hairline)) {Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {Box(Modifier.size(44.dp).background(Lavender.copy(alpha=.12f),RoundedCornerShape(14.dp)),contentAlignment=Alignment.Center){Icon(Icons.Rounded.AutoAwesome,null,tint=Lavender)};Text("15 clear revision cards",fontSize=19.sp,lineHeight=25.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))};Text("Focused questions. Clear answers. Ready for your next review.",color=Muted,fontSize=14.sp,lineHeight=21.sp);HorizontalDivider(color=Hairline);Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {Icon(Icons.Rounded.CheckCircle,null,tint=Lime,modifier=Modifier.size(16.dp));Text("Your existing decks stay safe.",color=Muted,fontSize=12.sp,lineHeight=18.sp)}}}}
         item {
-            if(state.user==null) ActionButton("Continue with Google",onSignIn,enabled=!state.busy)
-            else ActionButton(if(state.busy) "Creating your cards…" else "Create revision cards",{vm.generate(subject,if(useNotes) "" else chapter,if(useNotes) notes else "",onComplete)},enabled=!state.busy && (if(useNotes) notes.trim().length>=30 else chapter.isNotBlank()))
+            ActionButton(if(state.busy) "Creating your cards…" else "Create revision cards",{vm.generate(subject,if(useNotes) "" else chapter,if(useNotes) notes else "",onComplete)},enabled=!state.busy && (if(useNotes) notes.trim().length>=30 else chapter.isNotBlank()))
         }
         if(state.busy) item {LinearProgressIndicator(Modifier.fillMaxWidth());Text("This can take up to a minute. You can go back without losing saved cards.",color=Muted,fontSize=13.sp,modifier=Modifier.padding(top=12.dp))}
         item {Text("AI may make mistakes. Verify formulas and exam facts with your textbook. ",color=Muted,fontSize=12.sp)}
