@@ -28,10 +28,10 @@ class NativeUiTest {
     private fun onboard() {
         compose.waitUntil(20000) {compose.onAllNodesWithText("Get started").fetchSemanticsNodes().isNotEmpty() || compose.onAllNodesWithText("A calmer way\nto study.").fetchSemanticsNodes().isNotEmpty() || compose.onAllNodesWithText("Home").fetchSemanticsNodes().isNotEmpty()}
         if(compose.onAllNodesWithText("Get started").fetchSemanticsNodes().isNotEmpty()) {
-            compose.onNodeWithText("Get started").performScrollTo().performClick()
+            compose.onNodeWithText("Get started").performClick()
             compose.onNodeWithText("Continue with Google").assertExists()
             captureScreen("first-run-google")
-            compose.onNodeWithText("Try free practice offline").performScrollTo().performClick()
+            compose.onNodeWithText("Try free practice offline").performClick()
         }
         if(compose.onAllNodesWithText("A calmer way\nto study.").fetchSemanticsNodes().isNotEmpty()) {
             compose.onNode(hasSetTextAction() and hasText("What should we call you?")).performScrollTo().performTextInput("Test Student")
@@ -45,7 +45,7 @@ class NativeUiTest {
         compose.onNodeWithText("Tests",useUnmergedTree=true).performClick()
         if(compose.onAllNodesWithContentDescription("Go back").fetchSemanticsNodes().isNotEmpty()) compose.onNodeWithContentDescription("Go back").performClick()
         if(compose.onAllNodesWithText("Discard current attempt").fetchSemanticsNodes().isNotEmpty()) {
-            compose.onNodeWithText("Discard current attempt").performScrollTo().performClick()
+            compose.onNodeWithText("Discard current attempt").performClick()
             compose.onNodeWithText("Discard").performClick()
         }
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Start free test"))
@@ -55,7 +55,7 @@ class NativeUiTest {
         openTests()
         repeat(5) {i->
             compose.onNodeWithTag("answer-option-0").performClick()
-            compose.onNodeWithText(if(i==4) "Submit test" else "Next").performScrollTo().performClick()
+            compose.onNodeWithText(if(i==4) "Submit test" else "Next").performClick()
         }
         compose.onNodeWithText("Submit").performClick()
         compose.onNodeWithText("Test results").assertExists()
@@ -66,7 +66,7 @@ class NativeUiTest {
     @Test fun unfinishedTestRestoresAnswersAndQuestion() {
         openTests()
         compose.onNodeWithTag("answer-option-0").performClick()
-        compose.onNodeWithText("Next").performScrollTo().performClick()
+        compose.onNodeWithText("Next").performClick()
         compose.activityRule.scenario.recreate()
         compose.waitUntil(5000) {compose.onAllNodesWithText("2 / 5").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithText("1 answered · You can go back and change answers.").assertExists()
@@ -101,7 +101,7 @@ class NativeUiTest {
         compose.onNodeWithText("Start focus").performClick()
         val model=ViewModelProvider(compose.activity)[StudyViewModel::class.java]
         compose.waitUntil(5000) { model.state.value.timer.remaining < 1500 }
-        compose.onNodeWithText("Pause session").performScrollTo().performClick()
+        compose.onNodeWithText("Pause session").performClick()
         compose.onNodeWithText("Resume session").assertExists()
         compose.activityRule.scenario.recreate()
         compose.waitUntil(5000) {compose.onAllNodesWithText("Resume session").fetchSemanticsNodes().isNotEmpty()}
