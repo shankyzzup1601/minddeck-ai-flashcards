@@ -249,7 +249,7 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
             Pill("FREE",Peach)
         }}
         item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-            listOf(Triple("🔥","$due","DUE"),Triple("✦","$decks","DECKS"),Triple("⚡","${state.focusMinutes}m","FOCUS")).forEach { (icon,value,label) ->
+            listOf(Triple("🔥","$due","DUE"),Triple("✦","$decks","DECKS"),Triple("⚡","${state.timer.duration/60}m","FOCUS")).forEach { (icon,value,label) ->
                 Surface(Modifier.weight(1f),color=Panel.copy(alpha=.9f),shape=RoundedCornerShape(18.dp),border=BorderStroke(1.dp,GlassGlow.copy(alpha=.10f)),shadowElevation=8.dp) {Column(Modifier.padding(vertical=12.dp),horizontalAlignment=Alignment.CenterHorizontally) {Text(icon,fontSize=15.sp);Text(value,fontSize=17.sp,fontWeight=FontWeight.Bold,color=Ink);Text(label,fontSize=8.sp,letterSpacing=1.sp,color=Muted)}}
             }
         }}
@@ -286,6 +286,21 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
             }
         }}
     }
+}
+
+private fun subjectAccent(subject: String): Color = when(subject) {
+    "Physics" -> Color(0xFF8AB8FF)
+    "Chemistry" -> Color(0xFFC0A3FF)
+    "Biology" -> Color(0xFF66D9B2)
+    "Mathematics" -> Color(0xFFF1C58A)
+    else -> Lavender
+}
+private fun subjectIcon(subject: String): ImageVector = when(subject) {
+    "Physics" -> Icons.Rounded.Bolt
+    "Chemistry" -> Icons.Rounded.Science
+    "Biology" -> Icons.Rounded.Eco
+    "Mathematics" -> Icons.Rounded.Calculate
+    else -> Icons.Rounded.MenuBook
 }
 
 @Composable private fun LibraryScreen(state: StudyUiState,vm: StudyViewModel,onCreate: () -> Unit,onManual: () -> Unit,onStudy: (String)->Unit) {
