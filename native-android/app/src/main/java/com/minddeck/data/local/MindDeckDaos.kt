@@ -28,6 +28,18 @@ data class DailyActivity(val dayEpoch:Long,val reviewCount:Int,val focusMinutes:
  @Query("SELECT COUNT(*) FROM review_logs WHERE reviewedAt>=:from AND reviewedAt<:until") suspend fun countBetween(from:Instant,until:Instant):Int
 }
 
+/** Atomically advances a card and appends its immutable review audit record. */
+@Dao
+abstract class ReviewTransactionDao {
+ @Update protected abstract suspend fun updateCard(value:FlashcardEntity):Int
+ @Insert protected abstract suspend fun insertLog(value:ReviewLogEntity)
+ @Transaction open suspend fun commit(card:FlashcardEntity,log:ReviewLogEntity) {
+  require(log.cardId==card.id) { "Review log/card mismatch." }
+  check(updateCard(card)==1) { "Review target no longer exists: ${card.id}" }
+  insertLog(log)
+ }
+}
+
 @Dao interface QuestionDao {
  @Upsert suspend fun upsertAll(values:List<QuestionEntity>)
  @Query("SELECT * FROM questions WHERE id IN (:ids)") suspend fun byIds(ids:List<String>):List<QuestionEntity>
@@ -51,6 +63,7 @@ abstract class MindDeckDatabase:RoomDatabase() {
  abstract fun decks():DeckDao
  abstract fun cards():FlashcardDao
  abstract fun reviews():ReviewLogDao
+ abstract fun reviewTransactions():ReviewTransactionDao
  abstract fun questions():QuestionDao
  abstract fun tests():TestSessionDao
 }
