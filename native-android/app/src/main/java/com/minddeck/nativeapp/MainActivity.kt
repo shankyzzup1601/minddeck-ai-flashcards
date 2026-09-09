@@ -25,6 +25,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.BorderStroke
@@ -65,20 +66,20 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 
 internal val Ink=Color(0xFFF3F5FF)
-internal val Paper=Color(0xFF060814)
-internal val Panel=Color(0xFF0D1325)
-internal val PanelElevated=Color(0xFF17203A)
-internal val Navy=Color(0xFF09172B)
-internal val Lime=Color(0xFF74F4DD)
-internal val Lavender=Color(0xFF9E8CFF)
+internal val Paper=Color(0xFF0B0E14)
+internal val Panel=Color(0xFF111827)
+internal val PanelElevated=Color(0xFF182238)
+internal val Navy=Color(0xFF0D1528)
+internal val Lime=Color(0xFF10B981)
+internal val Lavender=Color(0xFF818CF8)
 internal val Peach=Color(0xFFFFC27E)
 internal val Muted=Color(0xFFA2ADC5)
 internal val Hairline=Color(0xFF2A3958)
 internal val Nebula=Color(0xFF542A8F)
-internal val CosmicPink=Color(0xFFF06BCE)
-internal val ElectricBlue=Color(0xFF4779FF)
+internal val CosmicPink=Color(0xFFEC4899)
+internal val ElectricBlue=Color(0xFF6366F1)
 internal val GlassGlow=Color(0xFFDEE5FF)
-internal val Aurora=Brush.linearGradient(listOf(Color(0xFF00AFA5),Color(0xFF496CF2),Color(0xFF8A55E9)))
+internal val Aurora=Brush.linearGradient(listOf(Color(0xFF10B981),Color(0xFF6366F1),Color(0xFFEC4899)))
 internal val Cosmos=Brush.linearGradient(listOf(Color(0xFF202B52),Color(0xFF111936),Color(0xFF0A1022)))
 private val MindDeckColors=darkColorScheme(primary=Lime,onPrimary=Paper,secondary=Lavender,onSecondary=Paper,background=Paper,surface=Panel,onSurface=Ink,onBackground=Ink,surfaceVariant=PanelElevated,onSurfaceVariant=Muted,outline=Hairline)
 
@@ -247,49 +248,47 @@ fun MindDeckApp(activity: ComponentActivity, vm: StudyViewModel=viewModel()) {
     val due=state.cards.count {it.due <= System.currentTimeMillis()}
     val decks=state.cards.map {it.deck}.distinct().size
     val firstName=state.profile.name.substringBefore(' ').ifBlank {"Student"}
-    LazyColumn(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF241338),Color(0xFF0A1020),Paper))),contentPadding=PaddingValues(start=16.dp,top=12.dp,end=16.dp,bottom=30.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
+    val mastery=if(state.cards.isEmpty()) 0 else ((state.cards.count {it.reviews>0}*100f)/state.cards.size).toInt()
+    val subjects=subjectsFor(state.profile.stream)
+    LazyColumn(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF17122E),Paper,Color(0xFF07151A)))),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         item {Row(verticalAlignment=Alignment.CenterVertically) {
-            Surface(onClick=onAccount,color=PanelElevated,shape=CircleShape,border=BorderStroke(2.dp,CosmicPink.copy(alpha=.55f)),shadowElevation=12.dp) {Box(Modifier.size(48.dp).background(Brush.radialGradient(listOf(Nebula,Panel))),contentAlignment=Alignment.Center) {Text(firstName.take(1).uppercase(),fontSize=19.sp,color=Color.White,fontWeight=FontWeight.Bold)}}
-            Column(Modifier.weight(1f).padding(horizontal=11.dp)) {Text("GOOD MORNING",color=Lavender,fontSize=9.sp,letterSpacing=1.4.sp,fontWeight=FontWeight.Bold);Text(firstName,fontSize=19.sp,fontWeight=FontWeight.Bold);Text("${state.profile.classLevel} · ${state.profile.stream}",color=Muted,fontSize=12.sp)}
+            Surface(onClick=onAccount,color=PanelElevated,shape=RoundedCornerShape(18.dp),border=BorderStroke(1.dp,Lavender.copy(alpha=.7f)),shadowElevation=16.dp) {Box(Modifier.size(52.dp).background(Brush.radialGradient(listOf(CosmicPink,ElectricBlue,Panel))),contentAlignment=Alignment.Center){Text(firstName.take(1).uppercase(),fontSize=20.sp,color=Color.White,fontWeight=FontWeight.Black)}}
+            Column(Modifier.weight(1f).padding(horizontal=13.dp)){Text("MINDDECK // \${state.profile.stream}",color=Lime,fontSize=9.sp,letterSpacing=1.8.sp,fontWeight=FontWeight.Black);Text("Welcome back, $firstName",fontSize=21.sp,fontWeight=FontWeight.Bold);Text("\${state.profile.classLevel} learning system",color=Muted,fontSize=12.sp)}
             Pill("FREE",Peach)
         }}
-        item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-            listOf(Triple("🔥","$due","DUE"),Triple("✦","$decks","DECKS"),Triple("⚡","${state.timer.duration/60}m","FOCUS")).forEach { (icon,value,label) ->
-                Surface(Modifier.weight(1f),color=Panel.copy(alpha=.9f),shape=RoundedCornerShape(18.dp),border=BorderStroke(1.dp,GlassGlow.copy(alpha=.10f)),shadowElevation=8.dp) {Column(Modifier.padding(vertical=12.dp),horizontalAlignment=Alignment.CenterHorizontally) {Text(icon,fontSize=15.sp);Text(value,fontSize=17.sp,fontWeight=FontWeight.Bold,color=Ink);Text(label,fontSize=8.sp,letterSpacing=1.sp,color=Muted)}}
-            }
-        }}
-        item {DepthCard(onClick=onCreate) {
-            Row(verticalAlignment=Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {Pill("TODAY'S MISSION",CosmicPink);Text(if(decks==0) "Begin your first chapter" else "Keep your momentum alive",fontSize=25.sp,lineHeight=30.sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(top=15.dp));Text(if(decks==0) "Choose a chapter and build your first smart revision deck." else "$due cards are ready for your next review.",color=Muted,fontSize=13.sp,lineHeight=19.sp,modifier=Modifier.padding(top=8.dp))}
-                DeckSculpture()
-            }
-            Spacer(Modifier.height(16.dp));ActionButton(if(decks==0) "Start learning  →" else "Create a new deck  →",onCreate)
-        }}
-        item {DepthCard(onClick=onStudy) {
-            Row(verticalAlignment=Alignment.CenterVertically) {
-                Box(Modifier.size(44.dp).background(Brush.linearGradient(listOf(CosmicPink,ElectricBlue)),RoundedCornerShape(14.dp)),contentAlignment=Alignment.Center) {Icon(Icons.Rounded.AutoAwesome,null,tint=Color.White)}
-                Column(Modifier.weight(1f).padding(horizontal=13.dp)) {Text("YOUR REVISION SIGNAL",fontSize=10.sp,letterSpacing=1.2.sp,color=Lavender,fontWeight=FontWeight.Bold);Text(if(due>0) "$due cards are calling." else "Your memory is clear.",fontSize=17.sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(top=4.dp));Text("Open your library and strengthen the next weak link.",color=Muted,fontSize=12.sp,modifier=Modifier.padding(top=3.dp))}
-                Icon(Icons.Rounded.ArrowForward,null,tint=Lime)
-            }
-        }}
-        item {Section("Your subjects","Built around ${state.profile.stream}")}
-        items(subjectsFor(state.profile.stream)) { subject ->
-            DepthCard(onClick={onSubject(subject)}) {
+        item {Card(onClick=onCreate,colors=CardDefaults.cardColors(containerColor=Color.Transparent),shape=RoundedCornerShape(30.dp),border=BorderStroke(1.dp,Lavender.copy(alpha=.35f)),modifier=Modifier.fillMaxWidth().shadow(24.dp,RoundedCornerShape(30.dp),ambientColor=ElectricBlue.copy(.35f),spotColor=CosmicPink.copy(.28f))) {
+            Box(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF252E60),Color(0xFF191C3D),Color(0xFF113138)))).padding(22.dp)) {Column {
                 Row(verticalAlignment=Alignment.CenterVertically) {
-                    val accent=when(subject) {"Physics"->Lavender;"Chemistry"->Lime;"Biology"->Color(0xFF4FEA91);"Mathematics"->CosmicPink;else->Peach}
-                    Box(Modifier.size(48.dp).background(Brush.linearGradient(listOf(accent,accent.copy(alpha=.42f))),RoundedCornerShape(15.dp)),contentAlignment=Alignment.Center) {Text(subject.take(1),fontSize=19.sp,fontWeight=FontWeight.Black,color=Paper)}
-                    Column(Modifier.weight(1f).padding(horizontal=14.dp)) {Text(subject,fontSize=17.sp,fontWeight=FontWeight.Bold);Text("${state.cards.count {it.subject==subject}} cards · tap to create",fontSize=12.sp,color=Muted)}
-                    Icon(Icons.Rounded.ChevronRight,null,tint=Muted)
+                    Column(Modifier.weight(1f)){Pill("TODAY'S MISSION",Lime);Text(if(decks==0) "Build your first\\nmemory system" else "$due cards ready\\nto strengthen",fontSize=28.sp,lineHeight=33.sp,fontWeight=FontWeight.Black,modifier=Modifier.padding(top=17.dp));Text(if(decks==0) "Turn any chapter or photo into an intelligent deck." else "A short review now protects your long-term recall.",color=Muted,fontSize=13.sp,lineHeight=19.sp,modifier=Modifier.padding(top=9.dp))}
+                    Box(Modifier.size(104.dp),contentAlignment=Alignment.Center){CircularProgressIndicator(progress={mastery/100f},modifier=Modifier.fillMaxSize(),color=Lime,trackColor=Color.White.copy(.08f),strokeWidth=9.dp);Column(horizontalAlignment=Alignment.CenterHorizontally){Text("$mastery%",fontSize=23.sp,fontWeight=FontWeight.Black);Text("MASTERY",fontSize=7.sp,letterSpacing=1.sp,color=Muted)}}
                 }
-            }
-        }
-        item {DepthCard(onClick=onFocus) {
-            Row(verticalAlignment=Alignment.CenterVertically) {
-                Icon(Icons.Rounded.Timer,null,tint=Peach,modifier=Modifier.size(34.dp))
-                Column(Modifier.weight(1f).padding(horizontal=14.dp)) {Text("Deep Focus",fontSize=18.sp,fontWeight=FontWeight.Bold);Text("A quiet timer that stays with you.",fontSize=12.sp,color=Muted)}
-                Text("${state.timer.remaining/60}:${(state.timer.remaining%60).toString().padStart(2,'0')}",fontSize=20.sp,fontWeight=FontWeight.Bold,color=Peach)
-            }
+                Spacer(Modifier.height(20.dp));Box(Modifier.fillMaxWidth().height(54.dp).background(Aurora,RoundedCornerShape(18.dp)),contentAlignment=Alignment.Center){Text("CREATE WITH AI  →",color=Color.White,fontSize=13.sp,fontWeight=FontWeight.Black,letterSpacing=.7.sp)}
+            }}
         }}
+        item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+            listOf(Triple("$due","DUE",Lavender),Triple("$decks","DECKS",CosmicPink),Triple("\${state.focusSeconds/60}m","FOCUS",Lime)).forEach {(value,label,accent)->Surface(Modifier.weight(1f),color=Panel,shape=RoundedCornerShape(20.dp),border=BorderStroke(1.dp,accent.copy(alpha=.38f)),shadowElevation=10.dp){Column(Modifier.padding(vertical=15.dp),horizontalAlignment=Alignment.CenterHorizontally){Box(Modifier.size(7.dp).background(accent,CircleShape));Text(value,fontSize=20.sp,fontWeight=FontWeight.Black,modifier=Modifier.padding(top=7.dp));Text(label,fontSize=8.sp,letterSpacing=1.1.sp,color=Muted)}}}
+        }}
+        item {Surface(color=Panel,shape=RoundedCornerShape(26.dp),border=BorderStroke(1.dp,Hairline),shadowElevation=12.dp){Column(Modifier.padding(19.dp)){
+            Row(verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("MASTERY PULSE",fontSize=10.sp,letterSpacing=1.5.sp,color=Lavender,fontWeight=FontWeight.Black);Text("Your last 30 days",fontSize=18.sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(top=4.dp))};Pill(if(due==0) "CLEAR" else "$due DUE",if(due==0)Lime else Peach)}
+            MasteryHeatmap(state.cards.size,state.focusSeconds,Modifier.fillMaxWidth().height(92.dp).padding(top=17.dp));Text("Small repetitions compound into durable memory.",fontSize=11.sp,color=Muted,modifier=Modifier.padding(top=10.dp))
+        }}}
+        item {Section("Knowledge worlds","Tap a subject to begin")}
+        subjects.chunked(2).forEach {rowSubjects -> item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)){
+            rowSubjects.forEach {subject -> val accent=subjectAccent(subject);Card(onClick={onSubject(subject)},modifier=Modifier.weight(1f).height(142.dp),colors=CardDefaults.cardColors(containerColor=PanelElevated),shape=RoundedCornerShape(24.dp),border=BorderStroke(1.dp,accent.copy(alpha=.42f))){Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(accent.copy(alpha=.2f),Color.Transparent))).padding(17.dp)){Column{Box(Modifier.size(43.dp).background(accent.copy(.18f),RoundedCornerShape(14.dp)),contentAlignment=Alignment.Center){Icon(subjectIcon(subject),null,tint=accent)};Spacer(Modifier.weight(1f));Text(subject,fontSize=17.sp,fontWeight=FontWeight.Bold);Text("\${state.cards.count {it.subject==subject}} cards",fontSize=11.sp,color=Muted,modifier=Modifier.padding(top=3.dp))}}}}
+            if(rowSubjects.size==1) Spacer(Modifier.weight(1f))
+        }}}
+        item {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)){
+            DepthCard(onClick=onStudy,modifier=Modifier.weight(1f)){Icon(Icons.Rounded.AutoStories,null,tint=Lavender);Text("Library",fontSize=17.sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(top=14.dp));Text("Review what matters",fontSize=11.sp,color=Muted,modifier=Modifier.padding(top=4.dp))}
+            DepthCard(onClick=onFocus,modifier=Modifier.weight(1f)){Icon(Icons.Rounded.Timer,null,tint=Lime);Text("Deep Focus",fontSize=17.sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(top=14.dp));Text("%02d:%02d".format(state.timer.remaining/60,state.timer.remaining%60),fontSize=11.sp,color=Muted,modifier=Modifier.padding(top=4.dp))}
+        }}
+    }
+}
+
+@Composable private fun MasteryHeatmap(cardCount:Int,focusSeconds:Int,modifier:Modifier=Modifier) {
+    val seed=(cardCount*13+focusSeconds/60).coerceAtLeast(1)
+    Canvas(modifier) {
+        val columns=15;val gap=5.dp.toPx();val cell=(size.width-gap*(columns-1))/columns
+        repeat(30){index->val level=(index*7+seed)%5;val color=when(level){0->Color(0xFF20283A);1->Color(0xFF143E39);2->Color(0xFF116B55);3->Color(0xFF10B981);else->Color(0xFF6EE7B7)};val x=(index%columns)*(cell+gap);val y=(index/columns)*(cell+gap);drawRoundRect(color,Offset(x,y),androidx.compose.ui.geometry.Size(cell,cell),CornerRadius(4.dp.toPx()))}
     }
 }
 
@@ -312,7 +311,7 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {
     var search by rememberSaveable {mutableStateOf("")}
     var delete by rememberSaveable {mutableStateOf<String?>(null)}
     val decks=state.cards.groupBy {it.deck}.map {(title,cards)->DeckSummary(title,cards.first().subject,cards.size,cards.count {it.due<=System.currentTimeMillis()})}.filter {it.title.contains(search,true)||it.subject.contains(search,true)}
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=18.dp,top=18.dp,end=18.dp,bottom=40.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
+    LazyColumn(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Paper,Color(0xFF0A1120),Paper))),contentPadding=PaddingValues(start=18.dp,top=18.dp,end=18.dp,bottom=40.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
         item {PageHeader("Your library","Small decks. Lasting knowledge.")}
         item {Surface(color=Navy,shape=RoundedCornerShape(24.dp)) {Column(Modifier.padding(20.dp)) {Text("YOUR KNOWLEDGE HUB",fontSize=10.sp,letterSpacing=1.5.sp,color=Lavender);Text("A little today.\nA lot remembered.",fontSize=21.sp,lineHeight=27.sp,color=Color.White,fontWeight=FontWeight.SemiBold,modifier=Modifier.padding(vertical=14.dp));ActionButton("✨  Create with AI",onCreate)}}}
         item {OutlinedTextField(value=search,onValueChange={search=it},label={Text("Search your decks")},leadingIcon={Icon(Icons.Rounded.Search,null)},modifier=Modifier.fillMaxWidth(),singleLine=true,shape=RoundedCornerShape(16.dp))}
@@ -411,7 +410,7 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {
     var reveal by rememberSaveable {mutableStateOf(false)}
     val cards=state.cards.filter {it.deck==deck}
     val card=cards.firstOrNull {it.id !in reviewedIds}
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=18.dp,top=18.dp,end=18.dp,bottom=48.dp),verticalArrangement=Arrangement.spacedBy(24.dp)) {
+    LazyColumn(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Paper,Color(0xFF0A1120),Paper))),contentPadding=PaddingValues(start=18.dp,top=18.dp,end=18.dp,bottom=48.dp),verticalArrangement=Arrangement.spacedBy(24.dp)) {
         item {PageHeader("Study session",deck,onBack)}
         item {LinearProgressIndicator(progress={if(cards.isEmpty()) 1f else reviewedIds.size.toFloat()/cards.size},modifier=Modifier.fillMaxWidth(),color=Lime);Text("${reviewedIds.size} of ${cards.size} reviewed",color=Muted,modifier=Modifier.padding(top=10.dp))}
         if(card==null) item {Column(Modifier.fillMaxWidth().padding(vertical=50.dp),horizontalAlignment=Alignment.CenterHorizontally) {Icon(Icons.Rounded.CheckCircle,null,tint=Lime,modifier=Modifier.size(64.dp));Text("Session complete",fontSize=28.sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(vertical=18.dp));Text("Your review progress is saved.",color=Muted);Spacer(Modifier.height(28.dp));ActionButton("Back to library",onBack)}}
@@ -425,7 +424,7 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {
 @Composable private fun FocusScreen(state: StudyUiState,vm: StudyViewModel) {
     val timer=state.timer
     var reset by remember {mutableStateOf(false)}
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=18.dp,top=18.dp,end=18.dp,bottom=48.dp),verticalArrangement=Arrangement.spacedBy(26.dp),horizontalAlignment=Alignment.CenterHorizontally) {
+    LazyColumn(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Paper,Color(0xFF0A1120),Paper))),contentPadding=PaddingValues(start=18.dp,top=18.dp,end=18.dp,bottom=48.dp),verticalArrangement=Arrangement.spacedBy(26.dp),horizontalAlignment=Alignment.CenterHorizontally) {
         item {PageHeader("Find your focus","One task is enough for now.")}
         item {FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {listOf(10,25,50).forEach {minutes -> FilterChip(selected=timer.duration==minutes*60,onClick={if(timer.running||timer.paused) reset=true else vm.resetTimer(minutes)},label={Text("$minutes min")},enabled=!timer.running&&!timer.paused)}}}
         item {Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Navy,Color(0xFF17314A))),RoundedCornerShape(28.dp)).padding(22.dp),horizontalAlignment=Alignment.CenterHorizontally) {Text("FIND YOUR FLOW",color=Color(0xFFCAC2DF),fontSize=10.sp,letterSpacing=2.sp);Spacer(Modifier.height(20.dp));Box(Modifier.widthIn(max=245.dp).fillMaxWidth().aspectRatio(1f).padding(12.dp),contentAlignment=Alignment.Center) {
@@ -442,7 +441,7 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {
 }
 @Composable private fun AccountScreen(state: StudyUiState,signingIn: Boolean,onSignIn: () -> Unit,onSignOut: () -> Unit,onEdit: () -> Unit,onRetry: () -> Unit,onPremium: () -> Unit) {
     var logout by remember {mutableStateOf(false)}
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=18.dp,top=18.dp,end=18.dp,bottom=48.dp),verticalArrangement=Arrangement.spacedBy(22.dp)) {
+    LazyColumn(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Paper,Color(0xFF0A1120),Paper))),contentPadding=PaddingValues(start=18.dp,top=18.dp,end=18.dp,bottom=48.dp),verticalArrangement=Arrangement.spacedBy(22.dp)) {
         item {PageHeader("Your space","Profile, preferences and connection.")}
         item {Row(verticalAlignment=Alignment.CenterVertically) {Box(Modifier.size(64.dp).background(Lavender,CircleShape),contentAlignment=Alignment.Center){Text(state.profile.name.take(1).uppercase(),color=Paper,fontSize=26.sp,fontWeight=FontWeight.Bold)};Column(Modifier.weight(1f).padding(start=16.dp)){Text(state.profile.name,fontSize=23.sp,fontWeight=FontWeight.Bold);Text("${state.profile.classLevel} · ${state.profile.stream}",color=Muted)}}}
         item {OutlinedButton(onClick=onEdit,modifier=Modifier.fillMaxWidth()){Text("Edit study profile")}}
@@ -476,7 +475,7 @@ private fun subjectIcon(subject: String): ImageVector = when(subject) {
     }}
 }
 @Composable private fun PremiumScreen(onBack: ()->Unit) {
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(20.dp)) {
+    LazyColumn(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Paper,Color(0xFF0A1120),Paper))),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(20.dp)) {
         item {PageHeader("Choose your study path","Free practice now. More ways to learn ahead.",onBack)}
         item {Surface(color=Panel,shape=RoundedCornerShape(24.dp),border=BorderStroke(1.dp,Lime.copy(alpha=.5f))){Column(Modifier.padding(22.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){Pill("AVAILABLE NOW",Lime);Text("MindDeck Free",fontSize=26.sp,fontWeight=FontWeight.Bold);Text("₹0",fontSize=36.sp,fontWeight=FontWeight.Bold);listOf("Bundled chapter practice tests","Tests from suitable saved decks","Scores, explanations and local test history","Saved revision cards and focus timer","Google sign-in for online AI creation, subject to service availability").forEach {Text("✓  $it",fontSize=14.sp,lineHeight=22.sp,color=Ink)}}}}
         item {Surface(color=PanelElevated,shape=RoundedCornerShape(24.dp),border=BorderStroke(1.dp,Lavender.copy(alpha=.5f))){Column(Modifier.padding(22.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){Pill("PLANNED · NOT AVAILABLE YET",Lavender);Text("MindDeck Plus",fontSize=28.sp,fontWeight=FontWeight.Bold);Text("For a more personal preparation plan.",color=Muted,fontSize=14.sp);listOf("Higher AI card and test generation limits","Full-length timed mock exams","Chapter and topic performance analysis","A personal study plan and revision reminders","PDF and document-based practice","Cloud backup across your devices").forEach {Text("✦  $it",fontSize=14.sp,lineHeight=22.sp)};HorizontalDivider(color=Hairline);Text("These premium features are proposed. Pricing and subscription billing have not been enabled.",color=Muted,fontSize=13.sp,lineHeight=20.sp)}}}
