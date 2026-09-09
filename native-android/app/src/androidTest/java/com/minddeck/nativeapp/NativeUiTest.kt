@@ -54,7 +54,7 @@ class NativeUiTest {
     @Test fun freeTestCanBeSubmittedAndResultsSurviveRecreation() {
         openTests()
         repeat(5) {i->
-            compose.onNodeWithTag("answer-option-0").performScrollTo().performClick()
+            compose.onNodeWithTag("answer-option-0").performClick()
             compose.onNodeWithText(if(i==4) "Submit test" else "Next").performScrollTo().performClick()
         }
         compose.onNodeWithText("Submit").performClick()
@@ -65,7 +65,7 @@ class NativeUiTest {
     }
     @Test fun unfinishedTestRestoresAnswersAndQuestion() {
         openTests()
-        compose.onNodeWithTag("answer-option-0").performScrollTo().performClick()
+        compose.onNodeWithTag("answer-option-0").performClick()
         compose.onNodeWithText("Next").performScrollTo().performClick()
         compose.activityRule.scenario.recreate()
         compose.waitUntil(5000) {compose.onAllNodesWithText("2 / 5").fetchSemanticsNodes().isNotEmpty()}
