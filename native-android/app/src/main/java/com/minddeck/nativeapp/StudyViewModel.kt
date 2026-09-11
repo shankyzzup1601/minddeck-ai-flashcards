@@ -87,7 +87,7 @@ class StudyViewModel(application: Application): AndroidViewModel(application) {
     private fun markCloudDirty() { mutable.value.user?.let { prefs.edit().putBoolean(dirtyKey(it.id),true).apply() } }
     private suspend fun pushCloud(session: UserSession) {
         val cards=withContext(Dispatchers.IO) { store.cards(session.id) }
-        api.request(JSONObject().put("action","pushDeck").put("deck",cloudDeck(cards)),session.accessToken)
+        authenticatedRequest(JSONObject().put("action","pushDeck").put("deck",cloudDeck(cards)))
         prefs.edit().putBoolean(dirtyKey(session.id),false).apply()
         mutable.update { it.copy(cloudReady=true) }
     }
@@ -97,7 +97,7 @@ class StudyViewModel(application: Application): AndroidViewModel(application) {
             val local=withContext(Dispatchers.IO) { store.cards(session.id) }
             if(prefs.getBoolean(dirtyKey(session.id),false)) pushCloud(session)
             else {
-                val remote=cloudCards(api.request(JSONObject().put("action","pullDeck"),session.accessToken))
+                val remote=cloudCards(authenticatedRequest(JSONObject().put("action","pullDeck")))
                 if(remote.isEmpty() && local.isNotEmpty()) pushCloud(session)
                 else {
                     withContext(Dispatchers.IO) { store.replaceCards(session.id,remote) }
