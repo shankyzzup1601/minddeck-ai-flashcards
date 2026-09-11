@@ -1,0 +1,76 @@
+name: Deliver signed native test APK
+on:
+  workflow_dispatch:
+  push:
+    branches: ['native/android-v1']
+    paths: ['.github/workflows/deliver-native-test.yml']
+permissions:
+  contents: write
+  actions: read
+jobs:
+  deliver:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Require passing UI validation
+        run: |
+          gh run watch 34247458210 --exit-status --interval 30
+          gh api repos/$GH_REPO/actions/runs/34247458210 > validation.json
+          python3 - <<'PY'
+          import json
+          r=json.load(open('validation.json'))
+          assert r['conclusion']=='success'
+          assert r['head_sha']=='4e0d4fb2b4dff84f7f0198eef1c99f8c85e61de7'
+          PY
+      - name: Verify source build
+        run: |
+          gh api repos/$GH_REPO/actions/runs/34247458443 > source-run.json
+          python3 - <<'PY'
+          import json
+          r=json.load(open('source-run.json'))
+          assert r['conclusion']=='success'
+          assert r['head_sha']=='4e0d4fb2b4dff84f7f0198eef1c99f8c85e61de7'
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: MindDeck-Native-signed-candidate
+          run-id: 34247458443
+          github-token: ${{ github.token }}
+      - name: Verify APK checksum and recorded certificate
+        run: |
+          sha256sum --check MindDeck-Native.apk.sha256
+          test -s MindDeck-Native.apk
+          grep -qi 'Signer #1 certificate SHA-1 digest: 43599f2f20e3edfb30a253d1aa92d61ba96f5341' native-signer.txt
+          unzip -t MindDeck-Native.apk
+      - name: Verify release contains the tested app source
+        run: |
+          gh api "repos/$GH_REPO/compare/4e0d4fb2b4dff84f7f0198eef1c99f8c85e61de7...$GITHUB_SHA" > comparison.json
+          python3 - <<'PY'
+          import json
+          r=json.load(open('comparison.json'))
+          assert r['status'] in ('ahead', 'identical')
+          assert all(f['filename']=='.github/workflows/deliver-native-test.yml' for f in r['files'])
+          PY
+      - name: Deliver test download
+        run: |
+          cat > release-notes.md <<'EOF'
+          Signed native Android test build for installation and end-to-end verification.
+          APK source: 4e0d4fb2b4dff84f7f0198eef1c99f8c85e61de7. The release tag includes delivery-workflow changes only.
+          
+          Includes compact dark dismissible notifications, shorter save messages, tighter library spacing and clearer account/timer text. All five automated device-test rounds passed for this exact UI revision.
+          
+          A user recording showed successful generation in an earlier installed build. Live sign-in and generation have not been independently verified in this updated APK. Backend source fixes also require separate deployment verification. This is not a production-ready release and does not replace the landing-page download.
+          
+          Download MindDeck-Native.apk directly below. Do not uninstall an existing app or delete saved study data to resolve installation errors; report the error instead.
+          EOF
+          gh release create minddeck-native-test-ui1 MindDeck-Native.apk MindDeck-Native.apk.sha256 --target "$GITHUB_SHA" --prerelease --latest=false --title "MindDeck Native — test APK" --notes-file release-notes.md
+      - name: Verify published download
+        run: |
+          mkdir downloaded-release
+          gh release download minddeck-native-test-ui1 --pattern 'MindDeck-Native.apk*' --dir downloaded-release
+          cmp MindDeck-Native.apk.sha256 downloaded-release/MindDeck-Native.apk.sha256
+          cd downloaded-release
+          sha256sum --check MindDeck-Native.apk.sha256

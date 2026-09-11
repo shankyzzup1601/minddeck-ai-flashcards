@@ -1,0 +1,85 @@
+name: Native Android validation (no publication)
+on:
+  push:
+    branches: ['native/android-v1']
+    paths: ['native-android/**', 'api/minddeck-native.mjs', 'tests/native-backend.test.mjs', '.github/workflows/native-android-validation.yml']
+  workflow_dispatch:
+concurrency:
+  group: native-validation-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+          cache-read-only: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install --ignore-scripts && node --test tests/native-backend.test.mjs
+      - run: gradle -p native-android --no-daemon assembleDebug assembleDebugAndroidTest testDebugUnitTest lintDebug
+      - name: Package unsigned Preview release for controlled signing
+        run: |
+          gradle -p native-android --no-daemon assembleRelease -PminddeckApiBaseUrl=https://minddeck-ai-flashcards-git-native-android-v1-shankyzzup1601.vercel.app/api/minddeck-native
+          mkdir -p native-preview-package
+          cp native-android/app/build/outputs/apk/release/app-release-unsigned.apk native-preview-package/
+          cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" native-preview-package/
+          cp "$ANDROID_HOME/build-tools/35.0.0/zipalign" native-preview-package/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-preview-unsigned-tools
+          path: native-preview-package/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-validation-reports
+          path: native-android/app/build/reports/
+  rough-situations:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        round: [1, 2, 3, 4, 5]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+          cache-read-only: false
+      - name: Enable KVM for test emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: bash native-android/run-device-tests.sh '${{ matrix.round }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-round-${{ matrix.round }}-reports
+          path: native-android/app/build/reports/
+# No release, APK upload, website update, or download-link replacement occurs here.
+# These synthetic rounds do not replace manual Google/AI and signed-upgrade tests.
