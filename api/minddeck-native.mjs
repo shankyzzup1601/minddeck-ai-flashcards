@@ -26,9 +26,9 @@ async function upstream(url,options,timeout=12000) {
   let data; try { data=JSON.parse(text); } catch { data={}; }
   return {response,data};
 }
-async function supabase(path,{token,body,method='POST'}={}) {
+async function supabase(path,{token,body,method='POST',prefer}={}) {
   const {url,key}=settings();
-  return upstream(`${url}${path}`,{method,headers:{apikey:key,Authorization:`Bearer ${token||key}`,'Content-Type':'application/json'},...(body ? {body:JSON.stringify(body)} : {})});
+  return upstream(`${url}${path}`,{method,headers:{apikey:key,Authorization:`Bearer ${token||key}`,'Content-Type':'application/json',...(prefer?{Prefer:prefer}:{})},...(body ? {body:JSON.stringify(body)} : {})});
 }
 async function geminiGenerate(key,prompt) {
   const listed=await upstream('https://generativelanguage.googleapis.com/v1beta/models?pageSize=100',{method:'GET',headers:{'x-goog-api-key':key}},10000);
@@ -81,9 +81,44 @@ async function identity(request) {
 function requestBody(request) {
   let body=request.body;
   if(Buffer.isBuffer(body)) body=body.toString('utf8');
-  if(typeof body==='string') { if(body.length>30000) throw new Failure(413,'Request too large.'); try {body=JSON.parse(body);} catch {throw new Failure(400,'Invalid request.');} }
-  if(!body||typeof body!=='object'||Array.isArray(body)||JSON.stringify(body).length>30000) throw new Failure(400,'Invalid request.');
+  if(typeof body==='string') { if(body.length>280000) throw new Failure(413,'Request too large.'); try {body=JSON.parse(body);} catch {throw new Failure(400,'Invalid request.');} }
+  if(!body||typeof body!=='object'||Array.isArray(body)||JSON.stringify(body).length>280000) throw new Failure(400,'Invalid request.');
   return body;
+}
+
+function safeDeck(value) {
+  if(!value || typeof value!=='object' || Array.isArray(value)) throw new Failure(400,'Invalid deck backup.');
+  if(!Array.isArray(value.cards) || value.cards.length>2000) throw new Failure(400,'Invalid deck backup.');
+  const cards=value.cards.map(card=>{
+    if(!bounded(card?.id,1,100)||!bounded(card?.deck,1,120)||!bounded(card?.subject,1,60)||
+       !bounded(card?.front,1,1000)||!bounded(card?.back,1,3000)) throw new Failure(400,'Invalid card in deck backup.');
+    const due=Number.isFinite(card.due)?Math.max(0,Math.trunc(card.due)):0;
+    const interval=Number.isFinite(card.interval)?Math.max(0,Math.min(3650,Math.trunc(card.interval))):0;
+    const reviews=Number.isFinite(card.reviews)?Math.max(0,Math.min(100000,Math.trunc(card.reviews))):0;
+    return {id:card.id,deck:card.deck,subject:card.subject,front:card.front,back:card.back,due,interval,reviews};
+  });
+  const deck={version:4,cards,updatedAt:Date.now()};
+  if(JSON.stringify(deck).length>250000) throw new Failure(413,'Your cloud library is too large for one backup.');
+  return deck;
+}
+
+async function pullDeck(user) {
+  const result=await supabase(`/rest/v1/minddeck_decks?select=deck,updated_at&user_id=eq.${encodeURIComponent(user.id)}&limit=1`,{token:user.token,method:'GET'});
+  if(!result.response.ok) throw new Failure(503,'Supabase could not load your library. Your offline cards are safe.');
+  const row=Array.isArray(result.data)?result.data[0]:null;
+  return {deck:row?.deck||{version:4,cards:[],updatedAt:0},updatedAt:row?.updated_at||null};
+}
+
+async function pushDeck(body,user) {
+  const deck=safeDeck(body.deck);
+  const result=await supabase('/rest/v1/minddeck_decks?on_conflict=user_id',{
+    token:user.token,
+    body:{user_id:user.id,deck,updated_at:new Date().toISOString()},
+    method:'POST',
+    prefer:'resolution=merge-duplicates,return=minimal'
+  });
+  if(!result.response.ok) throw new Failure(503,'Supabase could not save your library. Your offline cards are safe.');
+  return {ok:true,updatedAt:deck.updatedAt};
 }
 async function generate(body,user) {
   if(!SUBJECTS.has(body.subject)||!['Class 11','Class 12'].includes(body.classLevel)) throw new Failure(400,'Choose a valid class and subject.');
@@ -156,6 +191,8 @@ async function handleRequest(request,response) {
       await supabase('/auth/v1/logout?scope=local',{token:user.token,body:{}});
       return response.status(200).json({ok:true});
     }
+    if(body.action==='pullDeck') return response.status(200).json(await pullDeck(user));
+    if(body.action==='pushDeck') return response.status(200).json(await pushDeck(body,user));
     if(body.action==='generate') return response.status(200).json(await generate(body,user));
     throw new Failure(400,'Unknown action.');
   } catch(e) {
