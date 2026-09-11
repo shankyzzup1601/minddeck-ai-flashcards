@@ -65,6 +65,18 @@ class StudyStore(context: Context): SQLiteOpenHelper(context, "minddeck-native.d
             db.setTransactionSuccessful()
         } finally { db.endTransaction() }
     }
+    fun replaceCards(owner: String, cards: List<StudyCard>) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            db.delete("cards", "owner=?", arrayOf(owner))
+            cards.forEach { card ->
+                val values = ContentValues().apply { put("id",card.id);put("owner",owner);put("deck",card.deck);put("subject",card.subject);put("front",card.front);put("back",card.back);put("due",card.due);put("interval",card.interval);put("reviews",card.reviews) }
+                check(db.insertWithOnConflict("cards", null, values, SQLiteDatabase.CONFLICT_REPLACE) != -1L)
+            }
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
+    }
     fun deleteDeck(owner: String, title: String) { writableDatabase.delete("cards", "owner=? AND deck=?", arrayOf(owner,title)) }
     fun finishFocus(owner: String, id: String, seconds: Int, now: Long) {
         if(id.isBlank()) return
