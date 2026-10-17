@@ -12,7 +12,7 @@ jobs:
   apply:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Inject mobile polish stylesheet into existing CSP-nonced style block
         run: |
           python - <<'PY'
